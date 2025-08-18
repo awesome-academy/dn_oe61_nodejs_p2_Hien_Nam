@@ -26,6 +26,8 @@
     "dev:all": "concurrently -n gateway,auth,notification,product,user -c blue,green,yellow,magenta,cyan \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:notification\" \"npm run dev:product\" \"nest start user-service --watch\""
   },
   "dependencies": {
+    "@nestjs-modules/mailer": "^2.0.2",
+    "@nestjs/bull": "^11.0.3",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
