@@ -25,6 +25,9 @@ TestResults.xml
 # dist code
 /dist
 # Environment variables file
-.env
+**/.env
 # package json
 /package.json
+
+**/generated/prisma
+**/generated/prisma/migrations
