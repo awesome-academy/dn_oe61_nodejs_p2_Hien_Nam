@@ -1,7 +1,7 @@
 import { ValidationError } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
-import { RpcError } from '../interfaces/rpc-exception';
 import { HTTP_ERROR_CODE } from '../enums/errors/http-error-code';
+import { RpcError } from '../interfaces/rpc-exception';
 
 export async function formatValidationErrors(
   errors: ValidationError[],

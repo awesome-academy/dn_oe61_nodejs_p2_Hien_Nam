@@ -4,14 +4,12 @@ CREATE TABLE `users` (
     `name` VARCHAR(50) NOT NULL,
     `userName` VARCHAR(50) NOT NULL,
     `imageUrl` VARCHAR(255) NULL,
-    `email` VARCHAR(50) NOT NULL,
-    `password` VARCHAR(255) NOT NULL,
-    `provider` ENUM('LOCAL', 'FACEBOOK', 'GOOGLE', 'TWITTER') NOT NULL DEFAULT 'LOCAL',
+    `email` VARCHAR(50) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
     `roleId` INTEGER NOT NULL,
 
-    UNIQUE INDEX `users_roleId_key`(`roleId`),
+    UNIQUE INDEX `users_email_key`(`email`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -26,6 +24,20 @@ CREATE TABLE `user_profiles` (
     `userId` INTEGER NOT NULL,
 
     UNIQUE INDEX `user_profiles_userId_key`(`userId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `auth_providers` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `userId` INTEGER NOT NULL,
+    `provider` ENUM('LOCAL', 'FACEBOOK', 'GOOGLE', 'TWITTER') NOT NULL DEFAULT 'LOCAL',
+    `providerId` VARCHAR(255) NULL,
+    `password` VARCHAR(255) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NULL,
+
+    UNIQUE INDEX `auth_providers_providerId_key`(`providerId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -45,3 +57,6 @@ ALTER TABLE `users` ADD CONSTRAINT `users_roleId_fkey` FOREIGN KEY (`roleId`) RE
 
 -- AddForeignKey
 ALTER TABLE `user_profiles` ADD CONSTRAINT `user_profiles_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `auth_providers` ADD CONSTRAINT `auth_providers_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

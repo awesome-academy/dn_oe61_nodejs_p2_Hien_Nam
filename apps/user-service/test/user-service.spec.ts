@@ -35,7 +35,6 @@ describe('UserService', () => {
     service = moduleRef.get<UserService>(UserService);
     jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue();
   });
-
   it('should throw validation error if dto is invalid', async () => {
     const invalidDto: UserByEmailRequest = { email: 'invalid-email' } as UserByEmailRequest;
     const rpcError = {

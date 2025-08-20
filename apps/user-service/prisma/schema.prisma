@@ -24,7 +24,7 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
-  roleId Int  @unique
+  roleId Int
   role   Role @relation(fields: [roleId], references: [id])
 
   profile       UserProfile?

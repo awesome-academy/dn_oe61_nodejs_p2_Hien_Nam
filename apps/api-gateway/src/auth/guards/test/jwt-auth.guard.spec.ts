@@ -30,6 +30,7 @@ describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
   let reflector: Reflector;
   let clientProxy: jest.Mocked<ClientProxy>;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let i18n: I18nService;
 
   beforeEach(async () => {
@@ -56,42 +57,42 @@ describe('JwtAuthGuard', () => {
 
   describe('canActivate', () => {
     it('should allow public route', async () => {
+      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of({}));
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
       const ctx = createExecutionContext({});
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(clientProxy.send).not.toHaveBeenCalled();
+      expect(sendSpy).not.toHaveBeenCalled();
     });
 
     it('should validate token from Authorization header', async () => {
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      clientProxy.send.mockReturnValue(of(mockedUser));
+      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
       const ctx = createExecutionContext({ headers: { authorization: 'Bearer abc' } });
-
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(clientProxy.send).toHaveBeenCalledWith({ cmd: 'validate_user' }, { token: 'abc' });
+      expect(sendSpy).toHaveBeenCalledWith({ cmd: 'validate_user' }, { token: 'abc' });
     });
 
     it('should validate token from token header', async () => {
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      clientProxy.send.mockReturnValue(of(mockedUser));
+      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
       const ctx = createExecutionContext({ headers: { token: 'xyz' } });
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(clientProxy.send).toHaveBeenCalledWith(expect.anything(), { token: 'xyz' });
+      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'xyz' });
     });
 
     it('should validate token from cookie', async () => {
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      clientProxy.send.mockReturnValue(of(mockedUser));
+      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
       const ctx = createExecutionContext({ cookies: { token: 'cookieToken' }, headers: {} });
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(clientProxy.send).toHaveBeenCalledWith(expect.anything(), { token: 'cookieToken' });
+      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'cookieToken' });
     });
 
     it('should prioritize Authorization header over other sources', async () => {
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      clientProxy.send.mockReturnValue(of(mockedUser));
+      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
       const request: TestRequestJWT = {
         headers: { authorization: 'Bearer primary', token: 'secondary' },
         cookies: { token: 'cookie' },
@@ -99,19 +100,19 @@ describe('JwtAuthGuard', () => {
       const ctx = createExecutionContext(request);
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(clientProxy.send).toHaveBeenCalledWith(expect.anything(), { token: 'primary' });
+      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'primary' });
       expect(request.user).toEqual(mockedUser);
     });
 
     it('should fallback to token header when Authorization is non-Bearer', async () => {
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      clientProxy.send.mockReturnValue(of(mockedUser));
+      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
       const ctx = createExecutionContext({
         headers: { authorization: 'Basic abc', token: 'fallback' },
       });
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(clientProxy.send).toHaveBeenCalledWith(expect.anything(), { token: 'fallback' });
+      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'fallback' });
     });
 
     it('should throw when Bearer token is empty', async () => {

@@ -1,4 +1,5 @@
 import { AuthMsgPattern } from '@app/common';
+import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { AUTH_SERVICE } from '@app/common/constant/service.constant';
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { LoginResponse } from '@app/common/dto/auth/responses/login.response';
@@ -20,8 +21,8 @@ export class AuthService {
       AUTH_SERVICE,
       this.loggerService,
       {
-        timeoutMs: 2000,
-        retries: 2,
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
       },
     );
   }
