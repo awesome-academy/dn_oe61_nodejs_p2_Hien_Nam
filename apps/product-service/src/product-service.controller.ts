@@ -1,4 +1,4 @@
-import { Controller } from '@nestjs/common';
+import { Controller, UsePipes } from '@nestjs/common';
 import { ProductService } from './product-service.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
@@ -20,6 +20,8 @@ import { AddProductCartRequest } from '@app/common/dto/product/requests/add-prod
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
+import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
+import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
 
 @Controller()
 export class ProductServiceController {
@@ -108,5 +110,10 @@ export class ProductServiceController {
     @Payload() payLoad: DeleteProductCartRequest,
   ): Promise<BaseResponse<CartSummaryResponse>> {
     return await this.productService.deleteProductCart(payLoad);
+  }
+  @UsePipes(I18nRpcValidationPipe)
+  @MessagePattern(ProductPattern.GET_CAR)
+  async getCart(@Payload() payLoad: GetCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
+    return await this.productService.getCart(payLoad);
   }
 }

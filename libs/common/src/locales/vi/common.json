@@ -12,7 +12,8 @@
     "isNumber": "{field} phải là số",
     "isInt": "{field} phải là số nguyên",
     "isDateString": "{field} phải là chuỗi ngày ISO hợp lệ",
-    "isUrl": "{field} phải là URL hợp lệ"
+    "isUrl": "{field} phải là URL hợp lệ",
+    "arrayNotEmpty":"{field} không được để trống"
   },
   "product": {
     "invalidCredentials": "Thông tin sản phẩm không chính xác",
@@ -101,8 +102,12 @@
       "deleteProductCart":{
         "success":"Xoá sản phẩm khỏi giỏ hàng thành công",
         "failed":"Xoá sản phẩm khỏi giỏ hàng thất bại, vui lòng thử lại"
+      },
+      "getCart":{
+        "success":"Lấy thông tin giỏ hàng thành công",
+        "failed":"Lấy thông tin giỏ hàng thất bại"
       }
-    }
+    }    
   },
   "file": {
     "validation": {

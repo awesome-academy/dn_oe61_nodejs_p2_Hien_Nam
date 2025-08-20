@@ -476,7 +476,9 @@ describe('UserService', () => {
         {} as unknown as Observable<BaseResponse<SoftDeleteUserResponse>>,
       );
       (callMicroserviceHelper as jest.Mock).mockResolvedValue(microserviceResponse);
+
       const result = await service.delete(request);
+
       expect(clientProxySpy).toHaveBeenCalled();
       expect(callMicroserviceHelper).toHaveBeenCalled();
       expect(result).toEqual(microserviceResponse);
