@@ -1,1 +1,1 @@
-export * from './enums/msg-pattern';
+export * from './enums/message-patterns/auth.pattern';
