@@ -2,11 +2,11 @@ import { Job, JobOptions, Queue } from 'bull';
 import {
   ATTEMPTS_DEFAULT,
   BACKOFF_TYPE_DEFAULT,
-  NON_RETRY_ABLE_RRORS,
+  NON_RETRY_ABLE_ERRORS,
 } from '../constant/queue.constant';
 import { DELAY_RETRY_DEFAULT } from '../constant/rpc.constants';
 import { LoggerService } from '@nestjs/common';
-import { isRpcError } from '../utils/error.util';
+import { isRpcError, parseRpcError } from '../utils/error.util';
 import { TypedRpcException } from '../exceptions/rpc-exceptions';
 
 export async function addJobWithRetry<T>(
@@ -33,16 +33,17 @@ export async function handleJobError(
   context: string,
 ): Promise<void> {
   if (isRpcError(error)) {
-    if (NON_RETRY_ABLE_RRORS.includes(error.code)) {
+    const rpcError = parseRpcError(error) ?? error;
+    if (NON_RETRY_ABLE_ERRORS.includes(rpcError.code)) {
       logger.error(
         `[${context}]`,
-        `Details:: Error by [${NON_RETRY_ABLE_RRORS.join(', ')}] - discard job`,
+        `Details:: Error by [${NON_RETRY_ABLE_ERRORS.join(', ')}] - discard job`,
       );
       await job.discard();
       return;
     }
-    logger.error(`[${context}]`, `Details:: ${JSON.stringify(error)}`);
-    throw new TypedRpcException(error);
+    logger.error(`[${context}]`, `Details:: ${JSON.stringify(rpcError)}`);
+    throw new TypedRpcException(rpcError);
   }
   logger.error(
     `[${context} - Server error]`,

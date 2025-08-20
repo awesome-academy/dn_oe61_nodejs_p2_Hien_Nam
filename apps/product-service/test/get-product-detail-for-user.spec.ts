@@ -10,6 +10,10 @@ import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { Decimal } from '@prisma/client/runtime/library';
 import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 // Mock class-validator and class-transformer
 jest.mock('class-validator', () => {
@@ -31,6 +35,20 @@ jest.mock('class-transformer', () => {
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
 
+const mockConfigService = {
+  get: jest.fn(),
+};
+const mockNotificationClient = {
+  emit: jest.fn(),
+};
+
+const mockI18nService = {
+  translate: jest.fn(),
+};
+
+const mockProductProducer = {
+  addJobRetryPayment: jest.fn(),
+};
 // Type definitions for mock data
 interface MockProductImage {
   id: number;
@@ -234,6 +252,22 @@ describe('ProductService - getProductDetailForUser', () => {
           useValue: {
             queryWithPagination: jest.fn(),
           },
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

@@ -10,6 +10,10 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 // Mock class-validator
 jest.mock('class-validator', () => {
@@ -31,7 +35,20 @@ jest.mock('class-transformer', () => {
 
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
+const mockConfigService = {
+  get: jest.fn(),
+};
+const mockNotificationClient = {
+  emit: jest.fn(),
+};
 
+const mockI18nService = {
+  translate: jest.fn(),
+};
+
+const mockProductProducer = {
+  addJobRetryPayment: jest.fn(),
+};
 describe('ProductService - getAll', () => {
   let service: ProductService;
   let moduleRef: TestingModule;
@@ -93,6 +110,22 @@ describe('ProductService - getAll', () => {
         {
           provide: PaginationService,
           useValue: mockPaginationService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

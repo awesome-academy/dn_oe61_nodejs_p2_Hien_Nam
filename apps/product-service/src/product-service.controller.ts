@@ -37,6 +37,12 @@ import {
   ReviewResponse,
 } from '@app/common/dto/product/response/review-response.dto';
 import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
+import { OrderRequest } from '@app/common/dto/product/requests/order-request';
+import {
+  OrderResponse,
+  PaymentInfoResponse,
+} from '@app/common/dto/product/response/order-response';
+import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
 
 @Controller()
 export class ProductServiceController {
@@ -165,5 +171,17 @@ export class ProductServiceController {
   @MessagePattern(ProductPattern.DELETE_REVIEW)
   async deleteReview(@Payload() deleteReviewData: DeleteReviewDto): Promise<DeleteReviewResponse> {
     return await this.productService.deleteReview(deleteReviewData);
+  }
+  @UsePipes(I18nRpcValidationPipe)
+  @MessagePattern(ProductPattern.CREATE_ORDER)
+  async createOrder(@Payload() payLoad: OrderRequest): Promise<BaseResponse<OrderResponse>> {
+    return await this.productService.createOrder(payLoad);
+  }
+  @UsePipes(I18nRpcValidationPipe)
+  @MessagePattern(ProductPattern.RETRY_PAYMENT)
+  async retryPayment(
+    @Payload() payLoad: RetryPaymentRequest,
+  ): Promise<BaseResponse<PaymentInfoResponse>> {
+    return await this.productService.retryPayment(payLoad);
   }
 }

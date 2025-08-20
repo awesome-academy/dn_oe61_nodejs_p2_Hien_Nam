@@ -122,6 +122,49 @@
       }
     }    
   },
+  "order":{
+    "notFound":"Không tìm thấy đơn hàng",
+    "action":{
+      "create":{
+        "success":"Tạo đơn hàng thành công",
+        "failed":"Tạo đơn hàng thất bại, vui lòng thử lại"
+      }
+    },
+    "notification":{
+      "chatwork":{
+        "header": "[info][title]{title}[/title]",
+        "body": "Mã đơn hàng: {orderId}\nUser: {userName}\nPhương thức thanh toán: {paymentMethod}\nTổng số tiền: {total}",
+        "footer": "Trạng thái thanh toán: {paymentStatus}\nNgày đặt hàng: {createdAt}\n[Xem đơn hàng]({orderLink})[/info]"
+      },
+      "email":{
+        "subject": "Đơn hàng mới - Mã: {orderId}",
+        "intro": "Xin chào Admin [{adminName}], có một đơn hàng mới vừa được tạo:",
+        "labels": {
+          "orderId": "Mã đơn hàng",
+          "user": "Người đặt",
+          "paymentMethod": "Phương thức thanh toán",
+          "totalPrice": "Tổng tiền",
+          "paymentStatus": "Trạng thái thanh toán",
+          "createdAt": "Thời gian tạo",
+          "viewOrder": "Xem đơn hàng"
+        }
+      },
+      "action":{
+        "createOrder":{
+          "success":"Tạo đơn hàng thành công",
+          "failed":"Tạo đơn hàng thất bại, vui lòng thử lại"
+        }
+      }
+    }
+  },
+  "payment":{
+    "action":{
+      "retryPayment":{
+        "success":"Tạo thông tin thanh toán thành công",
+        "failed":"Thử lại tạo thông tin thanh toán thất bại"
+      }
+    }
+  },
   "file": {
     "validation": {
       "unsupportedType": "Loại file không được hỗ trợ. Chỉ cho phép JPG, JPEG, PNG, WEBP. Nhận được: {fileType}",
@@ -465,6 +508,94 @@
         "productNotFound": "Không tìm thấy sản phẩm",
         "reviewNotFound": "Không tìm thấy đánh giá hoặc bạn không có quyền xóa"
       }
+    }
+  },
+  "guard": {
+    "token_missing": "Token không tồn tại",
+    "invalid_or_expired_token": "Token không hợp lệ hoặc đã hết hạn",
+    "forbidden": "Bạn không có quyền truy cập",
+    "unauthorized": "Bạn không có quyền truy cập"
+  },
+  "user":{
+    "notFound":"Không tìm thấy người dùng",
+    "phoneNumberExist":"Số điện thoại đã tồn tại",
+    "emailExist":"Email đã tồn tại",
+    "someUserNotExist":"Một số người dùng không tồn tại. UserIds: [{missingIds}]"
+  },
+  "adminuser":{
+    "action":{
+      "create":{
+        "success":"Tạo tài khoản thành công",
+        "error":"Tạo tài khoản thất bại, vui lòng thử lại sau"
+      },
+      "updateRoles":{
+        "success":"Cập nhật vai trò thành công",
+        "failed":"Cập nhật vai trò thất bại, vui lòng thử lại sau"
+      },
+      "updateStatuses":{
+        "success":"Cập nhật trạng thái thành công",
+        "failed":"Cập nhật trạng thái thất bại, vui lòng thử lại sau",
+        "unchanged":"Không có trạng thái nào được thay đổi"
+      },
+      "delete":{
+        "success":"Xóa tài khoản thành công",
+        "failed":"Xóa tài khoản thất bại, vui lòng thử lại sau",
+        "unChanged":"Không có tài khoản nào được xóa"
+      }
+    }
+  },
+  "date":{
+    "expiredTime":"Hết hạn",
+    "remainingPayment": "Còn ${hours} giờ ${minutes} phút",
+    "remainingMinutesPayment":"Còn ${minutes} phút"
+  },
+  "errors": {
+    "internalServerError": "Lỗi máy chủ",
+    "serviceUnavailable": "Dịch vụ không khả dụng",
+    "uniqueConstraint": "Vi phạm ràng buộc duy nhất",
+    "foreignKeyConstraint": "Vi phạm ràng buộc khóa ngoại",
+    "recordNotFound": "Mã số không tìm thấy",
+    "invalidInput": "Dữ liệu không hợp lệ",
+    "dbSchema": "Lỗi lược đồ cơ sở dữ liệu",
+    "unexpectedDbError": "Lỗi cơ sở dữ liệu không mong đợi",
+    "unauthorized": "Bạn không có quyền truy cập",
+    "validationError": "Lỗi xác thực dữ liệu",
+    "createUser": {
+      "error": "Tạo người dùng thất bại",
+      "roleNotFound": "Role không tồn tại",
+      "exists": "User đã tồn tại",
+      "missingFields": "Thiếu thông tin người dùng"
+    },
+    "signToken": {
+      "error": "Lỗi khi tạo token"
+    },
+    "checkUserExists": {
+      "error": "Lỗi khi kiểm tra user"
+    },
+    "twitter": {
+      "invalidConfig": "Cấu hình không hợp lệ",
+      "error": "Lỗi khi xác thực user"
+    },
+    "login": {
+      "success": "Đăng nhập thành công"
+    },
+    "registerUser": {
+      "userExists": "Người dùng đã tồn tại",
+      "error": "Đăng ký người dùng không thành công",
+      "notToken": "Không tìm thấy token",
+      "userNotFound": "Yêu cầu nhập thông tin"
+    },
+    "changeIsActive": {
+      "invalidPayload": "Dữ liệu không hợp lệ",
+      "alreadyActive": "Tài khoản đã được kích hoạt"
+    },
+    "sendEmailComplete": {
+      "dataNotFound": "Dữ liệu không hợp lệ"
+    },
+    "invalidTypeImage":"Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
+    "invalidSizeImage":"Kích thước hình ảnh phải nhỏ hơn {maxImageSizeMB} MB",
+    "cloudinary": {
+      "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
     }
   }
 }

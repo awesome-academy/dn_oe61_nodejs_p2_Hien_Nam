@@ -1,12 +1,12 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ProductService } from '../src/product-service.service';
-import { PrismaService } from '@app/prisma';
-import { PaginationService } from '@app/common/shared/pagination.shared';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
-import { ProductStatus } from '../generated/prisma';
-import { Decimal } from '@prisma/client/runtime/library';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 import { ProductWithIncludes } from '@app/common/types/product.type';
+import { PrismaService } from '@app/prisma';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Decimal } from '@prisma/client/runtime/library';
+import { ProductStatus } from '../generated/prisma';
+import { ProductService } from '../src/product-service.service';
 
 // Mock nestjs-i18n
 jest.mock('nestjs-i18n', () => ({
@@ -38,12 +38,29 @@ jest.mock('class-validator', () => ({
   Max: () => () => {},
 }));
 
-import { validateOrReject } from 'class-validator';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
+import { validateOrReject } from 'class-validator';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
+const mockConfigService = {
+  get: jest.fn(),
+};
+const mockNotificationClient = {
+  emit: jest.fn(),
+};
 
+const mockI18nService = {
+  translate: jest.fn(),
+};
+
+const mockProductProducer = {
+  addJobRetryPayment: jest.fn(),
+};
 describe('ProductService - listProductsForUser', () => {
   let service: ProductService;
 
@@ -60,28 +77,28 @@ describe('ProductService - listProductsForUser', () => {
     queryWithPagination: jest.fn(),
   };
 
-  const mockLogger = {
-    log: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn(),
-  };
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductService,
+        { provide: PrismaService, useValue: { client: mockPrismaService } },
+        { provide: PaginationService, useValue: mockPaginationService },
+        { provide: CustomLogger, useValue: { log: jest.fn(), error: jest.fn() } },
         {
-          provide: PrismaService,
-          useValue: mockPrismaService,
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
         {
-          provide: PaginationService,
-          useValue: mockPaginationService,
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
         },
         {
-          provide: CustomLogger,
-          useValue: mockLogger,
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

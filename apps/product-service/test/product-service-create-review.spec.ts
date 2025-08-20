@@ -10,6 +10,10 @@ import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { Decimal } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-return
 jest.mock('class-transformer', () => ({
@@ -33,7 +37,20 @@ describe('ProductService - createReview', () => {
     product: { findFirst: jest.fn() },
     review: { findFirst: jest.fn(), create: jest.fn() },
   };
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+  const mockNotificationClient = {
+    emit: jest.fn(),
+  };
 
+  const mockI18nService = {
+    translate: jest.fn(),
+  };
+
+  const mockProductProducer = {
+    addJobRetryPayment: jest.fn(),
+  };
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -41,6 +58,22 @@ describe('ProductService - createReview', () => {
         { provide: PrismaService, useValue: { client: mockPrismaClient } },
         { provide: PaginationService, useValue: {} },
         { provide: CustomLogger, useValue: { log: jest.fn(), error: jest.fn() } },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
+        },
       ],
     }).compile();
 

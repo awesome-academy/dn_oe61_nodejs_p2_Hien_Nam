@@ -5,6 +5,8 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '@app/prisma';
 import { Cart, CartItem, PrismaClient, Product, ProductStatus } from '../generated/prisma';
 import { MAX_IMAGES } from '@app/common/constant/cloudinary';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { EXPIRE_TIME_PAYMENT_DEFAULT } from '@app/common/constant/time.constant';
 import { PaginationDto } from '@app/common/dto/pagination.dto';
 import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
 import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
@@ -32,21 +34,34 @@ import {
   ProductDetailResponse,
   UserProductDetailResponse,
 } from '@app/common/dto/product/response/product-detail-reponse';
+import { OrderCreatedPayload } from '@app/common/dto/product/payload/order-created.payload';
+import { PayOSPayloadDto } from '@app/common/dto/product/payload/payos-payload';
+import { OrderRequest } from '@app/common/dto/product/requests/order-request';
+import { OrderUpdatePaymentInfo } from '@app/common/dto/product/requests/order-update-payment-info.request';
+import { PaymentCreationRequestDto } from '@app/common/dto/product/requests/payment-creation.request';
 import {
   CategoryResponse,
   ChildCategories,
   RootCategory,
 } from '@app/common/dto/product/response/category-response';
+import {
+  OrderResponse,
+  PaymentInfoResponse,
+} from '@app/common/dto/product/response/order-response';
+import { PayOSCreatePaymentResponseDto } from '@app/common/dto/product/response/payos-creation.response';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
 import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
 import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { NotificationEvent } from '@app/common/enums/queue/order-event.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import {
   CreateReviewResponse,
   ReviewResponse,
 } from '@app/common/dto/product/response/review-response.dto';
+import { PaymentCreationException } from '@app/common/exceptions/payment-creation-exception';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { PaginationResult } from '@app/common/interfaces/pagination';
@@ -55,13 +70,29 @@ import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
 import { buildBaseResponse } from '@app/common/utils/data.util';
 import { handleServiceError } from '@app/common/utils/prisma-client-error';
-
+import { getRemainingTime, parseExpireTime } from '@app/common/utils/date.util';
+import { handlePrismaError } from '@app/common/utils/prisma-client-error';
+import { Inject } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ClientProxy } from '@nestjs/microservices';
+import { OrderItemInputForNested, OrderWithItems } from 'apps/product-service/src/type/order.type';
+import axios, { AxiosResponse } from 'axios';
+import * as crypto from 'crypto';
+import { I18nService } from 'nestjs-i18n';
+import { OrderStatus, PaymentMethod, PaymentStatus } from '../generated/prisma';
+import { INCLUDE_ORDER_RESPONSE } from './constants/include-order.response';
+import { ProductProducer } from './product.producer';
+import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
 @Injectable()
 export class ProductService {
   constructor(
     private readonly prismaService: PrismaService<PrismaClient>,
     private readonly loggerService: CustomLogger,
     private readonly paginationService: PaginationService,
+    private readonly configService: ConfigService,
+    private readonly i18nService: I18nService,
+    private readonly productProducer: ProductProducer,
+    @Inject(NOTIFICATION_SERVICE) private readonly notificationClient: ClientProxy,
   ) {}
 
   async checkProductExists(skuId: string): Promise<ProductResponse | null> {
@@ -153,7 +184,6 @@ export class ProductService {
       await Promise.all(categoryPromises);
       return product;
     });
-
     const result = {
       id: query.id,
       skuId: query.skuId,
@@ -165,7 +195,6 @@ export class ProductService {
       createdAt: query.createdAt,
       updatedAt: query.updatedAt,
     } as ProductResponse;
-
     return result;
   }
 
@@ -485,7 +514,6 @@ export class ProductService {
     try {
       const validationData = plainToInstance(CreateProductCategoryDto, createProductCategoryDto);
       await validateOrReject(validationData);
-
       const product = await this.prismaService.client.product.findUnique({
         where: { id: validationData.productId, deletedAt: null },
       });
@@ -886,187 +914,13 @@ export class ProductService {
       handleServiceError(error, ProductService.name, 'deleteSoftCart', this.loggerService);
     }
   }
-  async addProductCart(dto: AddProductCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
-    try {
-      const payload = plainToInstance(AddProductCartRequest, dto);
-      await validateOrReject(payload);
-      const cart = await this.prismaService.client.cart.upsert({
-        where: { userId: dto.userId },
-        create: { userId: dto.userId },
-        update: {},
-      });
-      const productVariant = await this.prismaService.client.productVariant.findUnique({
-        where: { id: dto.productVariantId },
-        select: {
-          id: true,
-          price: true,
-          product: { select: { quantity: true } },
-        },
-      });
-      if (!productVariant) {
-        throw new TypedRpcException({
-          code: HTTP_ERROR_CODE.NOT_FOUND,
-          message: 'common.product.notFound',
-        });
-      }
-      const existingItem = await this.prismaService.client.cartItem.findUnique({
-        where: {
-          cartId_productVariantId: {
-            cartId: cart.id,
-            productVariantId: dto.productVariantId,
-          },
-        },
-      });
-      const currentQuantityInCart = existingItem ? existingItem.quantity : 0;
-      if (dto.quantity + currentQuantityInCart > productVariant.product.quantity) {
-        throw new TypedRpcException({
-          code: HTTP_ERROR_CODE.BAD_REQUEST,
-          message: 'common.product.quantityNotEnough',
-        });
-      }
-      if (existingItem) {
-        await this.prismaService.client.cartItem.update({
-          where: { id: existingItem.id },
-          data: { quantity: existingItem.quantity + dto.quantity },
-        });
-      } else {
-        await this.prismaService.client.cartItem.create({
-          data: {
-            quantity: dto.quantity,
-            cartId: cart.id,
-            productVariantId: dto.productVariantId,
-          },
-        });
-      }
-      const cartSummary = await this.prismaService.client.cart.findUniqueOrThrow({
-        where: { id: cart.id },
-        include: {
-          items: {
-            include: {
-              productVariant: { select: { id: true, price: true } },
-            },
-          },
-        },
-      });
-      return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
-    } catch (error) {
-      handleServiceError(error, ProductService.name, 'addProductCart', this.loggerService);
-    }
-  }
-  async deleteProductCart(
-    dto: DeleteProductCartRequest,
-  ): Promise<BaseResponse<CartSummaryResponse>> {
-    try {
-      const payload = plainToInstance(DeleteProductCartRequest, dto);
-      await validateOrReject(payload);
-      const cartDetail = await this.prismaService.client.cart.findUnique({
-        where: {
-          userId: dto.userId,
-        },
-      });
-      if (!cartDetail) {
-        throw new TypedRpcException({
-          code: HTTP_ERROR_CODE.NOT_FOUND,
-          message: 'common.cart.notFound',
-        });
-      }
-      const productVariants = await this.prismaService.client.productVariant.findMany({
-        where: { id: { in: dto.productVariantIds } },
-        select: { id: true },
-      });
-      const existingIds = productVariants.map((v) => v.id);
-      if (existingIds.length !== dto.productVariantIds.length) {
-        const notFoundProductVariantIds = dto.productVariantIds.filter(
-          (id) => !existingIds.includes(id),
-        );
-        if (notFoundProductVariantIds.length > 0) {
-          throw new TypedRpcException({
-            code: HTTP_ERROR_CODE.NOT_FOUND,
-            message: 'common.product.someProductNotExist',
-            args: {
-              missingIds: notFoundProductVariantIds.join(', '),
-            },
-          });
-        }
-      }
-      await this.prismaService.client.cartItem.deleteMany({
-        where: {
-          cartId: cartDetail.id,
-          productVariantId: { in: dto.productVariantIds },
-        },
-      });
-      const cartSummary = await this.prismaService.client.cart.findUniqueOrThrow({
-        where: { id: cartDetail.id },
-        include: {
-          items: {
-            include: {
-              productVariant: { select: { id: true, price: true } },
-            },
-          },
-        },
-      });
-      return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
-    } catch (error) {
-      handleServiceError(error, ProductService.name, 'deleteProductCart', this.loggerService);
-    }
-  }
-  async getCart(dto: GetCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
-    try {
-      const cartSummary = await this.prismaService.client.cart.findUnique({
-        where: { userId: dto.userId },
-        include: {
-          items: {
-            include: {
-              productVariant: { select: { id: true, price: true } },
-            },
-          },
-        },
-      });
-      if (cartSummary)
-        return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
-      const cartEmpty: CartSummaryResponse = {
-        userId: dto.userId,
-        cartItems: [],
-        totalAmount: 0,
-        totalQuantity: 0,
-      };
-      return buildBaseResponse(StatusKey.SUCCESS, cartEmpty);
-    } catch (error) {
-      handleServiceError(error, ProductService.name, 'getCart', this.loggerService);
-    }
-  }
-  private toCartSummaryResponse(
-    cartSummary: Cart & {
-      items: (CartItem & { productVariant: { id: number; price: Decimal } })[];
-    },
-  ): CartSummaryResponse {
-    return {
-      cartId: cartSummary.id,
-      userId: cartSummary.userId,
-      cartItems: cartSummary.items.map((item) => ({
-        id: item.id,
-        quantity: item.quantity,
-        productVariant: {
-          id: item.productVariant.id,
-          price: Number(item.productVariant.price),
-        },
-      })),
-      totalQuantity: cartSummary.items.reduce((total, item) => total + item.quantity, 0),
-      totalAmount: cartSummary.items.reduce(
-        (total, item) => total + item.quantity * Number(item.productVariant.price),
-        0,
-      ),
-    };
-  }
 
   async listProductsForUser(
     query: GetAllProductUserDto,
   ): Promise<PaginationResult<UserProductResponse>> {
     const dto = plainToInstance(GetAllProductUserDto, query);
     await validateOrReject(dto);
-
     const { page, pageSize } = query;
-
     const where = this.buildUserProductWhereClause(query);
 
     const products = await this.paginationService.queryWithPagination(
@@ -1242,7 +1096,6 @@ export class ProductService {
       });
     }
   }
-
   async createReview(
     skuId: string,
     createReviewData: CreateReviewDto,
@@ -1430,17 +1283,496 @@ export class ProductService {
       if (error instanceof TypedRpcException) {
         throw error;
       }
-
       this.loggerService.error(
         'DeleteReview',
         error instanceof Error ? error.message : String(error),
         error instanceof Error ? error.stack : undefined,
       );
-
+      throw error;
+    }
+  }
+  async addProductCart(dto: AddProductCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
+    try {
+      const payload = plainToInstance(AddProductCartRequest, dto);
+      await validateOrReject(payload);
+      const cart = await this.prismaService.client.cart.upsert({
+        where: { userId: dto.userId },
+        create: { userId: dto.userId },
+        update: {},
+      });
+      const productVariant = await this.prismaService.client.productVariant.findUnique({
+        where: { id: dto.productVariantId },
+        select: {
+          id: true,
+          price: true,
+          product: { select: { quantity: true } },
+        },
+      });
+      if (!productVariant) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.product.notFound',
+        });
+      }
+      const existingItem = await this.prismaService.client.cartItem.findUnique({
+        where: {
+          cartId_productVariantId: {
+            cartId: cart.id,
+            productVariantId: dto.productVariantId,
+          },
+        },
+      });
+      const currentQuantityInCart = existingItem ? existingItem.quantity : 0;
+      if (dto.quantity + currentQuantityInCart > productVariant.product.quantity) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.quantityNotEnough',
+        });
+      }
+      if (existingItem) {
+        await this.prismaService.client.cartItem.update({
+          where: { id: existingItem.id },
+          data: { quantity: existingItem.quantity + dto.quantity },
+        });
+      } else {
+        await this.prismaService.client.cartItem.create({
+          data: {
+            quantity: dto.quantity,
+            cartId: cart.id,
+            productVariantId: dto.productVariantId,
+          },
+        });
+      }
+      const cartSummary = await this.prismaService.client.cart.findUniqueOrThrow({
+        where: { id: cart.id },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
+    } catch (error) {
+      handleServiceError(error, ProductService.name, 'addProductCart', this.loggerService);
+    }
+  }
+  async deleteProductCart(
+    dto: DeleteProductCartRequest,
+  ): Promise<BaseResponse<CartSummaryResponse>> {
+    try {
+      const payload = plainToInstance(DeleteProductCartRequest, dto);
+      await validateOrReject(payload);
+      const cartDetail = await this.prismaService.client.cart.findUnique({
+        where: {
+          userId: dto.userId,
+        },
+      });
+      if (!cartDetail) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.cart.notFound',
+        });
+      }
+      const productVariants = await this.prismaService.client.productVariant.findMany({
+        where: { id: { in: dto.productVariantIds } },
+        select: { id: true },
+      });
+      const existingIds = productVariants.map((v) => v.id);
+      if (existingIds.length !== dto.productVariantIds.length) {
+        const notFoundProductVariantIds = dto.productVariantIds.filter(
+          (id) => !existingIds.includes(id),
+        );
+        if (notFoundProductVariantIds.length > 0) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.NOT_FOUND,
+            message: 'common.product.someProductNotExist',
+            args: {
+              missingIds: notFoundProductVariantIds.join(', '),
+            },
+          });
+        }
+      }
+      await this.prismaService.client.cartItem.deleteMany({
+        where: {
+          cartId: cartDetail.id,
+          productVariantId: { in: dto.productVariantIds },
+        },
+      });
+      const cartSummary = await this.prismaService.client.cart.findUniqueOrThrow({
+        where: { id: cartDetail.id },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
+    } catch (error) {
+      handleServiceError(error, ProductService.name, 'deleteProductCart', this.loggerService);
+    }
+  }
+  async getCart(dto: GetCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
+    try {
+      const cartSummary = await this.prismaService.client.cart.findUnique({
+        where: { userId: dto.userId },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      if (cartSummary)
+        return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
+      const cartEmpty: CartSummaryResponse = {
+        userId: dto.userId,
+        cartItems: [],
+        totalAmount: 0,
+        totalQuantity: 0,
+      };
+      return buildBaseResponse(StatusKey.SUCCESS, cartEmpty);
+    } catch (error) {
+      handleServiceError(error, ProductService.name, 'getCart', this.loggerService);
+    }
+  }
+  async createOrder(dto: OrderRequest): Promise<BaseResponse<OrderResponse>> {
+    if (!dto.userId)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.guard.unauthorized',
+      });
+    if (!dto.items.length) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.order.itemsMustAtLeast1',
+      });
+    }
+    const productVariantIds = dto.items.map((item) => item.productVariantId);
+    const productVariantExist = await this.prismaService.client.productVariant.findMany({
+      where: {
+        id: {
+          in: dto.items.map((item) => item.productVariantId),
+        },
+      },
+      include: {
+        product: {
+          select: {
+            quantity: true,
+          },
+        },
+      },
+    });
+    if (productVariantExist.length !== productVariantIds.length) {
+      const productVariantExistIds = productVariantExist.map((item) => item.id);
+      const notFoundProductVariantIds = productVariantIds.filter(
+        (id) => !productVariantExistIds.includes(id),
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.product.someProductNotExist',
+        args: {
+          missingIds: notFoundProductVariantIds.join(', '),
+        },
+      });
+    }
+    const productMap = new Map(productVariantExist.map((p) => [p.id, p]));
+    const outOfStock = dto.items.filter((item) => {
+      const product = productMap.get(item.productVariantId)!;
+      return product.product.quantity < item.quantity;
+    });
+    if (outOfStock.length > 0) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.product.multipleOutOfStock',
+        args: { productIds: outOfStock.map((p) => p.productVariantId) },
+      });
+    }
+    const orderCreated = await this.prismaService.client.$transaction(async (tx) => {
+      let totalPrice = 0;
+      const orderItemsData: OrderItemInputForNested[] = [];
+      for (const item of dto.items) {
+        const product = productMap.get(item.productVariantId)!;
+        const updated = await tx.product.updateMany({
+          where: { id: product.productId, quantity: { gte: item.quantity } },
+          data: { quantity: { decrement: item.quantity } },
+        });
+        if (updated.count === 0) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.BAD_REQUEST,
+            message: 'common.product.productOutStock',
+            args: {
+              productId: product.productId,
+            },
+          });
+        }
+        const itemPrice = Number(product.price) * item.quantity;
+        totalPrice += itemPrice;
+        orderItemsData.push({
+          amount: itemPrice,
+          productVariant: {
+            connect: {
+              id: product.id,
+            },
+          },
+          quantity: item.quantity,
+          note: item.note,
+        });
+      }
+      const order = await tx.order.create({
+        data: {
+          amount: totalPrice,
+          deliveryAddress: dto.deliveryAddress,
+          note: dto.note,
+          paymentMethod: dto.paymentMethod,
+          paymentStatus: (dto.paymentMethod === PaymentMethodEnum.CASH
+            ? PaymentStatus.UNPAID
+            : PaymentStatus.PENDING) as PaymentStatus,
+          status: OrderStatus.PENDING,
+          userId: dto.userId,
+          items: { create: orderItemsData },
+        },
+        include: INCLUDE_ORDER_RESPONSE,
+      });
+      return order;
+    });
+    const orderResponse = this.toOrderResponse(orderCreated);
+    if (orderCreated.paymentMethod === PaymentMethod.CASH) {
+      const customerName = `CustomerId:${orderCreated.userId}`;
+      const payload: OrderCreatedPayload = {
+        orderId: orderCreated.id,
+        userId: orderCreated.userId,
+        userName: customerName,
+        totalAmount: Number(orderCreated.amount),
+        paymentMethod: orderCreated.paymentMethod,
+        paymentStatus: orderCreated.paymentStatus,
+        createdAt: orderCreated.createdAt,
+        lang: dto.lang,
+      };
+      this.notificationClient.emit(NotificationEvent.ORDER_CREATED, payload);
+    } else if (orderCreated.paymentMethod === PaymentMethod.BANK_TRANSFER) {
+      const expireTime = this.configService.get<string>(
+        'payOS.expireTime',
+        EXPIRE_TIME_PAYMENT_DEFAULT,
+      );
+      const expireSeconds = parseExpireTime(expireTime);
+      const expiredAt = Math.floor(Date.now() / 1000) + expireSeconds;
+      const paymentPayload: PaymentCreationRequestDto = {
+        amount: Number(orderCreated.amount),
+        orderId: orderCreated.id,
+        userId: orderCreated.userId,
+        description: `PAY FOR ORDER-${orderCreated.id}`,
+        expiredAt: expiredAt,
+      };
+      try {
+        const paymentData = await this.createPaymentInfo(paymentPayload);
+        const paymentInfoData: PaymentInfoResponse = {
+          qrCodeUrl: paymentData.data.checkoutUrl,
+          expiredAt: getRemainingTime(expiredAt, dto.lang, this.i18nService),
+        };
+        orderResponse.paymentInfo = paymentInfoData;
+      } catch (error) {
+        this.loggerService.error(
+          `[Failed to create payment info]`,
+          `Error details:: ${(error as Error).message}]`,
+        );
+        if (error instanceof TypedRpcException) {
+          if (error.getError().code === HTTP_ERROR_CODE.TIME_OUT_OR_NETWORK) {
+            this.loggerService.error(`[Push noti user waiting retry payment - retry payment]`);
+            await this.productProducer.addJobRetryPayment(dto.lang, paymentPayload);
+          }
+        }
+      }
+    }
+    return buildBaseResponse(StatusKey.SUCCESS, orderResponse);
+  }
+  async updateOrderPaymentInfo(dto: OrderUpdatePaymentInfo): Promise<OrderResponse> {
+    try {
+      const orderDetail = await this.prismaService.client.order.update({
+        where: { id: dto.orderId },
+        data: { paymentStatus: PaymentStatus.PENDING },
+        include: INCLUDE_ORDER_RESPONSE,
+      });
+      return this.toOrderResponse(orderDetail);
+    } catch (error) {
+      handlePrismaError(error, ProductService.name, 'updateOrderPaymentInfo', this.loggerService);
+    }
+  }
+  private toCartSummaryResponse(
+    cartSummary: Cart & {
+      items: (CartItem & { productVariant: { id: number; price: Decimal } })[];
+    },
+  ): CartSummaryResponse {
+    return {
+      cartId: cartSummary.id,
+      userId: cartSummary.userId,
+      cartItems: cartSummary.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        productVariant: {
+          id: item.productVariant.id,
+          price: Number(item.productVariant.price),
+        },
+      })),
+      totalQuantity: cartSummary.items.reduce((total, item) => total + item.quantity, 0),
+      totalAmount: cartSummary.items.reduce(
+        (total, item) => total + item.quantity * Number(item.productVariant.price),
+        0,
+      ),
+    };
+  }
+  async createPaymentInfo(dto: PaymentCreationRequestDto): Promise<PayOSCreatePaymentResponseDto> {
+    const orderDetail = await this.prismaService.client.order.findUnique({
+      where: { id: dto.orderId },
+    });
+    if (!orderDetail)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      });
+    try {
+      const payload = {
+        orderCode: dto.orderId,
+        amount: dto.amount,
+        description: dto.description ?? '',
+        expiredAt: dto.expiredAt,
+        returnUrl: 'https://example.com/success',
+        cancelUrl: 'https://example.com/success',
+      };
+      const signature = this.signPayload(payload);
+      const endpoint = `${this.configService.get<string>('payOS.endpoint', '')}/payment-requests`;
+      const clientId = this.configService.get<string>('payOS.clientId', '');
+      const apiKey = this.configService.get<string>('payOS.apiKey', '');
+      const data = {
+        ...payload,
+        signature,
+      };
+      const options = {
+        headers: {
+          'x-client-id': clientId,
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+      };
+      const response: AxiosResponse<PayOSCreatePaymentResponseDto> = await axios.post(
+        endpoint,
+        data,
+        options,
+      );
+      if (!response.data.data) {
+        throw new PaymentCreationException(response.data.desc || 'Payment creation failed');
+      }
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        this.loggerService.error(
+          `[Create payment error]`,
+          `Error detail:: ${(error as Error).stack}`,
+        );
+        if (
+          error.code === 'ECONNABORTED' ||
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'ECONNRESET' ||
+          error.code === 'ECONNREFUSED' ||
+          !error.response
+        ) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.TIME_OUT_OR_NETWORK,
+            message: 'common.errors.timeOutOrNetwork',
+          });
+        }
+      }
+      this.loggerService.error(
+        `[Create payment error]`,
+        `Error detail:: ${(error as Error).message}`,
+      );
       throw new TypedRpcException({
         code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
         message: 'common.errors.internalServerError',
       });
     }
+  }
+  async retryPayment(dto: RetryPaymentRequest): Promise<BaseResponse<PaymentInfoResponse>> {
+    const orderDetail = await this.prismaService.client.order.findUnique({
+      where: { id: dto.orderId, userId: dto.userId, paymentMethod: PaymentMethod.BANK_TRANSFER },
+    });
+    // Chung 1 throw lỗi là not found -> không throw lỗi chi tiết có order với id mã này dù truy cập trái phép, không phải là order thanh toán bởi bank transfer
+    if (!orderDetail)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      });
+    const expireTime = this.configService.get<string>(
+      'payOS.expireTime',
+      EXPIRE_TIME_PAYMENT_DEFAULT,
+    );
+    const expireSeconds = parseExpireTime(expireTime);
+    const expiredAt = Math.floor(Date.now() / 1000) + expireSeconds;
+    const paymentPayload: PaymentCreationRequestDto = {
+      amount: Number(orderDetail.amount),
+      orderId: orderDetail.id,
+      userId: orderDetail.userId,
+      description: `PAY FOR ORDER-${orderDetail.id}`,
+      expiredAt: expiredAt,
+    };
+    try {
+      const paymentData = await this.createPaymentInfo(paymentPayload);
+      const paymentInfoData: PaymentInfoResponse = {
+        qrCodeUrl: paymentData.data.checkoutUrl,
+        expiredAt: getRemainingTime(expiredAt, dto.lang, this.i18nService),
+      };
+      return buildBaseResponse(StatusKey.SUCCESS, paymentInfoData);
+    } catch (error) {
+      this.loggerService.error(
+        `[Failed to create payment info]`,
+        `Add job retry payment [Error:: ${(error as Error).message}] - push noti, waiting create payment for user`,
+      );
+      if (error instanceof TypedRpcException) {
+        if (error.getError().code === HTTP_ERROR_CODE.TIME_OUT_OR_NETWORK) {
+          await this.productProducer.addJobRetryPayment(dto.lang, paymentPayload);
+        }
+      }
+      throw error;
+    }
+  }
+  toOrderResponse(data: OrderWithItems, paymentInfo?: PaymentInfoResponse): OrderResponse {
+    return {
+      id: data.id,
+      userId: data.userId,
+      deliveryAddress: data.deliveryAddress,
+      paymentMethod: data.paymentMethod,
+      paymentStatus: data.paymentStatus,
+      status: data.status,
+      totalPrice: Number(data.amount),
+      note: data.note ?? null,
+      items: data.items.map((item) => ({
+        id: item.id,
+        productVariantId: item.productVariantId,
+        productName: item.productVariant.product.name,
+        productSize: item.productVariant.size.nameSize,
+        quantity: item.quantity,
+        price: Number(item.productVariant.price),
+        note: item.note ?? null,
+      })),
+      paymentInfo,
+      createdAt: data.createdAt,
+    };
+  }
+  private signPayload(payload: PayOSPayloadDto): string {
+    const rawData =
+      `amount=${payload.amount}` +
+      `&cancelUrl=${payload.cancelUrl}` +
+      `&description=${payload.description}` +
+      `&orderCode=${payload.orderCode}` +
+      `&returnUrl=${payload.returnUrl}`;
+    this.loggerService.debug(`RawData:: ${rawData}`);
+    return crypto
+      .createHmac('sha256', this.configService.get<string>('payOS.checkSumKey', ''))
+      .update(rawData)
+      .digest('hex');
   }
 }

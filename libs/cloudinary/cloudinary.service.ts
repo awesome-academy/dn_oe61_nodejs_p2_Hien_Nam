@@ -16,6 +16,7 @@ export class CloudinaryService {
     return new Promise((resolve, reject) => {
       const upload = cloudinary.uploader.upload_stream({ folder }, (error, result) => {
         if (error || !result) {
+          this.loggerService.error(`[Upload image error]`, `Details:: ${error?.message}`);
           return reject(
             new TypedRpcException({
               code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,

@@ -7,6 +7,10 @@ import { PaginationService } from '@app/common/shared/pagination.shared';
 import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProductService } from '../src/product-service.service';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 interface MockProductImage {
   id: number;
@@ -57,7 +61,20 @@ describe('ProductService - deleteProductImages', () => {
   const mockPaginationService = {
     queryWithPagination: jest.fn(),
   };
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+  const mockNotificationClient = {
+    emit: jest.fn(),
+  };
 
+  const mockI18nService = {
+    translate: jest.fn(),
+  };
+
+  const mockProductProducer = {
+    addJobRetryPayment: jest.fn(),
+  };
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -73,6 +90,22 @@ describe('ProductService - deleteProductImages', () => {
         {
           provide: PaginationService,
           useValue: mockPaginationService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

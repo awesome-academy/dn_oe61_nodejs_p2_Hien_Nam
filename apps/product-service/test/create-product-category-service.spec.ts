@@ -9,6 +9,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { ProductService } from '../src/product-service.service';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { ProductProducer } from '../src/product.producer';
+import { I18nService } from 'nestjs-i18n';
 
 // Mock class-transformer, class-validator, and nestjs-i18n
 jest.mock('class-transformer', () => ({
@@ -35,26 +39,44 @@ jest.mock('class-validator', () => ({
   ArrayNotEmpty: jest.fn(() => jest.fn()),
 }));
 
-jest.mock('nestjs-i18n', () => ({
-  i18nValidationMessage: jest.fn(() => 'mocked validation message'),
-}));
+// jest.mock('nestjs-i18n', () => ({
+//   I18nService: jest.fn().mockImplementation(() => ({
+//     translate: jest.fn(),
+//   })),
+//   i18nValidationMessage: jest.fn(() => 'mocked validation message'),
+// }));
 
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
+const mockConfigService = {
+  get: jest.fn(),
+};
+const mockNotificationClient = {
+  emit: jest.fn(),
+};
 
+const mockI18nService = {
+  translate: jest.fn(),
+};
+
+const mockProductProducer = {
+  addJobRetryPayment: jest.fn(),
+};
 describe('ProductService', () => {
   let service: ProductService;
 
   const mockPrismaClient = {
-    product: {
-      findUnique: jest.fn(),
-    },
-    category: {
-      findUnique: jest.fn(),
-    },
-    categoryProduct: {
-      findFirst: jest.fn(),
-      create: jest.fn(),
+    client: {
+      product: {
+        findUnique: jest.fn(),
+      },
+      category: {
+        findUnique: jest.fn(),
+      },
+      categoryProduct: {
+        findFirst: jest.fn(),
+        create: jest.fn(),
+      },
     },
   };
 
@@ -66,18 +88,15 @@ describe('ProductService', () => {
   };
 
   const mockPaginationService = {
-    paginate: jest.fn(),
+    queryWithPagination: jest.fn(),
   };
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductService,
         {
           provide: PrismaService,
-          useValue: {
-            client: mockPrismaClient,
-          },
+          useValue: mockPrismaClient,
         },
         {
           provide: CustomLogger,
@@ -87,12 +106,29 @@ describe('ProductService', () => {
           provide: PaginationService,
           useValue: mockPaginationService,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
+        },
       ],
     }).compile();
 
     service = module.get<ProductService>(ProductService);
+    (plainToInstance as jest.Mock).mockImplementation((cls: unknown, obj: unknown) => obj);
+    (validateOrReject as jest.Mock).mockResolvedValue(undefined);
   });
-
   afterEach(() => {
     jest.clearAllMocks();
     jest.resetAllMocks();
@@ -157,10 +193,12 @@ describe('ProductService', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
         mockValidateOrReject.mockResolvedValue(undefined);
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(null);
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(mockCreatedProductCategory);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(null);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(
+          mockCreatedProductCategory,
+        );
       });
 
       it('should create product category successfully with valid input', async () => {
@@ -171,19 +209,19 @@ describe('ProductService', () => {
           validCreateProductCategoryDto,
         );
         expect(mockValidateOrReject).toHaveBeenCalledWith(validCreateProductCategoryDto);
-        expect(mockPrismaClient.product.findUnique).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledWith({
           where: { id: 100, deletedAt: null },
         });
-        expect(mockPrismaClient.category.findUnique).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.category.findUnique).toHaveBeenCalledWith({
           where: { id: 1 },
         });
-        expect(mockPrismaClient.categoryProduct.findFirst).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.categoryProduct.findFirst).toHaveBeenCalledWith({
           where: {
             categoryId: 1,
             productId: 100,
           },
         });
-        expect(mockPrismaClient.categoryProduct.create).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.categoryProduct.create).toHaveBeenCalledWith({
           data: {
             categoryId: 1,
             productId: 100,
@@ -230,8 +268,8 @@ describe('ProductService', () => {
           },
         };
 
-        mockPrismaClient.category.findUnique.mockResolvedValue(categoryWithParent);
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(createdWithParent);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(categoryWithParent);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(createdWithParent);
 
         const result = await service.createProductCategory(validCreateProductCategoryDto);
 
@@ -250,7 +288,7 @@ describe('ProductService', () => {
           updatedAt: undefined,
         };
 
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(createdWithoutUpdatedAt);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(createdWithoutUpdatedAt);
 
         const result = await service.createProductCategory(validCreateProductCategoryDto);
 
@@ -285,9 +323,9 @@ describe('ProductService', () => {
         };
 
         mockPlainToInstance.mockReturnValue(zeroDto);
-        mockPrismaClient.product.findUnique.mockResolvedValue(zeroProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(zeroCategory);
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(zeroCreated);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(zeroProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(zeroCategory);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(zeroCreated);
 
         const result = await service.createProductCategory(zeroDto);
 
@@ -305,11 +343,16 @@ describe('ProductService', () => {
           TypedRpcException,
         );
 
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           validationError.stack,
         );
-        expect(mockPrismaClient.product.findUnique).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.product.findUnique).not.toHaveBeenCalled();
       });
 
       it('should handle class-transformer errors', async () => {
@@ -322,6 +365,11 @@ describe('ProductService', () => {
           TypedRpcException,
         );
 
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           transformError.stack,
@@ -336,7 +384,7 @@ describe('ProductService', () => {
       });
 
       it('should throw NOT_FOUND when product does not exist', async () => {
-        mockPrismaClient.product.findUnique.mockResolvedValue(null);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(null);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
@@ -350,30 +398,35 @@ describe('ProductService', () => {
           'common.product.productCategory.error.productNotFound',
         );
 
-        expect(mockPrismaClient.product.findUnique).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledWith({
           where: { id: 100, deletedAt: null },
         });
-        expect(mockPrismaClient.category.findUnique).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.category.findUnique).not.toHaveBeenCalled();
       });
 
       it('should throw NOT_FOUND when product is soft deleted', async () => {
-        mockPrismaClient.product.findUnique.mockResolvedValue(null);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(null);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
 
-        expect(mockPrismaClient.product.findUnique).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledWith({
           where: { id: 100, deletedAt: null },
         });
       });
 
       it('should handle product findUnique database error', async () => {
         const dbError = new Error('Database connection failed');
-        mockPrismaClient.product.findUnique.mockRejectedValue(dbError);
+        mockPrismaClient.client.product.findUnique.mockRejectedValue(dbError);
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           dbError.stack,
@@ -385,11 +438,11 @@ describe('ProductService', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
         mockValidateOrReject.mockResolvedValue(undefined);
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
       });
 
       it('should throw NOT_FOUND when category does not exist', async () => {
-        mockPrismaClient.category.findUnique.mockResolvedValue(null);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(null);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
@@ -403,20 +456,25 @@ describe('ProductService', () => {
           'common.product.productCategory.error.categoryNotFound',
         );
 
-        expect(mockPrismaClient.category.findUnique).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.category.findUnique).toHaveBeenCalledWith({
           where: { id: 1 },
         });
-        expect(mockPrismaClient.categoryProduct.findFirst).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.categoryProduct.findFirst).not.toHaveBeenCalled();
       });
 
       it('should handle category findUnique database error', async () => {
         const dbError = new Error('Category database error');
-        mockPrismaClient.category.findUnique.mockRejectedValue(dbError);
+        mockPrismaClient.client.category.findUnique.mockRejectedValue(dbError);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
 
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           dbError.stack,
@@ -428,8 +486,8 @@ describe('ProductService', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
         mockValidateOrReject.mockResolvedValue(undefined);
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
       });
 
       it('should throw CONFLICT when relationship already exists', async () => {
@@ -439,7 +497,7 @@ describe('ProductService', () => {
           productId: 100,
         };
 
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(existingRelationship);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(existingRelationship);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
@@ -453,23 +511,28 @@ describe('ProductService', () => {
           'common.product.productCategory.error.relationshipExists',
         );
 
-        expect(mockPrismaClient.categoryProduct.findFirst).toHaveBeenCalledWith({
+        expect(mockPrismaClient.client.categoryProduct.findFirst).toHaveBeenCalledWith({
           where: {
             categoryId: 1,
             productId: 100,
           },
         });
-        expect(mockPrismaClient.categoryProduct.create).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.categoryProduct.create).not.toHaveBeenCalled();
       });
 
       it('should handle findFirst database error', async () => {
         const dbError = new Error('Relationship check failed');
-        mockPrismaClient.categoryProduct.findFirst.mockRejectedValue(dbError);
+        mockPrismaClient.client.categoryProduct.findFirst.mockRejectedValue(dbError);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
 
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           dbError.stack,
@@ -481,19 +544,24 @@ describe('ProductService', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
         mockValidateOrReject.mockResolvedValue(undefined);
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(null);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(null);
       });
 
       it('should handle database constraint violation during creation', async () => {
         const constraintError = new Error('Foreign key constraint violation');
-        mockPrismaClient.categoryProduct.create.mockRejectedValue(constraintError);
+        mockPrismaClient.client.categoryProduct.create.mockRejectedValue(constraintError);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
 
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           constraintError.stack,
@@ -502,12 +570,17 @@ describe('ProductService', () => {
 
       it('should handle database connection error during creation', async () => {
         const connectionError = new Error('Database connection lost');
-        mockPrismaClient.categoryProduct.create.mockRejectedValue(connectionError);
+        mockPrismaClient.client.categoryProduct.create.mockRejectedValue(connectionError);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
 
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           connectionError.stack,
@@ -516,12 +589,17 @@ describe('ProductService', () => {
 
       it('should handle timeout during creation', async () => {
         const timeoutError = new Error('Query timeout');
-        mockPrismaClient.categoryProduct.create.mockRejectedValue(timeoutError);
+        mockPrismaClient.client.categoryProduct.create.mockRejectedValue(timeoutError);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
 
+        const thrownError = (await service
+          .createProductCategory(validCreateProductCategoryDto)
+          .catch((e: unknown) => e)) as TypedRpcException;
+        expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(thrownError.getError().message).toBe('common.errors.internalServerError');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
           timeoutError.stack,
@@ -533,9 +611,9 @@ describe('ProductService', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
         mockValidateOrReject.mockResolvedValue(undefined);
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(null);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(null);
       });
 
       it('should handle large ID values', async () => {
@@ -556,9 +634,9 @@ describe('ProductService', () => {
         };
 
         mockPlainToInstance.mockReturnValue(largeIdDto);
-        mockPrismaClient.product.findUnique.mockResolvedValue(largeProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(largeCategory);
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(largeCreated);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(largeProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(largeCategory);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(largeCreated);
 
         const result = await service.createProductCategory(largeIdDto);
 
@@ -581,8 +659,8 @@ describe('ProductService', () => {
           },
         };
 
-        mockPrismaClient.category.findUnique.mockResolvedValue(categoryWithNullParent);
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(createdWithNullParent);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(categoryWithNullParent);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(createdWithNullParent);
 
         const result = await service.createProductCategory(validCreateProductCategoryDto);
 
@@ -608,7 +686,7 @@ describe('ProductService', () => {
           },
         };
 
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(minimalCreated);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(minimalCreated);
 
         const result = await service.createProductCategory(validCreateProductCategoryDto);
 
@@ -622,10 +700,12 @@ describe('ProductService', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
         mockValidateOrReject.mockResolvedValue(undefined);
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(null);
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(mockCreatedProductCategory);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(null);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(
+          mockCreatedProductCategory,
+        );
       });
 
       it('should maintain type safety without using any', async () => {
@@ -693,9 +773,9 @@ describe('ProductService', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
         mockValidateOrReject.mockResolvedValue(undefined);
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(null);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(null);
       });
 
       it('should preserve TypedRpcException when thrown from validation', async () => {
@@ -718,7 +798,7 @@ describe('ProductService', () => {
 
       it('should wrap generic errors in TypedRpcException', async () => {
         const genericError = new Error('Generic error');
-        mockPrismaClient.categoryProduct.create.mockRejectedValue(genericError);
+        mockPrismaClient.client.categoryProduct.create.mockRejectedValue(genericError);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
@@ -736,7 +816,7 @@ describe('ProductService', () => {
       });
 
       it('should handle unexpected null response from create operation', async () => {
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(null);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(null);
 
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
@@ -751,18 +831,20 @@ describe('ProductService', () => {
       });
 
       it('should execute database operations in correct order', async () => {
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(null);
-        mockPrismaClient.categoryProduct.create.mockResolvedValue(mockCreatedProductCategory);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(null);
+        mockPrismaClient.client.categoryProduct.create.mockResolvedValue(
+          mockCreatedProductCategory,
+        );
 
         await service.createProductCategory(validCreateProductCategoryDto);
 
         const calls = [
-          mockPrismaClient.product.findUnique,
-          mockPrismaClient.category.findUnique,
-          mockPrismaClient.categoryProduct.findFirst,
-          mockPrismaClient.categoryProduct.create,
+          mockPrismaClient.client.product.findUnique,
+          mockPrismaClient.client.category.findUnique,
+          mockPrismaClient.client.categoryProduct.findFirst,
+          mockPrismaClient.client.categoryProduct.create,
         ];
 
         // Verify all operations were called
@@ -772,47 +854,53 @@ describe('ProductService', () => {
       });
 
       it('should stop execution when product validation fails', async () => {
-        mockPrismaClient.product.findUnique.mockResolvedValue(null);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(null);
 
-        await expect(
-          service.createProductCategory(validCreateProductCategoryDto),
-        ).rejects.toThrow();
+        try {
+          await service.createProductCategory(validCreateProductCategoryDto);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+        }
 
-        expect(mockPrismaClient.product.findUnique).toHaveBeenCalledTimes(1);
-        expect(mockPrismaClient.category.findUnique).not.toHaveBeenCalled();
-        expect(mockPrismaClient.categoryProduct.findFirst).not.toHaveBeenCalled();
-        expect(mockPrismaClient.categoryProduct.create).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledTimes(1);
+        expect(mockPrismaClient.client.category.findUnique).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.categoryProduct.findFirst).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.categoryProduct.create).not.toHaveBeenCalled();
       });
 
       it('should stop execution when category validation fails', async () => {
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(null);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(null);
 
-        await expect(
-          service.createProductCategory(validCreateProductCategoryDto),
-        ).rejects.toThrow();
+        try {
+          await service.createProductCategory(validCreateProductCategoryDto);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+        }
 
-        expect(mockPrismaClient.product.findUnique).toHaveBeenCalledTimes(1);
-        expect(mockPrismaClient.category.findUnique).toHaveBeenCalledTimes(1);
-        expect(mockPrismaClient.categoryProduct.findFirst).not.toHaveBeenCalled();
-        expect(mockPrismaClient.categoryProduct.create).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledTimes(1);
+        expect(mockPrismaClient.client.category.findUnique).toHaveBeenCalledTimes(1);
+        expect(mockPrismaClient.client.categoryProduct.findFirst).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.categoryProduct.create).not.toHaveBeenCalled();
       });
 
       it('should stop execution when relationship already exists', async () => {
         const existingRelationship = { id: 1, categoryId: 1, productId: 100 };
 
-        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
-        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
-        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(existingRelationship);
+        mockPrismaClient.client.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.client.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.client.categoryProduct.findFirst.mockResolvedValue(existingRelationship);
 
-        await expect(
-          service.createProductCategory(validCreateProductCategoryDto),
-        ).rejects.toThrow();
+        try {
+          await service.createProductCategory(validCreateProductCategoryDto);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+        }
 
-        expect(mockPrismaClient.product.findUnique).toHaveBeenCalledTimes(1);
-        expect(mockPrismaClient.category.findUnique).toHaveBeenCalledTimes(1);
-        expect(mockPrismaClient.categoryProduct.findFirst).toHaveBeenCalledTimes(1);
-        expect(mockPrismaClient.categoryProduct.create).not.toHaveBeenCalled();
+        expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledTimes(1);
+        expect(mockPrismaClient.client.category.findUnique).toHaveBeenCalledTimes(1);
+        expect(mockPrismaClient.client.categoryProduct.findFirst).toHaveBeenCalledTimes(1);
+        expect(mockPrismaClient.client.categoryProduct.create).not.toHaveBeenCalled();
       });
     });
   });
