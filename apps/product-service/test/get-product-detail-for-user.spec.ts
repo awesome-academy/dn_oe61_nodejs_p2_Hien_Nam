@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProductService } from '../src/product-service.service';
 import { PrismaService } from '@app/prisma';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
@@ -10,6 +9,7 @@ import { PaginationService } from '@app/common/shared/pagination.shared';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { Decimal } from '@prisma/client/runtime/library';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 
 // Mock class-validator and class-transformer
 jest.mock('class-validator', () => {
@@ -103,7 +103,12 @@ describe('ProductService - getProductDetailForUser', () => {
     };
   };
   let mockLoggerService: {
-    error: jest.MockedFunction<(context: string, message: string, stack?: string) => void>;
+    error: jest.MockedFunction<(message: string, trace?: string, context?: string) => void>;
+    log: jest.MockedFunction<(message: string, context?: string) => void>;
+    warn: jest.MockedFunction<(message: string, context?: string) => void>;
+    debug: jest.MockedFunction<(message: string, context?: string) => void>;
+    verbose: jest.MockedFunction<(message: string, context?: string) => void>;
+    write: jest.MockedFunction<(chunk: string) => boolean>;
   };
 
   // Helper function to create mock product data
@@ -206,6 +211,11 @@ describe('ProductService - getProductDetailForUser', () => {
 
     mockLoggerService = {
       error: jest.fn(),
+      log: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+      write: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -257,7 +267,7 @@ describe('ProductService - getProductDetailForUser', () => {
 
   describe('successful scenarios', () => {
     it('should return product detail successfully with all data', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-001' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-001' };
       const mockProduct = createMockProduct(1, 'TEST-SKU-001');
 
       mockPlainToInstance.mockReturnValue(dto);
@@ -279,7 +289,7 @@ describe('ProductService - getProductDetailForUser', () => {
       expect(result?.reviews).toHaveLength(2);
       expect(result?.categories).toBeDefined();
 
-      expect(mockPlainToInstance).toHaveBeenCalledWith(DeleteProductDto, dto);
+      expect(mockPlainToInstance).toHaveBeenCalledWith(skuIdProductDto, dto);
       expect(mockValidateOrReject).toHaveBeenCalledWith(dto);
       expect(mockPrismaService.client.product.findUnique).toHaveBeenCalledWith({
         where: { skuId: 'TEST-SKU-001' },
@@ -301,7 +311,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle product with empty description correctly', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-002' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-002' };
       const mockProduct = createMockProduct(2, 'TEST-SKU-002', {
         description: null,
       });
@@ -317,7 +327,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle product with empty arrays correctly', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-003' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-003' };
       const mockProduct = createMockProduct(3, 'TEST-SKU-003', {
         images: [],
         variants: [],
@@ -342,7 +352,7 @@ describe('ProductService - getProductDetailForUser', () => {
       const statuses = [StatusProduct.IN_STOCK, StatusProduct.SOLD_OUT, StatusProduct.PRE_SALE];
 
       for (const status of statuses) {
-        const dto: DeleteProductDto = { skuId: `TEST-SKU-${status}` };
+        const dto: skuIdProductDto = { skuId: `TEST-SKU-${status}` };
         const mockProduct = createMockProduct(1, `TEST-SKU-${status}`, { status });
 
         mockPlainToInstance.mockReturnValue(dto);
@@ -356,7 +366,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle variants with null endDate and size description', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-004' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-004' };
       const mockProduct = createMockProduct(4, 'TEST-SKU-004', {
         variants: [
           {
@@ -384,7 +394,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle reviews with null comment and updatedAt', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-005' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-005' };
       const mockProduct = createMockProduct(5, 'TEST-SKU-005', {
         reviews: [
           {
@@ -410,7 +420,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle images with null url correctly', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-006' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-006' };
       const mockProduct = createMockProduct(6, 'TEST-SKU-006', {
         images: [
           {
@@ -432,7 +442,7 @@ describe('ProductService - getProductDetailForUser', () => {
 
   describe('error scenarios', () => {
     it('should throw TypedRpcException when product is not found', async () => {
-      const dto: DeleteProductDto = { skuId: 'NON-EXISTENT-SKU' };
+      const dto: skuIdProductDto = { skuId: 'NON-EXISTENT-SKU' };
 
       mockPlainToInstance.mockReturnValue(dto);
       mockValidateOrReject.mockResolvedValue(undefined);
@@ -451,7 +461,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should throw validation error when DTO validation fails', async () => {
-      const dto: DeleteProductDto = { skuId: '' };
+      const dto: skuIdProductDto = { skuId: '' };
       const validationError = new Error('Validation failed: skuId should not be empty');
 
       mockPlainToInstance.mockReturnValue(dto);
@@ -468,7 +478,7 @@ describe('ProductService - getProductDetailForUser', () => {
         expect(typedError.getError().message).toBe('common.errors.internalServerError');
       }
 
-      expect(mockPlainToInstance).toHaveBeenCalledWith(DeleteProductDto, dto);
+      expect(mockPlainToInstance).toHaveBeenCalledWith(skuIdProductDto, dto);
       expect(mockValidateOrReject).toHaveBeenCalledWith(dto);
       expect(mockPrismaService.client.product.findUnique).not.toHaveBeenCalled();
       expect(mockLoggerService.error).toHaveBeenCalledWith(
@@ -479,7 +489,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle database connection errors', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-DB-ERROR' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-DB-ERROR' };
       const dbError = new Error('Database connection failed');
 
       mockPlainToInstance.mockReturnValue(dto);
@@ -505,7 +515,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle groupedCategories method errors', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-CATEGORY-ERROR' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-CATEGORY-ERROR' };
       const mockProduct = createMockProduct(1, 'TEST-SKU-CATEGORY-ERROR');
       const categoryError = new Error('Category grouping failed');
 
@@ -540,7 +550,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle non-Error exceptions correctly', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-STRING-ERROR' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-STRING-ERROR' };
       const stringError = 'String error message';
 
       mockPlainToInstance.mockReturnValue(dto);
@@ -557,7 +567,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should re-throw TypedRpcException without wrapping', async () => {
-      const dto: DeleteProductDto = { skuId: 'TEST-SKU-TYPED-ERROR' };
+      const dto: skuIdProductDto = { skuId: 'TEST-SKU-TYPED-ERROR' };
       const typedError = new TypedRpcException({
         code: HTTP_ERROR_CODE.BAD_REQUEST,
         message: 'Custom typed error',
@@ -583,7 +593,7 @@ describe('ProductService - getProductDetailForUser', () => {
       ];
 
       for (const skuId of specialSkuIds) {
-        const dto: DeleteProductDto = { skuId };
+        const dto: skuIdProductDto = { skuId };
         const mockProduct = createMockProduct(1, skuId);
 
         mockPlainToInstance.mockReturnValue(dto);
@@ -597,7 +607,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle very large product data', async () => {
-      const dto: DeleteProductDto = { skuId: 'LARGE-PRODUCT-SKU' };
+      const dto: skuIdProductDto = { skuId: 'LARGE-PRODUCT-SKU' };
       const largeImages = Array.from({ length: 100 }, (_, i) => ({
         id: i + 1,
         url: `https://example.com/image${i + 1}.jpg`,
@@ -641,7 +651,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle concurrent requests for same product', async () => {
-      const dto: DeleteProductDto = { skuId: 'CONCURRENT-SKU' };
+      const dto: skuIdProductDto = { skuId: 'CONCURRENT-SKU' };
       const mockProduct = createMockProduct(1, 'CONCURRENT-SKU');
 
       mockPlainToInstance.mockReturnValue(dto);
@@ -659,7 +669,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should verify correct method signature and return type', async () => {
-      const dto: DeleteProductDto = { skuId: 'TYPE-CHECK-SKU' };
+      const dto: skuIdProductDto = { skuId: 'TYPE-CHECK-SKU' };
       const mockProduct = createMockProduct(1, 'TYPE-CHECK-SKU');
 
       mockPlainToInstance.mockReturnValue(dto);
@@ -728,7 +738,7 @@ describe('ProductService - getProductDetailForUser', () => {
 
   describe('data transformation', () => {
     it('should correctly transform variant dates to strings', async () => {
-      const dto: DeleteProductDto = { skuId: 'DATE-TRANSFORM-SKU' };
+      const dto: skuIdProductDto = { skuId: 'DATE-TRANSFORM-SKU' };
       const startDate = new Date('2024-01-01T10:00:00Z');
       const endDate = new Date('2024-12-31T23:59:59Z');
 
@@ -759,7 +769,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should correctly transform size id to string', async () => {
-      const dto: DeleteProductDto = { skuId: 'SIZE-ID-TRANSFORM-SKU' };
+      const dto: skuIdProductDto = { skuId: 'SIZE-ID-TRANSFORM-SKU' };
       const mockProduct = createMockProduct(1, 'SIZE-ID-TRANSFORM-SKU', {
         variants: [
           {
@@ -787,7 +797,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle null values correctly in all transformations', async () => {
-      const dto: DeleteProductDto = { skuId: 'NULL-TRANSFORM-SKU' };
+      const dto: skuIdProductDto = { skuId: 'NULL-TRANSFORM-SKU' };
       const mockProduct = createMockProduct(1, 'NULL-TRANSFORM-SKU', {
         description: null,
         images: [{ id: 1, url: null }],
@@ -832,7 +842,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle null groupedCategories correctly', async () => {
-      const dto: DeleteProductDto = { skuId: 'NULL-CATEGORIES-SKU' };
+      const dto: skuIdProductDto = { skuId: 'NULL-CATEGORIES-SKU' };
       const mockProduct = createMockProduct(1, 'NULL-CATEGORIES-SKU');
 
       mockPlainToInstance.mockReturnValue(dto);
@@ -855,7 +865,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle null startDate in variants correctly', async () => {
-      const dto: DeleteProductDto = { skuId: 'NULL-STARTDATE-SKU' };
+      const dto: skuIdProductDto = { skuId: 'NULL-STARTDATE-SKU' };
       const mockProduct = createMockProduct(1, 'NULL-STARTDATE-SKU', {
         variants: [
           {
@@ -882,7 +892,7 @@ describe('ProductService - getProductDetailForUser', () => {
     });
 
     it('should handle null nameSize in variant size correctly', async () => {
-      const dto: DeleteProductDto = { skuId: 'NULL-NAMESIZE-SKU' };
+      const dto: skuIdProductDto = { skuId: 'NULL-NAMESIZE-SKU' };
       const mockProduct = createMockProduct(1, 'NULL-NAMESIZE-SKU', {
         variants: [
           {
@@ -906,6 +916,88 @@ describe('ProductService - getProductDetailForUser', () => {
       const result = await service.getProductDetailForUser(dto);
 
       expect(result?.variants[0].size.nameSize).toBe('');
+    });
+
+    it('should handle null quantity correctly (line 1013)', async () => {
+      const dto: skuIdProductDto = { skuId: 'NULL-QUANTITY-SKU' };
+      const mockProduct = createMockProduct(1, 'NULL-QUANTITY-SKU', {
+        quantity: null as unknown as number,
+      });
+
+      mockPlainToInstance.mockReturnValue(dto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      mockPrismaService.client.product.findUnique.mockResolvedValue(mockProduct);
+
+      const result = await service.getProductDetailForUser(dto);
+
+      expect(result?.quantity).toBe(0);
+    });
+
+    it('should handle null variant price correctly (line 1021)', async () => {
+      const dto: skuIdProductDto = { skuId: 'NULL-VARIANT-PRICE-SKU' };
+      const mockProduct = createMockProduct(1, 'NULL-VARIANT-PRICE-SKU', {
+        variants: [
+          {
+            id: 1,
+            price: null as unknown as Decimal,
+            startDate: new Date(),
+            endDate: new Date(),
+            size: {
+              id: 1,
+              nameSize: 'Large',
+              description: 'Large size',
+            },
+          },
+        ],
+      });
+
+      mockPlainToInstance.mockReturnValue(dto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      mockPrismaService.client.product.findUnique.mockResolvedValue(mockProduct);
+
+      const result = await service.getProductDetailForUser(dto);
+
+      expect(result?.variants[0].price).toBe(0);
+    });
+
+    it('should handle null review rating correctly (line 1032)', async () => {
+      const dto: skuIdProductDto = { skuId: 'NULL-REVIEW-RATING-SKU' };
+      const mockProduct = createMockProduct(1, 'NULL-REVIEW-RATING-SKU', {
+        reviews: [
+          {
+            id: 1,
+            rating: null as unknown as number,
+            comment: 'Great product!',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            userId: 1,
+            productId: 1,
+          },
+        ],
+      });
+
+      mockPlainToInstance.mockReturnValue(dto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      mockPrismaService.client.product.findUnique.mockResolvedValue(mockProduct);
+
+      const result = await service.getProductDetailForUser(dto);
+
+      expect(result?.reviews[0].rating).toBe(0);
+    });
+
+    it('should handle null basePrice correctly (line 1011)', async () => {
+      const dto: skuIdProductDto = { skuId: 'NULL-BASEPRICE-SKU' };
+      const mockProduct = createMockProduct(1, 'NULL-BASEPRICE-SKU', {
+        basePrice: null as unknown as Decimal,
+      });
+
+      mockPlainToInstance.mockReturnValue(dto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      mockPrismaService.client.product.findUnique.mockResolvedValue(mockProduct);
+
+      const result = await service.getProductDetailForUser(dto);
+
+      expect(result?.basePrice).toBe(0);
     });
   });
 });

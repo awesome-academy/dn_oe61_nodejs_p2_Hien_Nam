@@ -13,7 +13,7 @@ import { buildBaseResponse } from '@app/common/utils/data.util';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
 import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
-import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { GetByIdProductDto } from '@app/common/dto/product/get-by-id-product';
 import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
 import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
@@ -117,7 +117,7 @@ export class ProductService {
     return buildBaseResponse<ProductResponse>(StatusKey.SUCCESS, result);
   }
 
-  async delete(skuId: DeleteProductDto): Promise<BaseResponse<ProductResponse>> {
+  async delete(skuId: skuIdProductDto): Promise<BaseResponse<ProductResponse>> {
     const product = await callMicroservice<BaseResponse<ProductResponse>>(
       this.productClient.send(ProductPattern.CHECK_PRODUCT_EXISTS, skuId.skuId),
       PRODUCT_SERVICE,

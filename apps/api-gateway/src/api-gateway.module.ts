@@ -24,6 +24,8 @@ import { TwitterStrategy } from './auth/strategy/twitter.strategy';
 import { GoogleStrategy } from './auth/strategy/google-strategy';
 import { AdminUserController } from './user/admin-user.controller';
 import { UserService } from './user/user.service';
+import { UserProfileController } from './user/user-profile/user-profile.controller';
+import { UserProfileService } from './user/user-profile/user-profile.service';
 import { BullModule } from '@nestjs/bullmq';
 import { QueueName } from '@app/common/enums/queue/queue-name.enum';
 import { ProductController } from './product/admin/product.controller';
@@ -118,6 +120,8 @@ import { CacheModule } from '@app/common/cache/cache.module';
     ProductController,
     CartController,
     UserProductController,
+    UserProductController,
+    UserProfileController,
   ],
   providers: [
     AuthService,
@@ -125,6 +129,7 @@ import { CacheModule } from '@app/common/cache/cache.module';
     CustomLogger,
     UserService,
     CartService,
+    UserProfileService,
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,

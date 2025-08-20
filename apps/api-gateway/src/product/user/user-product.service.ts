@@ -1,4 +1,4 @@
-import { PRODUCT_SERVICE } from '@app/common';
+import { NOTIFICATION_SERVICE, PRODUCT_SERVICE } from '@app/common';
 import { BaseCacheService } from '@app/common/cache/base-cache.service';
 import { CacheService } from '@app/common/cache/cache.service';
 import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
@@ -9,6 +9,17 @@ import { GetByIdProductDto } from '@app/common/dto/product/get-by-id-product';
 import { UserProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
 import { UserProductResponse } from '@app/common/dto/product/response/product-response';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
+import { ShareUrlProductResponse } from '@app/common/dto/product/response/share-url-product-response';
+import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
+import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
+import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
+import {
+  CreateReviewResponse,
+  ReviewResponse,
+} from '@app/common/dto/product/response/review-response.dto';
+import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
+import { Notifications } from '@app/common/enums/message-patterns/notification.pattern';
+import { PaginationResult } from '@app/common/interfaces/pagination';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { callMicroservice } from '@app/common/helpers/microservices';
 import { BaseResponse } from '@app/common/interfaces/data-type';
@@ -22,6 +33,7 @@ import { I18nService } from 'nestjs-i18n';
 export class UserProductService {
   constructor(
     @Inject(PRODUCT_SERVICE) private readonly productClient: ClientProxy,
+    @Inject(NOTIFICATION_SERVICE) private readonly notificationClient: ClientProxy,
     private readonly loggerService: CustomLogger,
     private readonly i18nService: I18nService,
     private readonly cacheService: CacheService,
@@ -30,7 +42,7 @@ export class UserProductService {
 
   async listProductsForUser(
     query: GetAllProductUserDto,
-  ): Promise<BaseResponse<UserProductResponse[]>> {
+  ): Promise<BaseResponse<PaginationResult<UserProductResponse>>> {
     const options = {
       page: query.page,
       pageSize: query.pageSize,
@@ -43,10 +55,10 @@ export class UserProductService {
     };
     const cacheKey = this.genCacheKey('user_products', this.cacheService, options);
 
-    const result = await this.cacheService.getOrSet<UserProductResponse[]>(
+    const result = await this.cacheService.getOrSet<PaginationResult<UserProductResponse>>(
       cacheKey,
       async () => {
-        const microserviceResult = await callMicroservice<UserProductResponse[]>(
+        const microserviceResult = await callMicroservice<PaginationResult<UserProductResponse>>(
           this.productClient.send(ProductPattern.GET_ALL_USER, query),
           PRODUCT_SERVICE,
           this.loggerService,
@@ -67,7 +79,7 @@ export class UserProductService {
       },
     );
 
-    return buildBaseResponse<UserProductResponse[]>(StatusKey.SUCCESS, result);
+    return buildBaseResponse<PaginationResult<UserProductResponse>>(StatusKey.SUCCESS, result);
   }
 
   private genCacheKey(
@@ -129,5 +141,112 @@ export class UserProductService {
     );
 
     return buildBaseResponse<UserProductDetailResponse>(StatusKey.SUCCESS, result);
+  }
+
+  async shareProduct(skuId: GetByIdProductDto): Promise<BaseResponse<ShareUrlProductResponse>> {
+    const product = await this.getProductDetailForUser(skuId);
+    if (!product) {
+      throw new BadRequestException(
+        this.i18nService.translate('common.product.action.getById.failed'),
+      );
+    }
+
+    const shareUrls = await callMicroservice<ShareUrlProductResponse>(
+      this.notificationClient.send(Notifications.GET_SHARE_INFO, { skuId: product.data }),
+      NOTIFICATION_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    if (!shareUrls) {
+      throw new BadRequestException(
+        this.i18nService.translate('common.product.action.shareProduct.failed'),
+      );
+    }
+
+    return buildBaseResponse<ShareUrlProductResponse>(StatusKey.SUCCESS, shareUrls);
+  }
+
+  async createReview(
+    skuId: string,
+    createReviewDto: CreateReviewDto,
+    userId: number,
+  ): Promise<BaseResponse<CreateReviewResponse>> {
+    const reviewData = {
+      ...createReviewDto,
+      userId,
+      skuId,
+    };
+
+    const result = await callMicroservice<CreateReviewResponse>(
+      this.productClient.send(ProductPattern.CREATE_REVIEW, reviewData),
+      PRODUCT_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    if (!result) {
+      throw new BadRequestException(this.i18nService.translate('review.errors.createFailed'));
+    }
+
+    return buildBaseResponse<CreateReviewResponse>(StatusKey.SUCCESS, result);
+  }
+
+  async getProductReviews(
+    skuId: GetByIdProductDto,
+    query: GetProductReviewsDto,
+  ): Promise<BaseResponse<PaginationResult<ReviewResponse>>> {
+    const reviewsData = {
+      ...query,
+      skuId: skuId.skuId,
+    };
+
+    const result = await callMicroservice<PaginationResult<ReviewResponse>>(
+      this.productClient.send(ProductPattern.GET_PRODUCT_REVIEWS, reviewsData),
+      PRODUCT_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    if (!result) {
+      throw new BadRequestException(this.i18nService.translate('review.errors.fetchFailed'));
+    }
+
+    return buildBaseResponse<PaginationResult<ReviewResponse>>(StatusKey.SUCCESS, result);
+  }
+
+  async deleteReview(
+    reviewId: number,
+    userId: number,
+  ): Promise<BaseResponse<DeleteReviewResponse>> {
+    const deleteReviewData: DeleteReviewDto = {
+      reviewId,
+      userId,
+    };
+
+    const result = await callMicroservice<DeleteReviewResponse>(
+      this.productClient.send(ProductPattern.DELETE_REVIEW, deleteReviewData),
+      PRODUCT_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    if (!result) {
+      throw new BadRequestException(this.i18nService.translate('review.errors.deleteFailed'));
+    }
+
+    return buildBaseResponse<DeleteReviewResponse>(StatusKey.SUCCESS, result);
   }
 }

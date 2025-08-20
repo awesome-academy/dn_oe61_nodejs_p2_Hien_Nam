@@ -9,7 +9,7 @@ import {
 } from '@app/common/dto/product/response/product-response';
 import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
 import { Product } from '../generated/prisma';
-import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { PaginationDto } from '@app/common/dto/pagination.dto';
 import { PaginationResult } from '@app/common/interfaces/pagination';
 import {
@@ -29,6 +29,14 @@ import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delet
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
 import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
+import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
+import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
+import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
+import {
+  CreateReviewResponse,
+  ReviewResponse,
+} from '@app/common/dto/product/response/review-response.dto';
+import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 
 @Controller()
 export class ProductServiceController {
@@ -52,12 +60,12 @@ export class ProductServiceController {
   }
 
   @MessagePattern(ProductPattern.DELETE_PRODUCT)
-  async deleteProduct(@Payload() payLoad: DeleteProductDto): Promise<Product | null> {
+  async deleteProduct(@Payload() payLoad: skuIdProductDto): Promise<Product | null> {
     return await this.productService.deleteProduct(payLoad);
   }
 
   @MessagePattern(ProductPattern.GET_BY_ID)
-  async getById(@Payload() payLoad: DeleteProductDto): Promise<ProductDetailResponse | null> {
+  async getById(@Payload() payLoad: skuIdProductDto): Promise<ProductDetailResponse | null> {
     return await this.productService.getById(payLoad);
   }
 
@@ -122,13 +130,13 @@ export class ProductServiceController {
   @MessagePattern(ProductPattern.GET_ALL_USER)
   async listProductsForUser(
     @Payload() payLoad: GetAllProductUserDto,
-  ): Promise<UserProductResponse[]> {
+  ): Promise<PaginationResult<UserProductResponse>> {
     return await this.productService.listProductsForUser(payLoad);
   }
 
   @MessagePattern(ProductPattern.GET_BY_ID_FOR_USER)
   async getProductDetailForUser(
-    @Payload() payload: DeleteProductDto,
+    @Payload() payload: skuIdProductDto,
   ): Promise<UserProductDetailResponse | null> {
     return await this.productService.getProductDetailForUser(payload);
   }
@@ -136,5 +144,26 @@ export class ProductServiceController {
   @MessagePattern(ProductPattern.GET_CART)
   async getCart(@Payload() payLoad: GetCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
     return await this.productService.getCart(payLoad);
+  }
+
+  @MessagePattern(ProductPattern.CREATE_REVIEW)
+  async createReview(
+    @Payload() data: { skuId: string } & { userId: number } & CreateReviewDto,
+  ): Promise<CreateReviewResponse> {
+    const { skuId, userId, ...reviewData } = data;
+    return await this.productService.createReview(skuId, reviewData, userId);
+  }
+
+  @MessagePattern(ProductPattern.GET_PRODUCT_REVIEWS)
+  async getProductReviews(
+    data: { skuId: string } & GetProductReviewsDto,
+  ): Promise<PaginationResult<ReviewResponse>> {
+    const { skuId, ...reviewsData } = data;
+    return this.productService.getProductReviews(skuId, reviewsData);
+  }
+
+  @MessagePattern(ProductPattern.DELETE_REVIEW)
+  async deleteReview(@Payload() deleteReviewData: DeleteReviewDto): Promise<DeleteReviewResponse> {
+    return await this.productService.deleteReview(deleteReviewData);
   }
 }

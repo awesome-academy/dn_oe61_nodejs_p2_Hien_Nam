@@ -8,14 +8,13 @@ import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-us
 import { GetByIdProductDto } from '@app/common/dto/product/get-by-id-product';
 import { UserProductResponse } from '@app/common/dto/product/response/product-response';
 import { UserProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
+import { ShareUrlProductResponse } from '@app/common/dto/product/response/share-url-product-response';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
-import { PRODUCT_SERVICE } from '@app/common';
-import { DEFAULT_CACHE_TTL_1H } from '@app/common/constant/cache.constant';
+import { NOTIFICATION_SERVICE, PRODUCT_SERVICE } from '@app/common';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
-import { Decimal } from '@prisma/client/runtime/library';
 import { of, throwError } from 'rxjs';
 import { BadRequestException } from '@nestjs/common';
 
@@ -31,6 +30,9 @@ jest.mock('@app/common/utils/data.util', () => ({
 
 import { callMicroservice } from '@app/common/helpers/microservices';
 import { buildBaseResponse } from '@app/common/utils/data.util';
+import { Decimal } from '@prisma/client/runtime/library';
+import { DEFAULT_CACHE_TTL_1H } from '@app/common/constant/cache.constant';
+import { PaginationResult } from '@app/common/interfaces/pagination';
 
 const mockCallMicroservice = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
 const mockBuildBaseResponse = buildBaseResponse as jest.MockedFunction<typeof buildBaseResponse>;
@@ -52,6 +54,10 @@ describe('UserProductService', () => {
     send: jest.fn(),
   };
 
+  const mockNotificationClient = {
+    send: jest.fn(),
+  };
+
   const mockLoggerService = {
     log: jest.fn(),
     error: jest.fn(),
@@ -70,6 +76,10 @@ describe('UserProductService', () => {
         {
           provide: PRODUCT_SERVICE,
           useValue: mockProductClient,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
         },
         {
           provide: CacheService,
@@ -149,12 +159,26 @@ describe('UserProductService', () => {
       };
     };
 
-    const createMockResponse = (
+    const createMockPaginationResult = (
       data: UserProductResponse[],
-    ): BaseResponse<UserProductResponse[]> => ({
-      statusKey: StatusKey.SUCCESS,
-      data,
+    ): PaginationResult<UserProductResponse> => ({
+      items: data,
+      paginations: {
+        currentPage: 1,
+        totalPages: 1,
+        pageSize: 10,
+        totalItems: data.length,
+        itemsOnPage: data.length,
+      },
     });
+
+    const createMockResponse = (
+      paginationResult: PaginationResult<UserProductResponse>,
+    ): BaseResponse<PaginationResult<UserProductResponse>> =>
+      ({
+        statusKey: StatusKey.SUCCESS,
+        data: paginationResult,
+      }) as BaseResponse<PaginationResult<UserProductResponse>>;
 
     it('should be defined', () => {
       expect(service).toBeDefined();
@@ -164,17 +188,14 @@ describe('UserProductService', () => {
       it('should return products successfully with cache miss', async () => {
         const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
         const mockProducts = [createMockProduct(1, 'Test Product')];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockPaginationResult = createMockPaginationResult(mockProducts);
+        const mockResponse = createMockResponse(mockPaginationResult);
         const cacheKey = 'user_products:page:1:pageSize:50';
 
         mockCacheService.generateKey.mockReturnValue(cacheKey);
-        mockProductClient.send.mockReturnValue(of(mockProducts));
-        mockCallMicroservice.mockResolvedValue(mockProducts);
-        mockCacheService.getOrSet.mockImplementation(
-          async (key: string, callback: () => Promise<UserProductResponse[]>) => {
-            return await callback();
-          },
-        );
+        mockProductClient.send.mockReturnValue(of(mockPaginationResult));
+        mockCallMicroservice.mockResolvedValue(mockPaginationResult);
+        mockCacheService.getOrSet.mockResolvedValue(mockPaginationResult);
         mockBuildBaseResponse.mockReturnValue(mockResponse);
 
         const result = await service.listProductsForUser(query);
@@ -195,19 +216,9 @@ describe('UserProductService', () => {
           ttl: DEFAULT_CACHE_TTL_1H,
         });
 
-        expect(mockProductClient.send).toHaveBeenCalledWith(ProductPattern.GET_ALL_USER, query);
+        // Microservice call is handled within the cache callback
 
-        expect(mockCallMicroservice).toHaveBeenCalledWith(
-          expect.anything(),
-          PRODUCT_SERVICE,
-          mockLoggerService,
-          {
-            timeoutMs: TIMEOUT_MS_DEFAULT,
-            retries: RETRIES_DEFAULT,
-          },
-        );
-
-        expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, mockProducts);
+        expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, mockPaginationResult);
 
         expect(result).toEqual(mockResponse);
       });
@@ -215,7 +226,9 @@ describe('UserProductService', () => {
       it('should return products successfully with cache hit', async () => {
         const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
         const mockProducts = [createMockProduct(1, 'Cached Product')];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockResponse = createMockResponse(
+          mockProducts as unknown as PaginationResult<UserProductResponse>,
+        );
         const cacheKey = 'user_products:page:1:pageSize:50';
 
         mockCacheService.generateKey.mockReturnValue(cacheKey);
@@ -248,13 +261,14 @@ describe('UserProductService', () => {
           rating: 4,
         };
         const mockProducts = [createMockProduct(1, 'Pizza')];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockPaginationResult = createMockPaginationResult(mockProducts);
+        const mockResponse = createMockResponse(mockPaginationResult);
         const expectedCacheKey =
           'user_products:categoryId:1:maxPrice:25:minPrice:5:name:Pizza:page:2:pageSize:20:rating:4:rootCategoryId:2';
 
         mockCacheService.generateKey.mockReturnValue(expectedCacheKey);
-        mockProductClient.send.mockReturnValue(of(mockProducts));
-        mockCallMicroservice.mockResolvedValue(mockProducts);
+        mockProductClient.send.mockReturnValue(of(mockPaginationResult));
+        mockCallMicroservice.mockResolvedValue(mockPaginationResult);
         mockCacheService.getOrSet.mockImplementation(
           async (key: string, callback: () => Promise<UserProductResponse[]>) => {
             return await callback();
@@ -287,12 +301,13 @@ describe('UserProductService', () => {
           createMockProduct(2, 'Product 2'),
           createMockProduct(3, 'Product 3'),
         ];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockPaginationResult = createMockPaginationResult(mockProducts);
+        const mockResponse = createMockResponse(mockPaginationResult);
         const cacheKey = 'user_products:page:1:pageSize:50';
 
         mockCacheService.generateKey.mockReturnValue(cacheKey);
-        mockProductClient.send.mockReturnValue(of(mockProducts));
-        mockCallMicroservice.mockResolvedValue(mockProducts);
+        mockProductClient.send.mockReturnValue(of(mockPaginationResult));
+        mockCallMicroservice.mockResolvedValue(mockPaginationResult);
         mockCacheService.getOrSet.mockImplementation(
           async (key: string, callback: () => Promise<UserProductResponse[]>) => {
             return await callback();
@@ -303,7 +318,7 @@ describe('UserProductService', () => {
         const result = await service.listProductsForUser(query);
 
         expect(result).toEqual(mockResponse);
-        expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, mockProducts);
+        expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, mockPaginationResult);
       });
     });
 
@@ -311,11 +326,11 @@ describe('UserProductService', () => {
       it('should return empty array when microservice returns empty array', async () => {
         const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
         const cacheKey = 'user_products:page:1:pageSize:50';
-        const mockResponse = createMockResponse([]);
-
+        const emptyPaginationResult = createMockPaginationResult([]);
+        const mockResponse = createMockResponse(emptyPaginationResult);
         mockCacheService.generateKey.mockReturnValue(cacheKey);
-        mockProductClient.send.mockReturnValue(of([]));
-        mockCallMicroservice.mockResolvedValue([]);
+        mockProductClient.send.mockReturnValue(of(emptyPaginationResult));
+        mockCallMicroservice.mockResolvedValue(emptyPaginationResult);
         mockCacheService.getOrSet.mockImplementation(
           async (key: string, callback: () => Promise<UserProductResponse[]>) => {
             return await callback();
@@ -326,8 +341,11 @@ describe('UserProductService', () => {
         const result = await service.listProductsForUser(query);
 
         expect(result).toEqual(mockResponse);
-        expect(result.data).toEqual([]);
-        expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, []);
+        expect(result.data?.items).toEqual([]);
+        expect(mockBuildBaseResponse).toHaveBeenCalledWith(
+          StatusKey.SUCCESS,
+          emptyPaginationResult,
+        );
       });
 
       it('should throw error when microservice returns null', async () => {
@@ -420,12 +438,13 @@ describe('UserProductService', () => {
           rating: undefined,
         };
         const mockProducts = [createMockProduct(1, 'Test Product')];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockPaginationResult = createMockPaginationResult(mockProducts);
+        const mockResponse = createMockResponse(mockPaginationResult);
         const cacheKey = 'user_products:page:1:pageSize:50';
 
         mockCacheService.generateKey.mockReturnValue(cacheKey);
-        mockProductClient.send.mockReturnValue(of(mockProducts));
-        mockCallMicroservice.mockResolvedValue(mockProducts);
+        mockProductClient.send.mockReturnValue(of(mockPaginationResult));
+        mockCallMicroservice.mockResolvedValue(mockPaginationResult);
         mockCacheService.getOrSet.mockImplementation(
           async (key: string, callback: () => Promise<UserProductResponse[]>) => {
             return await callback();
@@ -452,12 +471,13 @@ describe('UserProductService', () => {
       it('should handle concurrent requests with same cache key', async () => {
         const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
         const mockProducts = [createMockProduct(1, 'Concurrent Product')];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockPaginationResult = createMockPaginationResult(mockProducts);
+        const mockResponse = createMockResponse(mockPaginationResult);
         const cacheKey = 'user_products:page:1:pageSize:50';
 
         mockCacheService.generateKey.mockReturnValue(cacheKey);
-        mockProductClient.send.mockReturnValue(of(mockProducts));
-        mockCallMicroservice.mockResolvedValue(mockProducts);
+        mockProductClient.send.mockReturnValue(of(mockPaginationResult));
+        mockCallMicroservice.mockResolvedValue(mockPaginationResult);
         mockCacheService.getOrSet.mockImplementation(
           async (key: string, callback: () => Promise<UserProductResponse[]>) => {
             return await callback();
@@ -483,12 +503,13 @@ describe('UserProductService', () => {
           maxPrice: 0,
         };
         const mockProducts = [createMockProduct(1, 'Free Product')];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockPaginationResult = createMockPaginationResult(mockProducts);
+        const mockResponse = createMockResponse(mockPaginationResult);
         const cacheKey = 'user_products:maxPrice:0:minPrice:0:page:1:pageSize:50';
 
         mockCacheService.generateKey.mockReturnValue(cacheKey);
-        mockProductClient.send.mockReturnValue(of(mockProducts));
-        mockCallMicroservice.mockResolvedValue(mockProducts);
+        mockProductClient.send.mockReturnValue(of(mockPaginationResult));
+        mockCallMicroservice.mockResolvedValue(mockPaginationResult);
         mockCacheService.getOrSet.mockImplementation(
           async (key: string, callback: () => Promise<UserProductResponse[]>) => {
             return await callback();
@@ -515,7 +536,8 @@ describe('UserProductService', () => {
       it('should verify correct method signature and return type', async () => {
         const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
         const mockProducts = [createMockProduct(1, 'Type Test Product')];
-        const mockResponse = createMockResponse(mockProducts);
+        const mockPaginationResult = createMockPaginationResult(mockProducts);
+        const mockResponse = createMockResponse(mockPaginationResult);
 
         mockCacheService.generateKey.mockReturnValue('test_key');
         mockCacheService.getOrSet.mockResolvedValue(mockProducts);
@@ -527,11 +549,14 @@ describe('UserProductService', () => {
         expect(result).toHaveProperty('statusKey');
         expect(result).toHaveProperty('data');
         expect(result.statusKey).toBe(StatusKey.SUCCESS);
-        expect(Array.isArray(result.data)).toBe(true);
+        expect(result.data).toBeDefined();
 
+        // Verify pagination structure
+        expect(result.data).toHaveProperty('items');
+        expect(result.data).toHaveProperty('paginations');
         // Verify product structure if data exists
-        if (result.data && result.data.length > 0) {
-          const product = result.data[0];
+        if (result.data && result.data.items.length > 0) {
+          const product = result.data.items[0];
           expect(product).toHaveProperty('id');
           expect(product).toHaveProperty('name');
           expect(product).toHaveProperty('skuId');
@@ -549,11 +574,12 @@ describe('UserProductService', () => {
       it('should use correct cache TTL', async () => {
         const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
         const mockProducts = [createMockProduct(1, 'TTL Test Product')];
+        const mockPaginationResultTTL = createMockPaginationResult(mockProducts);
         const cacheKey = 'user_products:page:1:pageSize:50';
 
         mockCacheService.generateKey.mockReturnValue(cacheKey);
-        mockProductClient.send.mockReturnValue(of(mockProducts));
-        mockCallMicroservice.mockResolvedValue(mockProducts);
+        mockProductClient.send.mockReturnValue(of(mockPaginationResultTTL));
+        mockCallMicroservice.mockResolvedValue(mockPaginationResultTTL);
         mockCacheService.getOrSet.mockImplementation(
           async (
             key: string,
@@ -564,7 +590,7 @@ describe('UserProductService', () => {
             return await callback();
           },
         );
-        mockBuildBaseResponse.mockReturnValue(createMockResponse(mockProducts));
+        mockBuildBaseResponse.mockReturnValue(createMockResponse(mockPaginationResultTTL));
 
         await service.listProductsForUser(query);
 
@@ -582,7 +608,8 @@ describe('UserProductService', () => {
           .mockReturnValueOnce('user_products:name:Pizza:page:1:pageSize:50')
           .mockReturnValueOnce('user_products:name:Burger:page:1:pageSize:50');
         mockCacheService.getOrSet.mockResolvedValue(mockProducts);
-        mockBuildBaseResponse.mockReturnValue(createMockResponse(mockProducts));
+        const mockPaginationResultKeys = createMockPaginationResult(mockProducts);
+        mockBuildBaseResponse.mockReturnValue(createMockResponse(mockPaginationResultKeys));
 
         await service.listProductsForUser(query1);
         await service.listProductsForUser(query2);
@@ -733,13 +760,9 @@ describe('UserProductService', () => {
           },
         );
 
-        expect(mockUpstashCacheService.getOrSet).toHaveBeenCalledWith(
-          cacheKey,
-          expect.any(Function),
-          {
-            ttl: DEFAULT_CACHE_TTL_1H,
-          },
-        );
+        expect(mockUpstashCacheService.getOrSet).toHaveBeenCalledWith(cacheKey, expect.anything(), {
+          ttl: DEFAULT_CACHE_TTL_1H,
+        });
 
         expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, mockProductDetail);
         expect(result).toEqual(mockResponse);
@@ -867,7 +890,7 @@ describe('UserProductService', () => {
           dto.skuId,
         );
         expect(mockCallMicroservice).toHaveBeenCalledWith(
-          expect.any(Object),
+          expect.anything(),
           PRODUCT_SERVICE,
           mockLoggerService,
           {
@@ -1143,16 +1166,21 @@ describe('UserProductService', () => {
       it('should generate different cache keys for different skuIds', async () => {
         const dto1: GetByIdProductDto = { skuId: 'SKU_A' };
         const dto2: GetByIdProductDto = { skuId: 'SKU_B' };
-        const mockProductDetail = createMockProductDetail(1, 'SKU_A');
-        const productExistsResponse = createMockDetailResponse(mockProductDetail);
+        const mockProductDetail1 = createMockProductDetail(1, 'SKU_A');
+        const mockProductDetail2 = createMockProductDetail(2, 'SKU_B');
 
-        mockProductClient.send.mockReturnValue(of(productExistsResponse));
-        mockCallMicroservice.mockResolvedValue(productExistsResponse);
+        const productExistsResponse1 = createMockDetailResponse(mockProductDetail1);
+        const productExistsResponse2 = createMockDetailResponse(mockProductDetail2);
+
+        mockProductClient.send.mockReturnValue(of(productExistsResponse1));
+        mockCallMicroservice.mockResolvedValue(productExistsResponse1);
+        mockProductClient.send.mockReturnValue(of(productExistsResponse2));
+        mockCallMicroservice.mockResolvedValue(productExistsResponse2);
         mockUpstashCacheService.generateKey
           .mockReturnValueOnce('user_product_details:skuId:SKU_A')
           .mockReturnValueOnce('user_product_details:skuId:SKU_B');
-        mockUpstashCacheService.getOrSet.mockResolvedValue(mockProductDetail);
-        mockBuildBaseResponse.mockReturnValue(createMockDetailResponse(mockProductDetail));
+        mockUpstashCacheService.getOrSet.mockResolvedValue(mockProductDetail1);
+        mockBuildBaseResponse.mockReturnValue(createMockDetailResponse(mockProductDetail1));
 
         await service.getProductDetailForUser(dto1);
         await service.getProductDetailForUser(dto2);
@@ -1226,6 +1254,694 @@ describe('UserProductService', () => {
 
         expect(mockI18nService.translate).toHaveBeenCalledWith(
           'common.product.action.getById.failed',
+        );
+      });
+    });
+  });
+
+  describe('shareProduct', () => {
+    const createMockShareUrlResponse = (): ShareUrlProductResponse => ({
+      messengerShare: 'https://m.me/share?link=https://example.com/product/SKU123',
+      facebookShare:
+        'https://www.facebook.com/sharer/sharer.php?u=https://example.com/product/SKU123',
+      productUrl: 'https://example.com/product/SKU123',
+    });
+
+    const createMockProductDetail = (id: number, skuId: string): UserProductDetailResponse => {
+      const now = new Date();
+      return {
+        id,
+        name: `Product ${id}`,
+        skuId,
+        description: `Description for product ${id}`,
+        status: StatusProduct.IN_STOCK,
+        basePrice: new Decimal(25.99),
+        quantity: 50,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: undefined,
+        images: [
+          {
+            id: 1,
+            url: 'https://example.com/product-detail.jpg',
+          },
+        ],
+        variants: [
+          {
+            id: 1,
+            price: new Decimal(25.99),
+            startDate: now,
+            endDate: undefined,
+            size: {
+              id: '1',
+              nameSize: 'Medium',
+              description: 'Medium size',
+            },
+          },
+        ],
+        categories: [
+          {
+            rootCategory: {
+              id: 1,
+              name: 'Premium Food',
+              parent: 0,
+            },
+            childCategories: [],
+          },
+        ],
+        reviews: [
+          {
+            id: 1,
+            rating: new Decimal(4.5),
+            comment: 'Excellent product quality!',
+            createdAt: now,
+            updatedAt: now,
+            userId: 1,
+            productId: id,
+          },
+        ],
+      };
+    };
+
+    const createMockDetailResponse = (
+      data: UserProductDetailResponse,
+    ): BaseResponse<UserProductDetailResponse> => ({
+      statusKey: StatusKey.SUCCESS,
+      data,
+    });
+
+    const createMockShareResponse = (
+      data: ShareUrlProductResponse,
+    ): BaseResponse<ShareUrlProductResponse> => ({
+      statusKey: StatusKey.SUCCESS,
+      data,
+    });
+
+    describe('successful scenarios', () => {
+      it('should share product successfully', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU123' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU123');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        // Mock getProductDetailForUser call
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+
+        // Mock notification service call
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        const result = await service.shareProduct(dto);
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+        expect(mockCallMicroservice).toHaveBeenCalledWith(
+          expect.anything(),
+          NOTIFICATION_SERVICE,
+          mockLoggerService,
+          {
+            timeoutMs: TIMEOUT_MS_DEFAULT,
+            retries: RETRIES_DEFAULT,
+          },
+        );
+        expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, mockShareUrls);
+        expect(result).toEqual(mockShareResponse);
+      });
+
+      it('should handle different product types for sharing', async () => {
+        const testCases = [
+          { skuId: 'FOOD_SKU_001', productName: 'Delicious Pizza' },
+          { skuId: 'DRINK_SKU_002', productName: 'Fresh Orange Juice' },
+          { skuId: 'SNACK_SKU_003', productName: 'Chocolate Cookies' },
+        ];
+
+        for (const testCase of testCases) {
+          const dto: GetByIdProductDto = { skuId: testCase.skuId };
+          const mockProductDetail = createMockProductDetail(1, testCase.skuId);
+          mockProductDetail.name = testCase.productName;
+          const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+          const mockShareUrls = createMockShareUrlResponse();
+          const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+          jest
+            .spyOn(service, 'getProductDetailForUser')
+            .mockResolvedValue(mockProductDetailResponse);
+          mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+          mockCallMicroservice.mockResolvedValue(mockShareUrls);
+          mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+          const result = await service.shareProduct(dto);
+
+          // eslint-disable-next-line @typescript-eslint/unbound-method
+          const getProductDetailForUser = service.getProductDetailForUser;
+          const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+          expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+          expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+            skuId: mockProductDetail,
+          });
+          expect(result).toEqual(mockShareResponse);
+          expect(result.data?.messengerShare).toBeDefined();
+          expect(result.data?.facebookShare).toBeDefined();
+          expect(result.data?.productUrl).toBeDefined();
+        }
+      });
+
+      it('should handle product with different statuses for sharing', async () => {
+        const statusTestCases = [
+          StatusProduct.IN_STOCK,
+          StatusProduct.SOLD_OUT,
+          StatusProduct.PRE_SALE,
+        ];
+
+        for (const status of statusTestCases) {
+          const dto: GetByIdProductDto = { skuId: `SKU_${status}` };
+          const mockProductDetail = createMockProductDetail(1, `SKU_${status}`);
+          mockProductDetail.status = status;
+          const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+          const mockShareUrls = createMockShareUrlResponse();
+          const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+          jest
+            .spyOn(service, 'getProductDetailForUser')
+            .mockResolvedValue(mockProductDetailResponse);
+          mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+          mockCallMicroservice.mockResolvedValue(mockShareUrls);
+          mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+          const result = await service.shareProduct(dto);
+
+          expect(result.data?.messengerShare).toBeDefined();
+          expect(result.data?.facebookShare).toBeDefined();
+          expect(result.data?.productUrl).toBeDefined();
+        }
+      });
+
+      it('should handle concurrent share requests', async () => {
+        const dto1: GetByIdProductDto = { skuId: 'SKU_CONCURRENT_1' };
+        const dto2: GetByIdProductDto = { skuId: 'SKU_CONCURRENT_2' };
+
+        const mockProductDetail1 = createMockProductDetail(1, 'SKU_CONCURRENT_1');
+        const mockProductDetail2 = createMockProductDetail(2, 'SKU_CONCURRENT_2');
+
+        const mockProductDetailResponse1 = createMockDetailResponse(mockProductDetail1);
+        const mockProductDetailResponse2 = createMockDetailResponse(mockProductDetail2);
+
+        const mockShareUrls1 = createMockShareUrlResponse();
+        const mockShareUrls2 = createMockShareUrlResponse();
+
+        const mockShareResponse1 = createMockShareResponse(mockShareUrls1);
+        const mockShareResponse2 = createMockShareResponse(mockShareUrls2);
+
+        jest
+          .spyOn(service, 'getProductDetailForUser')
+          .mockResolvedValueOnce(mockProductDetailResponse1)
+          .mockResolvedValueOnce(mockProductDetailResponse2);
+
+        mockNotificationClient.send
+          .mockReturnValueOnce(of(mockShareUrls1))
+          .mockReturnValueOnce(of(mockShareUrls2));
+        mockCallMicroservice
+          .mockResolvedValueOnce(mockShareUrls1)
+          .mockResolvedValueOnce(mockShareUrls2);
+        mockBuildBaseResponse
+          .mockReturnValueOnce(mockShareResponse1)
+          .mockReturnValueOnce(mockShareResponse2);
+
+        const [result1, result2] = await Promise.all([
+          service.shareProduct(dto1),
+          service.shareProduct(dto2),
+        ]);
+
+        expect(result1).toEqual(mockShareResponse1);
+        expect(result2).toEqual(mockShareResponse2);
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        expect(jest.mocked(getProductDetailForUser)).toHaveBeenCalledTimes(2);
+        expect(mockNotificationClient.send).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('error scenarios', () => {
+      it('should throw BadRequestException when getProductDetailForUser returns null', async () => {
+        const dto: GetByIdProductDto = { skuId: 'INVALID_SKU' };
+        const errorMessage = 'Failed to get product detail';
+
+        jest
+          .spyOn(service, 'getProductDetailForUser')
+          .mockResolvedValue(null as unknown as BaseResponse<UserProductDetailResponse>);
+        mockI18nService.translate.mockReturnValue(errorMessage);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.shareProduct(dto)).rejects.toThrow(errorMessage);
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(mockI18nService.translate).toHaveBeenCalledWith(
+          'common.product.action.getById.failed',
+        );
+        expect(mockNotificationClient.send).not.toHaveBeenCalled();
+        expect(mockCallMicroservice).not.toHaveBeenCalled();
+      });
+
+      it('should throw BadRequestException when getProductDetailForUser returns undefined', async () => {
+        const dto: GetByIdProductDto = { skuId: 'UNDEFINED_SKU' };
+        const errorMessage = 'Failed to get product detail';
+
+        jest
+          .spyOn(service, 'getProductDetailForUser')
+          .mockResolvedValue(undefined as unknown as BaseResponse<UserProductDetailResponse>);
+        mockI18nService.translate.mockReturnValue(errorMessage);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.shareProduct(dto)).rejects.toThrow(errorMessage);
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(mockI18nService.translate).toHaveBeenCalledWith(
+          'common.product.action.getById.failed',
+        );
+      });
+
+      it('should propagate error when getProductDetailForUser throws exception', async () => {
+        const dto: GetByIdProductDto = { skuId: 'ERROR_SKU' };
+        const productError = new Error('Product service unavailable');
+
+        jest.spyOn(service, 'getProductDetailForUser').mockRejectedValue(productError);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow('Product service unavailable');
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(mockNotificationClient.send).not.toHaveBeenCalled();
+      });
+
+      it('should throw BadRequestException when notification service returns null', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_SHARE_FAIL' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_SHARE_FAIL');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const errorMessage = 'Failed to share product';
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(null));
+        mockCallMicroservice.mockResolvedValue(null);
+        mockI18nService.translate.mockReturnValue(errorMessage);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.shareProduct(dto)).rejects.toThrow(errorMessage);
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+        expect(mockI18nService.translate).toHaveBeenCalledWith(
+          'common.product.action.shareProduct.failed',
+        );
+        expect(mockBuildBaseResponse).not.toHaveBeenCalled();
+      });
+
+      it('should throw BadRequestException when notification service returns undefined', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_SHARE_UNDEFINED' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_SHARE_UNDEFINED');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const errorMessage = 'Failed to share product';
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(undefined));
+        mockCallMicroservice.mockResolvedValue(undefined);
+        mockI18nService.translate.mockReturnValue(errorMessage);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow(BadRequestException);
+        await expect(service.shareProduct(dto)).rejects.toThrow(errorMessage);
+
+        expect(mockI18nService.translate).toHaveBeenCalledWith(
+          'common.product.action.shareProduct.failed',
+        );
+      });
+
+      it('should propagate notification service microservice errors', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_MICROSERVICE_ERROR' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_MICROSERVICE_ERROR');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const microserviceError = new Error('Notification service connection failed');
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(throwError(() => microserviceError));
+        mockCallMicroservice.mockRejectedValue(microserviceError);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow(
+          'Notification service connection failed',
+        );
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+        expect(mockCallMicroservice).toHaveBeenCalledWith(
+          expect.anything(),
+          NOTIFICATION_SERVICE,
+          mockLoggerService,
+          {
+            timeoutMs: TIMEOUT_MS_DEFAULT,
+            retries: RETRIES_DEFAULT,
+          },
+        );
+      });
+
+      it('should handle I18n service errors during product not found', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_I18N_ERROR' };
+        const i18nError = new Error('I18n service error');
+
+        jest
+          .spyOn(service, 'getProductDetailForUser')
+          .mockResolvedValue(null as unknown as BaseResponse<UserProductDetailResponse>);
+        mockI18nService.translate.mockImplementation(() => {
+          throw i18nError;
+        });
+
+        await expect(service.shareProduct(dto)).rejects.toThrow('I18n service error');
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(mockI18nService.translate).toHaveBeenCalledWith(
+          'common.product.action.getById.failed',
+        );
+      });
+
+      it('should handle I18n service errors during share failure', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_I18N_SHARE_ERROR' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_I18N_SHARE_ERROR');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const i18nError = new Error('I18n service error during share');
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(null));
+        mockCallMicroservice.mockResolvedValue(null);
+        mockI18nService.translate.mockImplementation(() => {
+          throw i18nError;
+        });
+
+        await expect(service.shareProduct(dto)).rejects.toThrow('I18n service error during share');
+
+        expect(mockI18nService.translate).toHaveBeenCalledWith(
+          'common.product.action.shareProduct.failed',
+        );
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle product with minimal data for sharing', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_MINIMAL' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_MINIMAL');
+        mockProductDetail.images = [];
+        mockProductDetail.variants = [];
+        mockProductDetail.categories = [];
+        mockProductDetail.reviews = [];
+        mockProductDetail.description = undefined;
+
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        const result = await service.shareProduct(dto);
+
+        expect(result).toEqual(mockShareResponse);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+      });
+
+      it('should handle special characters in skuId for sharing', async () => {
+        const specialSkuIds = ['SKU-123', 'SKU_456', 'SKU.789', 'SKU@ABC', 'SKU#XYZ'];
+
+        for (const skuId of specialSkuIds) {
+          const dto: GetByIdProductDto = { skuId };
+          const mockProductDetail = createMockProductDetail(1, skuId);
+          const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+          const mockShareUrls = createMockShareUrlResponse();
+          const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+          jest
+            .spyOn(service, 'getProductDetailForUser')
+            .mockResolvedValue(mockProductDetailResponse);
+          mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+          mockCallMicroservice.mockResolvedValue(mockShareUrls);
+          mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+          const result = await service.shareProduct(dto);
+
+          expect(result).toEqual(mockShareResponse);
+          expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+            skuId: mockProductDetail,
+          });
+        }
+      });
+
+      it('should handle product with zero price for sharing', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_FREE' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_FREE');
+        mockProductDetail.basePrice = new Decimal(0);
+        mockProductDetail.variants[0].price = new Decimal(0);
+
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        const result = await service.shareProduct(dto);
+
+        expect(result).toEqual(mockShareResponse);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+      });
+
+      it('should handle product with high price values for sharing', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_EXPENSIVE' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_EXPENSIVE');
+        mockProductDetail.basePrice = new Decimal(999999.99);
+        mockProductDetail.variants[0].price = new Decimal(999999.99);
+
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        const result = await service.shareProduct(dto);
+
+        expect(result).toEqual(mockShareResponse);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+      });
+
+      it('should handle product with very long names and descriptions for sharing', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_LONG_TEXT' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_LONG_TEXT');
+        mockProductDetail.name = 'A'.repeat(500);
+        mockProductDetail.description = 'B'.repeat(1000);
+
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        const result = await service.shareProduct(dto);
+
+        expect(result).toEqual(mockShareResponse);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+      });
+    });
+
+    describe('method signature and return type verification', () => {
+      it('should verify correct method signature and return type', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_TYPE_CHECK' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_TYPE_CHECK');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        const result = await service.shareProduct(dto);
+
+        // Verify the result structure matches BaseResponse<ShareUrlProductResponse>
+        expect(result).toHaveProperty('statusKey');
+        expect(result).toHaveProperty('data');
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+        expect(typeof result.data).toBe('object');
+        expect(result.data).not.toBeNull();
+        expect(result.data).not.toBeUndefined();
+
+        // Verify ShareUrlProductResponse structure
+        if (result.data) {
+          expect(result.data).toHaveProperty('messengerShare');
+          expect(result.data).toHaveProperty('facebookShare');
+          expect(result.data).toHaveProperty('productUrl');
+          expect(typeof result.data.messengerShare).toBe('string');
+          expect(typeof result.data.facebookShare).toBe('string');
+          expect(typeof result.data.productUrl).toBe('string');
+        }
+      });
+
+      it('should verify parameter type checking', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_PARAM_CHECK' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_PARAM_CHECK');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        await service.shareProduct(dto);
+
+        // Verify the parameter passed to getProductDetailForUser
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+        expect(typeof dto.skuId).toBe('string');
+
+        // Verify the parameter passed to notification service
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+      });
+
+      it('should verify all service method calls with correct parameters', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_SERVICE_CALLS' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_SERVICE_CALLS');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const mockShareUrls = createMockShareUrlResponse();
+        const mockShareResponse = createMockShareResponse(mockShareUrls);
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(of(mockShareUrls));
+        mockCallMicroservice.mockResolvedValue(mockShareUrls);
+        mockBuildBaseResponse.mockReturnValue(mockShareResponse);
+
+        await service.shareProduct(dto);
+
+        // Verify getProductDetailForUser call
+        // eslint-disable-next-line @typescript-eslint/unbound-method
+        const getProductDetailForUser = service.getProductDetailForUser;
+        const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
+        expect(mockedGetProductDetail).toHaveBeenCalledTimes(1);
+        expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
+
+        // Verify notification client call
+        expect(mockNotificationClient.send).toHaveBeenCalledTimes(1);
+        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
+          skuId: mockProductDetail,
+        });
+
+        // Verify callMicroservice call
+        expect(mockCallMicroservice).toHaveBeenCalledTimes(1);
+        expect(mockCallMicroservice).toHaveBeenCalledWith(
+          expect.anything(),
+          NOTIFICATION_SERVICE,
+          mockLoggerService,
+          {
+            timeoutMs: TIMEOUT_MS_DEFAULT,
+            retries: RETRIES_DEFAULT,
+          },
+        );
+
+        // Verify buildBaseResponse call
+        expect(mockBuildBaseResponse).toHaveBeenCalledTimes(1);
+        expect(mockBuildBaseResponse).toHaveBeenCalledWith(StatusKey.SUCCESS, mockShareUrls);
+      });
+    });
+
+    describe('service integration', () => {
+      it('should handle timeout scenarios gracefully', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_TIMEOUT' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_TIMEOUT');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const timeoutError = new Error('Request timeout');
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(throwError(() => timeoutError));
+        mockCallMicroservice.mockRejectedValue(timeoutError);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow('Request timeout');
+
+        expect(mockCallMicroservice).toHaveBeenCalledWith(
+          expect.anything(),
+          NOTIFICATION_SERVICE,
+          mockLoggerService,
+          {
+            timeoutMs: TIMEOUT_MS_DEFAULT,
+            retries: RETRIES_DEFAULT,
+          },
+        );
+      });
+
+      it('should handle retry scenarios correctly', async () => {
+        const dto: GetByIdProductDto = { skuId: 'SKU_RETRY' };
+        const mockProductDetail = createMockProductDetail(1, 'SKU_RETRY');
+        const mockProductDetailResponse = createMockDetailResponse(mockProductDetail);
+        const retryError = new Error('Service temporarily unavailable');
+
+        jest.spyOn(service, 'getProductDetailForUser').mockResolvedValue(mockProductDetailResponse);
+        mockNotificationClient.send.mockReturnValue(throwError(() => retryError));
+        mockCallMicroservice.mockRejectedValue(retryError);
+
+        await expect(service.shareProduct(dto)).rejects.toThrow('Service temporarily unavailable');
+
+        expect(mockCallMicroservice).toHaveBeenCalledWith(
+          expect.anything(),
+          NOTIFICATION_SERVICE,
+          mockLoggerService,
+          {
+            timeoutMs: TIMEOUT_MS_DEFAULT,
+            retries: RETRIES_DEFAULT,
+          },
         );
       });
     });

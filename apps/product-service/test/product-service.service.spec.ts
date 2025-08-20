@@ -698,10 +698,11 @@ describe('ProductService', () => {
       expect(mockPrismaService.client.cart.findUnique).toHaveBeenCalledWith({
         where: { userId: dto.userId },
       });
-      expect(mockPrismaService.client.cart.update).toHaveBeenCalledWith({
-        where: { userId: dto.userId },
-        data: { deletedAt: expect.any(Date) as unknown as Date },
-      });
+      expect(mockPrismaService.client.cart.update).toHaveBeenCalledTimes(1);
+      // Verify the update was called with correct userId
+      const updateCall = mockPrismaService.client.cart.update.mock.calls[0][0];
+      expect(updateCall.where.userId).toBe(dto.userId);
+      expect(updateCall.data.deletedAt).toBeInstanceOf(Date);
     });
 
     it('should do nothing when cart not found', async () => {

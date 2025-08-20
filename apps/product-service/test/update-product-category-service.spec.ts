@@ -460,6 +460,25 @@ describe('ProductService', () => {
         expect(result.id).toBe(Number.MAX_SAFE_INTEGER);
         expect(result.categoryId).toBe(Number.MAX_SAFE_INTEGER - 1);
       });
+
+      it('should handle null updatedAt field', async () => {
+        const mockUpdatedWithNullDate = {
+          ...mockUpdated,
+          updatedAt: null,
+        };
+
+        mockPlainToInstance.mockReturnValue(validUpdateDto);
+        mockValidateOrReject.mockResolvedValue(undefined);
+        mockPrismaClient.categoryProduct.findUnique.mockResolvedValue(mockExisting);
+        mockPrismaClient.category.findUnique.mockResolvedValue(mockCategory);
+        mockPrismaClient.product.findUnique.mockResolvedValue(mockProduct);
+        mockPrismaClient.categoryProduct.findFirst.mockResolvedValue(null);
+        mockPrismaClient.categoryProduct.update.mockResolvedValue(mockUpdatedWithNullDate);
+
+        const result = await service.updateProductCategory(validUpdateDto);
+
+        expect(result.updatedAt).toBeUndefined();
+      });
     });
   });
 });

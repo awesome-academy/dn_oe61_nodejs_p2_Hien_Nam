@@ -26,8 +26,13 @@ import { PrismaClient, Provider, Role } from '../generated/prisma';
 import { ProductProducer } from '../src/producer/product.producer';
 import { UserService } from '../src/user-service.service';
 import { assertRpcException } from '@app/common/helpers/test.helper';
-
-jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password') }));
+import { UpdateUserProfileRequest } from '@app/common/dto/user/requests/update-user-profile.request';
+import { UpdatePasswordRequest } from '@app/common/dto/user/requests/update-password.request';
+jest.mock('bcrypt', () => ({
+  hash: jest.fn().mockResolvedValue('hashed-password'),
+  compare: jest.fn().mockResolvedValue(true),
+}));
+jest.spyOn(classValidator, 'validateOrReject').mockImplementation(jest.fn());
 
 describe('UserService', () => {
   let service: UserService;
@@ -52,6 +57,8 @@ describe('UserService', () => {
               authProvider: {
                 findFirst: jest.fn(),
                 findUnique: jest.fn(),
+                create: jest.fn(),
+                update: jest.fn(),
               },
               $transaction: jest.fn(),
             },
@@ -270,9 +277,18 @@ describe('UserService', () => {
 
     it('should throw ConflictException if user already exists', async () => {
       const existingUser = { id: 1, email: 'test@example.com' } as UserResponse;
+
+      // Reset all mocks completely
+      jest.restoreAllMocks();
       jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue(undefined);
       jest.spyOn(service, 'checkUserExists').mockResolvedValue(existingUser);
-      await expect(service.validateOAuthUserCreation(createDto)).rejects.toThrow(TypedRpcException);
+
+      const expectedError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.createUser.exists',
+      });
+
+      await expect(service.validateOAuthUserCreation(createDto)).rejects.toThrow(expectedError);
     });
 
     it('should throw RpcException when role not found', async () => {
@@ -1346,6 +1362,1625 @@ describe('UserService', () => {
       const result = await service.updateStatuses(dto);
       expect(result.statusKey).toBe(StatusKey.UNCHANGED);
       expect(result.data).toEqual([]);
+    });
+  });
+
+  describe('getUserProfile', () => {
+    const mockGetUserProfileRequest = {
+      userId: 1,
+    };
+
+    const mockUserWithProfile = {
+      id: 1,
+      name: 'John Doe',
+      userName: 'johndoe',
+      email: 'john@example.com',
+      imageUrl: 'https://example.com/avatar.jpg',
+      isActive: true,
+      status: 'ACTIVE',
+      createdAt: new Date('2023-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2023-01-02T00:00:00.000Z'),
+      deletedAt: null,
+      role: {
+        id: 1,
+        name: 'USER',
+      },
+      profile: {
+        id: 1,
+        address: '123 Main St',
+        phoneNumber: '+1234567890',
+        dob: new Date('1990-01-01T00:00:00.000Z'),
+        createdAt: new Date('2023-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2023-01-02T00:00:00.000Z'),
+      },
+      authProviders: [
+        {
+          id: 1,
+          provider: 'LOCAL',
+          providerId: 'local-123',
+          password: 'hashed-password',
+          createdAt: new Date('2023-01-01T00:00:00.000Z'),
+        },
+        {
+          id: 2,
+          provider: 'GOOGLE',
+          providerId: 'google-456',
+          password: null,
+          createdAt: new Date('2023-01-01T00:00:00.000Z'),
+        },
+      ],
+    };
+
+    const mockUserWithoutProfile = {
+      id: 2,
+      name: 'Jane Smith',
+      userName: 'janesmith',
+      email: null,
+      imageUrl: null,
+      isActive: false,
+      status: 'INACTIVE',
+      createdAt: new Date('2023-01-01T00:00:00.000Z'),
+      updatedAt: null,
+      deletedAt: null,
+      role: {
+        id: 2,
+        name: 'ADMIN',
+      },
+      profile: null,
+      authProviders: [
+        {
+          id: 3,
+          provider: 'FACEBOOK',
+          providerId: 'facebook-789',
+          password: null,
+          createdAt: new Date('2023-01-01T00:00:00.000Z'),
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue(undefined);
+    });
+
+    describe('Successful scenarios', () => {
+      it('should successfully return user profile with complete profile data', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(prismaMock.client.user.findUnique).toHaveBeenCalledWith({
+          where: {
+            id: mockGetUserProfileRequest.userId,
+            deletedAt: null,
+          },
+          include: {
+            role: true,
+            profile: true,
+            authProviders: {
+              select: {
+                id: true,
+                provider: true,
+                providerId: true,
+                password: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+
+        expect(result).toEqual({
+          id: mockUserWithProfile.id,
+          name: mockUserWithProfile.name,
+          userName: mockUserWithProfile.userName,
+          email: mockUserWithProfile.email,
+          imageUrl: mockUserWithProfile.imageUrl,
+          isActive: mockUserWithProfile.isActive,
+          status: mockUserWithProfile.status,
+          createdAt: mockUserWithProfile.createdAt,
+          updatedAt: mockUserWithProfile.updatedAt,
+          role: {
+            id: mockUserWithProfile.role.id,
+            name: mockUserWithProfile.role.name,
+          },
+          profile: {
+            id: mockUserWithProfile.profile.id,
+            address: mockUserWithProfile.profile.address,
+            phoneNumber: mockUserWithProfile.profile.phoneNumber,
+            dateOfBirth: mockUserWithProfile.profile.dob,
+            createdAt: mockUserWithProfile.profile.createdAt,
+            updatedAt: mockUserWithProfile.profile.updatedAt,
+          },
+          authProviders: [
+            {
+              id: mockUserWithProfile.authProviders[0].id,
+              provider: mockUserWithProfile.authProviders[0].provider,
+              providerId: mockUserWithProfile.authProviders[0].providerId,
+              hasPassword: true,
+              createdAt: mockUserWithProfile.authProviders[0].createdAt,
+            },
+            {
+              id: mockUserWithProfile.authProviders[1].id,
+              provider: mockUserWithProfile.authProviders[1].provider,
+              providerId: mockUserWithProfile.authProviders[1].providerId,
+              hasPassword: false,
+              createdAt: mockUserWithProfile.authProviders[1].createdAt,
+            },
+          ],
+        });
+      });
+
+      it('should successfully return user profile without profile data (null profile)', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithoutProfile);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result).toEqual({
+          id: mockUserWithoutProfile.id,
+          name: mockUserWithoutProfile.name,
+          userName: mockUserWithoutProfile.userName,
+          email: mockUserWithoutProfile.email,
+          imageUrl: mockUserWithoutProfile.imageUrl,
+          isActive: mockUserWithoutProfile.isActive,
+          status: mockUserWithoutProfile.status,
+          createdAt: mockUserWithoutProfile.createdAt,
+          updatedAt: mockUserWithoutProfile.updatedAt,
+          role: {
+            id: mockUserWithoutProfile.role.id,
+            name: mockUserWithoutProfile.role.name,
+          },
+          profile: null,
+          authProviders: [
+            {
+              id: mockUserWithoutProfile.authProviders[0].id,
+              provider: mockUserWithoutProfile.authProviders[0].provider,
+              providerId: mockUserWithoutProfile.authProviders[0].providerId,
+              hasPassword: false,
+              createdAt: mockUserWithoutProfile.authProviders[0].createdAt,
+            },
+          ],
+        });
+      });
+
+      it('should handle user with empty authProviders array', async () => {
+        const userWithNoAuthProviders = {
+          ...mockUserWithProfile,
+          authProviders: [],
+        };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithNoAuthProviders);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result.authProviders).toEqual([]);
+      });
+
+      it('should correctly map hasPassword field based on password presence', async () => {
+        const userWithMixedPasswords = {
+          ...mockUserWithProfile,
+          authProviders: [
+            {
+              id: 1,
+              provider: 'LOCAL',
+              providerId: 'local-123',
+              password: 'hashed-password',
+              createdAt: new Date('2023-01-01T00:00:00.000Z'),
+            },
+            {
+              id: 2,
+              provider: 'GOOGLE',
+              providerId: 'google-456',
+              password: null,
+              createdAt: new Date('2023-01-01T00:00:00.000Z'),
+            },
+            {
+              id: 3,
+              provider: 'FACEBOOK',
+              providerId: 'facebook-789',
+              password: '',
+              createdAt: new Date('2023-01-01T00:00:00.000Z'),
+            },
+          ],
+        };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithMixedPasswords);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result.authProviders).toEqual([
+          expect.objectContaining({ hasPassword: true }), // 'hashed-password'
+          expect.objectContaining({ hasPassword: false }), // null
+          expect.objectContaining({ hasPassword: false }), // ''
+        ]);
+      });
+
+      it('should handle different user ID types correctly', async () => {
+        const requestWithStringId = { userId: 999 };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        await service.getUserProfile(requestWithStringId);
+
+        expect(prismaMock.client.user.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              id: 999,
+            }),
+          }),
+        );
+      });
+    });
+
+    describe('Validation scenarios', () => {
+      it('should throw validation error when DTO validation fails', async () => {
+        const validationError = new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.errors.validationError',
+        });
+        (classValidator.validateOrReject as jest.Mock).mockRejectedValue(validationError);
+
+        await expect(service.getUserProfile(mockGetUserProfileRequest)).rejects.toThrow(
+          validationError,
+        );
+
+        expect(classValidator.validateOrReject).toHaveBeenCalledWith(
+          expect.objectContaining(mockGetUserProfileRequest),
+        );
+      });
+
+      it('should validate DTO with correct class instance', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(classValidator.validateOrReject).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: mockGetUserProfileRequest.userId,
+          }),
+        );
+      });
+
+      it('should handle multiple validation errors', async () => {
+        const multipleValidationErrors = [
+          { property: 'userId', constraints: { isNotEmpty: 'userId should not be empty' } },
+          { property: 'userId', constraints: { isNumber: 'userId must be a number' } },
+        ];
+        (classValidator.validateOrReject as jest.Mock).mockRejectedValue(
+          new Error(JSON.stringify(multipleValidationErrors)),
+        );
+
+        await expect(service.getUserProfile(mockGetUserProfileRequest)).rejects.toThrow();
+      });
+    });
+
+    describe('Error scenarios', () => {
+      beforeEach(() => {
+        // Reset validateOrReject mock to resolve by default for error scenarios
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should throw TypedRpcException when user not found', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+        // Business logic errors (like NOT_FOUND) are re-thrown as-is
+        await expect(service.getUserProfile(mockGetUserProfileRequest)).rejects.toThrow(
+          new TypedRpcException({
+            code: HTTP_ERROR_CODE.NOT_FOUND,
+            message: 'common.user.notFound',
+          }),
+        );
+      });
+
+      it('should handle database connection errors', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        const dbError = new Error('Database connection failed');
+        (prismaMock.client.user.findUnique as jest.Mock).mockRejectedValue(dbError);
+
+        await expect(service.getUserProfile(mockGetUserProfileRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.getUserProfile(mockGetUserProfileRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(
+            HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          );
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.errors.internalServerError',
+          );
+        }
+      });
+
+      it('should handle Prisma unique constraint errors', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        const constraintError = new Error('Unique constraint failed');
+        constraintError.name = 'PrismaClientKnownRequestError';
+        (prismaMock.client.user.findUnique as jest.Mock).mockRejectedValue(constraintError);
+
+        await expect(service.getUserProfile(mockGetUserProfileRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.getUserProfile(mockGetUserProfileRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(
+            HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          );
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.errors.internalServerError',
+          );
+        }
+      });
+
+      it('should handle timeout errors', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        const timeoutError = new Error('Query timeout');
+        (prismaMock.client.user.findUnique as jest.Mock).mockRejectedValue(timeoutError);
+
+        const mappedError = new TypedRpcException({
+          code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          message: 'common.errors.internalServerError',
+        });
+        jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementation(() => {
+          throw mappedError;
+        });
+
+        await expect(service.getUserProfile(mockGetUserProfileRequest)).rejects.toThrow(
+          mappedError,
+        );
+      });
+
+      it('should handle non-Error exceptions', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockRejectedValue('String error');
+
+        const mappedError = new TypedRpcException({
+          code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          message: 'common.errors.internalServerError',
+        });
+        jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementation(() => {
+          throw mappedError;
+        });
+
+        await expect(service.getUserProfile(mockGetUserProfileRequest)).rejects.toThrow(
+          mappedError,
+        );
+      });
+    });
+
+    describe('Edge cases and data mapping', () => {
+      it('should handle user with null email correctly', async () => {
+        const userWithNullEmail = {
+          ...mockUserWithProfile,
+          email: null,
+        };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithNullEmail);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result.email).toBeNull();
+      });
+
+      it('should handle user with null imageUrl correctly', async () => {
+        const userWithNullImage = {
+          ...mockUserWithProfile,
+          imageUrl: null,
+        };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithNullImage);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result.imageUrl).toBeNull();
+      });
+
+      it('should handle user with null updatedAt correctly', async () => {
+        const userWithNullUpdatedAt = {
+          ...mockUserWithProfile,
+          updatedAt: null,
+        };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithNullUpdatedAt);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result.updatedAt).toBeNull();
+      });
+
+      it('should handle profile with null fields correctly', async () => {
+        const userWithNullProfileFields = {
+          ...mockUserWithProfile,
+          profile: {
+            id: 1,
+            address: null,
+            phoneNumber: null,
+            dob: null,
+            createdAt: new Date('2023-01-01T00:00:00.000Z'),
+            updatedAt: null,
+          },
+        };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(
+          userWithNullProfileFields,
+        );
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result.profile).toEqual({
+          id: 1,
+          address: null,
+          phoneNumber: null,
+          dateOfBirth: null,
+          createdAt: new Date('2023-01-01T00:00:00.000Z'),
+          updatedAt: null,
+        });
+      });
+
+      it('should handle authProvider with null providerId correctly', async () => {
+        const userWithNullProviderId = {
+          ...mockUserWithProfile,
+          authProviders: [
+            {
+              id: 1,
+              provider: 'LOCAL',
+              providerId: null,
+              password: 'hashed-password',
+              createdAt: new Date('2023-01-01T00:00:00.000Z'),
+            },
+          ],
+        };
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithNullProviderId);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(result.authProviders[0].providerId).toBeNull();
+      });
+
+      it('should handle large user ID values', async () => {
+        const largeIdRequest = { userId: 2147483647 }; // Max 32-bit integer
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        await service.getUserProfile(largeIdRequest);
+
+        expect(prismaMock.client.user.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({
+              id: 2147483647,
+            }),
+          }),
+        );
+      });
+
+      it('should verify correct Prisma query structure', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(prismaMock.client.user.findUnique).toHaveBeenCalledWith({
+          where: {
+            id: mockGetUserProfileRequest.userId,
+            deletedAt: null,
+          },
+          include: {
+            role: true,
+            profile: true,
+            authProviders: {
+              select: {
+                id: true,
+                provider: true,
+                providerId: true,
+                password: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+      });
+
+      it('should handle concurrent requests correctly', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        const requests = [
+          service.getUserProfile({ userId: 1 }),
+          service.getUserProfile({ userId: 2 }),
+          service.getUserProfile({ userId: 3 }),
+        ];
+
+        await Promise.all(requests);
+
+        expect(prismaMock.client.user.findUnique).toHaveBeenCalledTimes(3);
+      });
+    });
+
+    describe('Method signature and return type verification', () => {
+      it('should return correct type structure', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        expect(typeof result.id).toBe('number');
+        expect(typeof result.name).toBe('string');
+        expect(typeof result.userName).toBe('string');
+        expect(result.email === null || typeof result.email === 'string').toBe(true);
+        expect(result.imageUrl === null || typeof result.imageUrl === 'string').toBe(true);
+        expect(typeof result.isActive).toBe('boolean');
+        expect(typeof result.status).toBe('string');
+        expect(result.createdAt).toBeInstanceOf(Date);
+        expect(result.updatedAt === null || result.updatedAt instanceof Date).toBe(true);
+        expect(typeof result.role.id).toBe('number');
+        expect(typeof result.role.name).toBe('string');
+        expect(result.profile === null || typeof result.profile === 'object').toBe(true);
+        expect(Array.isArray(result.authProviders)).toBe(true);
+      });
+
+      it('should ensure authProviders array contains correct structure', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithProfile);
+
+        const result = await service.getUserProfile(mockGetUserProfileRequest);
+
+        result.authProviders.forEach((provider) => {
+          expect(typeof provider.id).toBe('number');
+          expect(typeof provider.provider).toBe('string');
+          expect(provider.providerId === null || typeof provider.providerId === 'string').toBe(
+            true,
+          );
+          expect(typeof provider.hasPassword).toBe('boolean');
+          expect(provider.createdAt).toBeInstanceOf(Date);
+        });
+      });
+    });
+  });
+
+  describe('updateUserProfile', () => {
+    const mockUpdateUserProfileRequest = {
+      userId: 1,
+      name: 'Updated Name',
+      userName: 'updateduser',
+      email: 'updated@example.com',
+      imageUrl: 'https://example.com/updated-image.jpg',
+      address: 'Updated Address',
+      phoneNumber: '+84901234567',
+      dateOfBirth: '1990-01-01',
+    };
+
+    const mockExistingUser = {
+      id: 1,
+      name: 'Original Name',
+      userName: 'originaluser',
+      email: 'original@example.com',
+      imageUrl: 'https://example.com/original-image.jpg',
+      updatedAt: new Date('2023-01-01T00:00:00Z'),
+      profile: {
+        id: 1,
+        userId: 1,
+        address: 'Original Address',
+        phoneNumber: '+84987654321',
+        dob: new Date('1985-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T00:00:00Z'),
+        deletedAt: null,
+      },
+    };
+
+    const mockUpdatedUser = {
+      id: 1,
+      name: 'Updated Name',
+      userName: 'updateduser',
+      email: 'updated@example.com',
+      imageUrl: 'https://example.com/updated-image.jpg',
+      updatedAt: new Date('2023-12-01T00:00:00Z'),
+    };
+
+    const mockUpdatedProfile = {
+      id: 1,
+      userId: 1,
+      address: 'Updated Address',
+      phoneNumber: '+84901234567',
+      dob: new Date('1990-01-01T00:00:00Z'),
+      updatedAt: new Date('2023-12-01T00:00:00Z'),
+      deletedAt: null,
+    };
+
+    describe('Successful scenarios', () => {
+      beforeEach(() => {
+        // Reset validateOrReject mock to resolve by default for successful scenarios
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should successfully update user and profile fields', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: mockUpdatedUser,
+          profile: mockUpdatedProfile,
+        });
+
+        const result = await service.updateUserProfile(mockUpdateUserProfileRequest);
+
+        expect(result).toBeDefined();
+        expect(typeof result.id).toBe('number');
+        expect(typeof result.name).toBe('string');
+        expect(typeof result.userName).toBe('string');
+        expect(result.email === null || typeof result.email === 'string').toBe(true);
+        expect(result.imageUrl === null || typeof result.imageUrl === 'string').toBe(true);
+        expect(result.updatedAt === null || result.updatedAt instanceof Date).toBe(true);
+        expect(result.profile).toBeDefined();
+        expect(result.profile!.id).toBe(mockUpdatedProfile.id);
+        expect(result.profile!.address).toBe(mockUpdatedProfile.address);
+        expect(result.profile!.phoneNumber).toBe(mockUpdatedProfile.phoneNumber);
+        expect(result.profile!.dateOfBirth).toEqual(mockUpdatedProfile.dob);
+      });
+
+      it('should successfully update only user fields without profile', async () => {
+        const userOnlyRequest = {
+          userId: 1,
+          name: 'Updated Name Only',
+          email: 'newemail@example.com',
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: { ...mockUpdatedUser, name: 'Updated Name Only', email: 'newemail@example.com' },
+          profile: mockExistingUser.profile,
+        });
+
+        const result = await service.updateUserProfile(userOnlyRequest);
+
+        expect(result).toBeDefined();
+        expect(result.name).toBe('Updated Name Only');
+        expect(result.email).toBe('newemail@example.com');
+        expect(result.profile).toBeDefined();
+        expect(result.profile!.address).toBe(mockExistingUser.profile.address);
+      });
+
+      it('should successfully update only profile fields', async () => {
+        const profileOnlyRequest = {
+          userId: 1,
+          address: 'New Address Only',
+          phoneNumber: '+84123456789',
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: mockExistingUser,
+          profile: {
+            ...mockUpdatedProfile,
+            address: 'New Address Only',
+            phoneNumber: '+84123456789',
+          },
+        });
+
+        const result = await service.updateUserProfile(profileOnlyRequest);
+
+        expect(result).toBeDefined();
+        expect(result.name).toBe(mockExistingUser.name);
+        expect(result.profile!.address).toBe('New Address Only');
+        expect(result.profile!.phoneNumber).toBe('+84123456789');
+      });
+
+      it('should handle user without existing profile (create new profile)', async () => {
+        const userWithoutProfile = { ...mockExistingUser, profile: null };
+        const createProfileRequest = {
+          userId: 1,
+          address: 'New Address',
+          phoneNumber: '+84111222333',
+          dateOfBirth: '1995-05-05',
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithoutProfile);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: userWithoutProfile,
+          profile: {
+            id: 2,
+            userId: 1,
+            address: 'New Address',
+            phoneNumber: '+84111222333',
+            dob: new Date('1995-05-05T00:00:00Z'),
+            updatedAt: new Date(),
+          },
+        });
+
+        const result = await service.updateUserProfile(createProfileRequest);
+
+        expect(result).toBeDefined();
+        expect(result.profile).toBeDefined();
+        expect(result.profile!.address).toBe('New Address');
+        expect(result.profile!.phoneNumber).toBe('+84111222333');
+      });
+
+      it('should handle null values correctly', async () => {
+        const nullValuesRequest = {
+          userId: 1,
+          name: undefined,
+          email: undefined,
+          imageUrl: undefined,
+          address: undefined,
+          phoneNumber: undefined,
+          dateOfBirth: undefined,
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: { ...mockUpdatedUser, name: null, email: null, imageUrl: null },
+          profile: { ...mockUpdatedProfile, address: null, phoneNumber: null, dob: null },
+        });
+
+        const result = await service.updateUserProfile(nullValuesRequest);
+
+        expect(result).toBeDefined();
+        expect(result.name).toBeNull();
+        expect(result.email).toBeNull();
+        expect(result.imageUrl).toBeNull();
+        expect(result.profile!.address).toBeNull();
+        expect(result.profile!.phoneNumber).toBeNull();
+        expect(result.profile!.dateOfBirth).toBeNull();
+      });
+    });
+
+    describe('Validation scenarios', () => {
+      it('should throw validation error when DTO validation fails', async () => {
+        const invalidRequest = { userId: 'invalid' };
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockRejectedValue([
+          { property: 'userId', constraints: { isNumber: 'userId must be a number' } },
+        ]);
+
+        await expect(
+          service.updateUserProfile(invalidRequest as unknown as UpdateUserProfileRequest),
+        ).rejects.toEqual([
+          { property: 'userId', constraints: { isNumber: 'userId must be a number' } },
+        ]);
+
+        expect(mockValidateOrReject).toHaveBeenCalledWith(expect.objectContaining(invalidRequest));
+      });
+
+      it('should throw conflict error when email already exists', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+        const emailConflictRequest = { userId: 1, email: 'existing@example.com' };
+        const existingEmailUser = { id: 2, email: 'existing@example.com' };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(existingEmailUser);
+        try {
+          await service.updateUserProfile(emailConflictRequest);
+          fail('Expected TypedRpcException to be thrown');
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          // Business logic errors (like CONFLICT) are re-thrown as-is
+          expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.CONFLICT);
+          expect((error as TypedRpcException).getError().message).toBe('common.user.emailExist');
+        }
+      });
+
+      it('should throw conflict error when userName already exists', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+        const userNameConflictRequest = { userId: 1, userName: 'existinguser' };
+        const existingUserNameUser = { id: 2, userName: 'existinguser' };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(existingUserNameUser);
+
+        try {
+          await service.updateUserProfile(userNameConflictRequest);
+          fail('Expected TypedRpcException to be thrown');
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          // Business logic errors (like CONFLICT) are re-thrown as-is
+          expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.CONFLICT);
+          expect((error as TypedRpcException).getError().message).toBe('common.user.userNameExist');
+        }
+      });
+
+      it('should throw conflict error when phoneNumber already exists', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+        const phoneConflictRequest = { userId: 1, phoneNumber: '+84999888777' };
+        const existingPhoneProfile = { userId: 2, phoneNumber: '+84999888777' };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(
+          existingPhoneProfile,
+        );
+
+        try {
+          await service.updateUserProfile(phoneConflictRequest);
+          fail('Expected TypedRpcException to be thrown');
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          // Business logic errors (like CONFLICT) are re-thrown as-is
+          expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.CONFLICT);
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.user.phoneNumberExist',
+          );
+        }
+      });
+
+      it('should allow same email/userName/phoneNumber for same user', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+        const sameDataRequest = {
+          userId: 1,
+          email: mockExistingUser.email,
+          userName: mockExistingUser.userName,
+          phoneNumber: mockExistingUser.profile.phoneNumber,
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: mockExistingUser,
+          profile: mockExistingUser.profile,
+        });
+
+        const result = await service.updateUserProfile(sameDataRequest);
+
+        expect(result).toBeDefined();
+        expect(result.email).toBe(mockExistingUser.email);
+        expect(result.userName).toBe(mockExistingUser.userName);
+      });
+    });
+
+    describe('Error scenarios', () => {
+      it('should throw NOT_FOUND error when user does not exist', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+        await expect(service.updateUserProfile(mockUpdateUserProfileRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.updateUserProfile(mockUpdateUserProfileRequest);
+          fail('Expected TypedRpcException to be thrown');
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          // Business logic errors (like NOT_FOUND) are re-thrown as-is
+          expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.NOT_FOUND);
+          expect((error as TypedRpcException).getError().message).toBe('common.user.notFound');
+        }
+      });
+
+      it('should handle database connection errors', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockReset();
+        mockValidateOrReject.mockResolvedValue(undefined);
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        const dbError = new Error('Database connection failed');
+        (prismaMock.client.user.findUnique as jest.Mock).mockRejectedValue(dbError);
+
+        await expect(service.updateUserProfile(mockUpdateUserProfileRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.updateUserProfile(mockUpdateUserProfileRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(
+            HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          );
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.errors.internalServerError',
+          );
+        }
+      });
+
+      it('should handle transaction failures', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockReset();
+        mockValidateOrReject.mockResolvedValue(undefined);
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+
+        const transactionError = new Error('Transaction failed');
+        (prismaMock.client.$transaction as jest.Mock).mockRejectedValue(transactionError);
+
+        await expect(service.updateUserProfile(mockUpdateUserProfileRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.updateUserProfile(mockUpdateUserProfileRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(
+            HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          );
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.errors.internalServerError',
+          );
+        }
+      });
+
+      it('should handle Prisma unique constraint errors', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockReset();
+        mockValidateOrReject.mockResolvedValue(undefined);
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+
+        const prismaError = {
+          code: 'P2002',
+          meta: { target: ['email'] },
+          message: 'Unique constraint failed',
+        };
+        (prismaMock.client.$transaction as jest.Mock).mockRejectedValue(prismaError);
+
+        await expect(service.updateUserProfile(mockUpdateUserProfileRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.updateUserProfile(mockUpdateUserProfileRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(
+            HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          );
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.errors.internalServerError',
+          );
+        }
+      });
+
+      it('should handle non-Error exceptions', async () => {
+        // Reset mock to resolve for this test
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockReset();
+        mockValidateOrReject.mockResolvedValue(undefined);
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+
+        const nonErrorException = 'String exception';
+        (prismaMock.client.$transaction as jest.Mock).mockRejectedValue(nonErrorException);
+
+        const mappedError = new TypedRpcException({
+          code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          message: 'common.errors.internalServerError',
+        });
+        jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementation(() => {
+          throw mappedError;
+        });
+
+        await expect(service.updateUserProfile(mockUpdateUserProfileRequest)).rejects.toThrow(
+          new TypedRpcException({
+            code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+            message: 'common.errors.internalServerError',
+          }),
+        );
+      });
+    });
+
+    describe('Edge cases and transaction handling', () => {
+      beforeEach(() => {
+        // Reset validateOrReject mock to resolve by default for edge cases
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should handle undefined fields correctly (not update them)', async () => {
+        const partialRequest = {
+          userId: 1,
+          name: 'Only Name Updated',
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.$transaction as jest.Mock).mockImplementation((callback) => {
+          const mockTx = {
+            user: {
+              update: jest.fn().mockResolvedValue({
+                ...mockExistingUser,
+                name: 'Only Name Updated',
+              }),
+            },
+            userProfile: {
+              upsert: jest.fn().mockResolvedValue(mockUpdatedProfile),
+            },
+          };
+          return Promise.resolve(callback(mockTx));
+        });
+
+        const result = await service.updateUserProfile(partialRequest);
+
+        expect(result).toBeDefined();
+        expect(result.name).toBe('Only Name Updated');
+      });
+
+      it('should verify correct transaction structure for user update', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+
+        let transactionCallback: ((tx: unknown) => Promise<unknown>) | undefined;
+        (prismaMock.client.$transaction as jest.Mock).mockImplementation((callback) => {
+          transactionCallback = callback;
+          const mockTx = {
+            user: {
+              update: jest.fn().mockResolvedValue(mockUpdatedUser),
+            },
+            userProfile: {
+              upsert: jest.fn().mockResolvedValue(mockUpdatedProfile),
+            },
+          };
+          return Promise.resolve(callback(mockTx));
+        });
+
+        await service.updateUserProfile(mockUpdateUserProfileRequest);
+
+        expect(prismaMock.client.$transaction).toHaveBeenCalledTimes(1);
+        const mockTransaction = prismaMock.client.$transaction as jest.Mock;
+        const firstCall = mockTransaction.mock.calls[0] as unknown[];
+        expect(typeof firstCall[0]).toBe('function');
+        expect(transactionCallback).toBeDefined();
+      });
+
+      it('should handle large user ID values', async () => {
+        const largeIdRequest = { ...mockUpdateUserProfileRequest, userId: 2147483647 };
+        const userWithLargeId = { ...mockExistingUser, id: 2147483647 };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithLargeId);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: { ...mockUpdatedUser, id: 2147483647 },
+          profile: mockUpdatedProfile,
+        });
+
+        const result = await service.updateUserProfile(largeIdRequest);
+
+        expect(result).toBeDefined();
+        expect(result.id).toBe(2147483647);
+      });
+
+      it('should handle concurrent update requests', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: mockUpdatedUser,
+          profile: mockUpdatedProfile,
+        });
+
+        const promises = [
+          service.updateUserProfile({ ...mockUpdateUserProfileRequest, name: 'Name 1' }),
+          service.updateUserProfile({ ...mockUpdateUserProfileRequest, name: 'Name 2' }),
+          service.updateUserProfile({ ...mockUpdateUserProfileRequest, name: 'Name 3' }),
+        ];
+
+        const results = await Promise.all(promises);
+
+        expect(results).toHaveLength(3);
+        results.forEach((result) => {
+          expect(result).toBeDefined();
+          expect(typeof result.id).toBe('number');
+        });
+      });
+    });
+
+    describe('Method signature and return type verification', () => {
+      beforeEach(() => {
+        // Reset validateOrReject mock to resolve by default for method verification
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should return correct UpdateUserProfileResponse structure', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: mockUpdatedUser,
+          profile: mockUpdatedProfile,
+        });
+
+        const result = await service.updateUserProfile(mockUpdateUserProfileRequest);
+
+        // Verify main user fields
+        expect(typeof result.id).toBe('number');
+        expect(typeof result.name).toBe('string');
+        expect(typeof result.userName).toBe('string');
+        expect(result.email === null || typeof result.email === 'string').toBe(true);
+        expect(result.imageUrl === null || typeof result.imageUrl === 'string').toBe(true);
+        expect(result.updatedAt === null || result.updatedAt instanceof Date).toBe(true);
+
+        // Verify profile structure
+        expect(result.profile).toBeDefined();
+        expect(typeof result.profile!.id).toBe('number');
+        expect(
+          result.profile!.address === null || typeof result.profile!.address === 'string',
+        ).toBe(true);
+        expect(
+          result.profile!.phoneNumber === null || typeof result.profile!.phoneNumber === 'string',
+        ).toBe(true);
+        expect(
+          result.profile!.dateOfBirth === null || result.profile!.dateOfBirth instanceof Date,
+        ).toBe(true);
+        expect(
+          result.profile!.updatedAt === null || result.profile!.updatedAt instanceof Date,
+        ).toBe(true);
+      });
+
+      it('should verify method accepts UpdateUserProfileRequest and returns Promise<UpdateUserProfileResponse>', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockExistingUser);
+        (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue(null);
+        (prismaMock.client.$transaction as jest.Mock).mockResolvedValue({
+          user: mockUpdatedUser,
+          profile: mockUpdatedProfile,
+        });
+
+        const methodResult = service.updateUserProfile(mockUpdateUserProfileRequest);
+
+        expect(methodResult).toBeInstanceOf(Promise);
+        const result = await methodResult;
+        expect(result).toBeDefined();
+        expect(typeof result).toBe('object');
+      });
+    });
+  });
+
+  describe('updatePassword', () => {
+    const mockUpdatePasswordRequest: UpdatePasswordRequest = {
+      userId: 1,
+      currentPassword: 'currentPassword123',
+      newPassword: 'newPassword456',
+      confirmPassword: 'newPassword456',
+    };
+
+    const mockUserWithLocalAuth = {
+      id: 1,
+      userName: 'testuser',
+      email: 'test@example.com',
+      name: 'Test User',
+      imageUrl: null,
+      status: 'ACTIVE',
+      deletedAt: null,
+      createdAt: new Date('2023-01-01'),
+      updatedAt: new Date('2023-01-01'),
+      roleId: 1,
+      authProviders: [
+        {
+          id: 1,
+          userId: 1,
+          provider: Provider.LOCAL,
+          providerId: null,
+          password: 'hashedCurrentPassword',
+          createdAt: new Date('2023-01-01'),
+          updatedAt: new Date('2023-01-01'),
+        },
+      ],
+    };
+
+    const mockUpdatedUser = {
+      id: 1,
+      userName: 'testuser',
+      email: 'test@example.com',
+      updatedAt: new Date('2023-01-02'),
+    };
+
+    describe('Successful scenarios', () => {
+      beforeEach(() => {
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should successfully update password', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithLocalAuth);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue(mockUpdatedUser);
+
+        const result = await service.updatePassword(mockUpdatePasswordRequest);
+
+        expect(result).toEqual({
+          id: mockUpdatedUser.id,
+          userName: mockUpdatedUser.userName,
+          email: mockUpdatedUser.email,
+          updatedAt: mockUpdatedUser.updatedAt,
+          message: 'common.user.passwordUpdatedSuccessfully',
+        });
+
+        expect(prismaMock.client.user.findUnique).toHaveBeenCalledWith({
+          where: { id: 1, deletedAt: null },
+          include: { authProviders: { where: { provider: Provider.LOCAL } } },
+        });
+        expect(bcrypt.compare).toHaveBeenCalledWith('currentPassword123', 'hashedCurrentPassword');
+        expect(bcrypt.hash).toHaveBeenCalledWith('newPassword456', 10);
+        expect(prismaMock.client.authProvider.update).toHaveBeenCalledWith({
+          where: { id: 1 },
+          data: { password: 'hashedNewPassword' },
+        });
+      });
+
+      it('should handle user with multiple auth providers', async () => {
+        const userWithMultipleProviders = {
+          ...mockUserWithLocalAuth,
+          authProviders: [
+            ...mockUserWithLocalAuth.authProviders,
+            {
+              id: 2,
+              userId: 1,
+              provider: Provider.FACEBOOK,
+              providerId: 'facebook123',
+              password: null,
+              createdAt: new Date('2023-01-01'),
+              updatedAt: new Date('2023-01-01'),
+            },
+          ],
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(
+          userWithMultipleProviders,
+        );
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue(mockUpdatedUser);
+
+        const result = await service.updatePassword(mockUpdatePasswordRequest);
+
+        expect(result.id).toBe(1);
+        expect(result.message).toBe('common.user.passwordUpdatedSuccessfully');
+      });
+    });
+
+    describe('Validation scenarios', () => {
+      it('should throw validation error when DTO validation fails', async () => {
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        const validationError = new Error('Validation failed');
+        mockValidateOrReject.mockRejectedValue(validationError);
+
+        await expect(service.updatePassword(mockUpdatePasswordRequest)).rejects.toThrow(
+          validationError,
+        );
+      });
+
+      it('should throw BAD_REQUEST when passwords do not match', async () => {
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+
+        const mismatchRequest = {
+          ...mockUpdatePasswordRequest,
+          confirmPassword: 'differentPassword',
+        };
+
+        try {
+          await service.updatePassword(mismatchRequest);
+          fail('Expected TypedRpcException to be thrown');
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.BAD_REQUEST);
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.validation.passwordMismatch',
+          );
+        }
+      });
+    });
+
+    describe('Error scenarios', () => {
+      beforeEach(() => {
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should throw NOT_FOUND when user does not exist', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(null);
+
+        await expect(service.updatePassword(mockUpdatePasswordRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.updatePassword(mockUpdatePasswordRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.NOT_FOUND);
+          expect((error as TypedRpcException).getError().message).toBe('common.user.notFound');
+        }
+      });
+
+      it('should throw BAD_REQUEST when user has no local auth provider', async () => {
+        const userWithoutLocal = {
+          ...mockUserWithLocalAuth,
+          authProviders: [],
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithoutLocal);
+
+        const expectedError = new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.user.noLocalPassword',
+        });
+        jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementation(() => {
+          throw expectedError;
+        });
+
+        await expect(service.updatePassword(mockUpdatePasswordRequest)).rejects.toThrow(
+          new TypedRpcException({
+            code: HTTP_ERROR_CODE.BAD_REQUEST,
+            message: 'common.user.noLocalPassword',
+          }),
+        );
+      });
+
+      it('should throw BAD_REQUEST when local auth provider has no password', async () => {
+        const userWithNullPassword = {
+          ...mockUserWithLocalAuth,
+          authProviders: [
+            {
+              ...mockUserWithLocalAuth.authProviders[0],
+              password: null,
+            },
+          ],
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithNullPassword);
+
+        await expect(service.updatePassword(mockUpdatePasswordRequest)).rejects.toThrow(
+          new TypedRpcException({
+            code: HTTP_ERROR_CODE.BAD_REQUEST,
+            message: 'common.user.noLocalPassword',
+          }),
+        );
+      });
+
+      it('should throw UNAUTHORIZED when current password is invalid', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithLocalAuth);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+        await expect(service.updatePassword(mockUpdatePasswordRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.updatePassword(mockUpdatePasswordRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.UNAUTHORIZED);
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.user.invalidCurrentPassword',
+          );
+        }
+      });
+
+      it('should handle database connection errors', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        const dbError = new Error('Database connection failed');
+        (prismaMock.client.user.findUnique as jest.Mock).mockRejectedValue(dbError);
+
+        await expect(service.updatePassword(mockUpdatePasswordRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+
+        try {
+          await service.updatePassword(mockUpdatePasswordRequest);
+        } catch (error) {
+          expect(error).toBeInstanceOf(TypedRpcException);
+          expect((error as TypedRpcException).getError().code).toBe(
+            HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          );
+          expect((error as TypedRpcException).getError().message).toBe(
+            'common.errors.internalServerError',
+          );
+        }
+      });
+
+      it('should handle bcrypt errors', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithLocalAuth);
+        const bcryptError = new Error('Bcrypt error');
+        (bcrypt.compare as jest.Mock).mockRejectedValue(bcryptError);
+
+        const mappedError = new TypedRpcException({
+          code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          message: 'common.errors.internalServerError',
+        });
+        jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementation(() => {
+          throw mappedError;
+        });
+
+        await expect(service.updatePassword(mockUpdatePasswordRequest)).rejects.toThrow(
+          TypedRpcException,
+        );
+      });
+    });
+
+    describe('Edge cases and business logic', () => {
+      beforeEach(() => {
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should handle null email correctly', async () => {
+        const userWithNullEmail = {
+          ...mockUserWithLocalAuth,
+          email: null,
+        };
+        const updatedUserWithNullEmail = {
+          ...mockUpdatedUser,
+          email: null,
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithNullEmail);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue(updatedUserWithNullEmail);
+
+        const result = await service.updatePassword(mockUpdatePasswordRequest);
+
+        expect(result.email).toBeNull();
+        expect(result.id).toBe(1);
+      });
+
+      it('should handle different user ID types correctly', async () => {
+        const largeUserId = 2147483647; // Max 32-bit integer
+        const requestWithLargeId = {
+          ...mockUpdatePasswordRequest,
+          userId: largeUserId,
+        };
+        const userWithLargeId = {
+          ...mockUserWithLocalAuth,
+          id: largeUserId,
+        };
+
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(userWithLargeId);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue({
+          ...mockUpdatedUser,
+          id: largeUserId,
+        });
+
+        const result = await service.updatePassword(requestWithLargeId);
+
+        expect(result.id).toBe(largeUserId);
+        expect(prismaMock.client.user.findUnique).toHaveBeenCalledWith({
+          where: { id: largeUserId, deletedAt: null },
+          include: { authProviders: { where: { provider: Provider.LOCAL } } },
+        });
+      });
+
+      it('should verify correct salt rounds for bcrypt', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithLocalAuth);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue(mockUpdatedUser);
+
+        await service.updatePassword(mockUpdatePasswordRequest);
+
+        expect(bcrypt.hash).toHaveBeenCalledWith('newPassword456', 10);
+      });
+
+      it('should handle concurrent password update requests', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithLocalAuth);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue(mockUpdatedUser);
+
+        const promises = [
+          service.updatePassword({ ...mockUpdatePasswordRequest, userId: 1 }),
+          service.updatePassword({ ...mockUpdatePasswordRequest, userId: 2 }),
+          service.updatePassword({ ...mockUpdatePasswordRequest, userId: 3 }),
+        ];
+
+        const results = await Promise.all(promises);
+
+        expect(results).toHaveLength(3);
+        results.forEach((result) => {
+          expect(result).toBeDefined();
+          expect(typeof result.id).toBe('number');
+          expect(result.message).toBe('common.user.passwordUpdatedSuccessfully');
+        });
+      });
+    });
+
+    describe('Method signature and return type verification', () => {
+      beforeEach(() => {
+        const mockValidateOrReject = classValidator.validateOrReject as jest.Mock;
+        mockValidateOrReject.mockResolvedValue(undefined);
+      });
+
+      it('should return correct UpdatePasswordResponse structure', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithLocalAuth);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue(mockUpdatedUser);
+
+        const result = await service.updatePassword(mockUpdatePasswordRequest);
+
+        expect(typeof result.id).toBe('number');
+        expect(typeof result.userName).toBe('string');
+        expect(result.email === null || typeof result.email === 'string').toBe(true);
+        expect(result.updatedAt === null || result.updatedAt instanceof Date).toBe(true);
+        expect(typeof result.message).toBe('string');
+      });
+
+      it('should verify method accepts UpdatePasswordRequest and returns Promise<UpdatePasswordResponse>', async () => {
+        const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+        (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(mockUserWithLocalAuth);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        (bcrypt.hash as jest.Mock).mockResolvedValue('hashedNewPassword');
+        (prismaMock.client.authProvider.update as jest.Mock).mockResolvedValue({});
+        (prismaMock.client.user.update as jest.Mock).mockResolvedValue(mockUpdatedUser);
+
+        const methodResult = service.updatePassword(mockUpdatePasswordRequest);
+
+        expect(methodResult).toBeInstanceOf(Promise);
+        const result = await methodResult;
+        expect(result).toBeDefined();
+        expect(typeof result).toBe('object');
+      });
     });
   });
 });

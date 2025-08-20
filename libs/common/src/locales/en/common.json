@@ -13,8 +13,9 @@
     "isInt": "{field} must be an integer",
     "isDateString": "{field} must be a valid ISO date string",
     "isUrl": "{field} must be a valid URL",
-    "isEnum":"{field} must be one of {enum}",
-    "arrayNotEmpty":"{field} should not be empty"
+    "arrayNotEmpty":"{field} should not be empty",
+    "isEnum": "{field} must be one of {enum}",
+    "max": "{field} must be at most {max}"
   },
   "product": {
     "invalidCredentials": "Invalid product information",
@@ -54,6 +55,10 @@
         "success": "Product category relationship deleted successfully",
         "failed": "Failed to delete product category relationship"
       },
+      "createProductImages": {
+        "success": "Product images created successfully",
+        "failed": "Failed to create product images"
+      },
       "deleteProductImages": {
         "success": "Product images deleted successfully",
         "failed": "Failed to delete product images"
@@ -61,6 +66,22 @@
       "listProductsForUser": {
         "success": "Product list retrieved successfully",
         "failed": "Failed to retrieve product list"
+      },
+      "shareProduct": {
+        "success": "Share product successfully",
+        "failed": "Failed to share product"
+      },
+      "createReview": {
+        "success": "Review created successfully",
+        "failed": "Failed to create review"
+      },
+      "getProductReviews": {
+        "success": "Product reviews retrieved successfully",
+        "failed": "Failed to retrieve product reviews"
+      },
+      "deleteReview": {
+        "success": "Review deleted successfully",
+        "failed": "Failed to delete review"
       }
     },
     "error": {
@@ -104,6 +125,52 @@
         "success": "Delete product items cart successfully",
         "failed": "Failed to delete product items cart"
       }
+    }
+  },
+  "userproduct": {
+    "action": {
+      "listProductsForUser": {
+        "success": "Product list retrieved successfully",
+        "failed": "Failed to retrieve product list"
+      },
+      "getProductDetailForUser": {
+        "success": "Product detail retrieved successfully",
+        "failed": "Failed to retrieve product detail"
+      },
+      "shareProduct": {
+        "success": "Share product successfully",
+        "failed": "Failed to share product"
+      }
+    },
+    "error": {
+      "productExists": "Product already exists",
+      "filesExists": "Files not received yet",
+      "failed": "Create failed",
+      "productNotFound": "Product does not exist yet",
+      "skuIdExists": "SkuId already exists",
+      "productInOrder": "Product already exists in order"
+    }
+  },
+  "userprofile": {
+    "action": {
+      "getUserProfile": {
+        "success": "User profile retrieved successfully",
+        "failed": "Failed to retrieve user profile"
+      },
+      "updateUserProfile": {
+        "success": "User profile updated successfully",
+        "failed": "Failed to update user profile"
+      },
+      "updatePassword": {
+        "success": "Password updated successfully",
+        "failed": "Failed to update password"
+      }
+    }
+  },
+  "file": {
+    "validation": {
+      "unsupportedType": "File type not supported. Only JPG, JPEG, PNG, WEBP are allowed. Received: {fileType}",
+      "sizeExceeded": "File size too large. Maximum allowed: 300MB. Received: {fileSize}MB"
     },
     "userproduct": {
       "action": {
@@ -254,6 +321,98 @@
       "cloudinary": {
         "fileExists": "File with name '{fileName}' already exists."
       }
+    }
+  },
+  "user": {
+    "notFound": "User not found",
+    "phoneNumberExist": "Phone number already exists",
+    "emailExist": "Email already exists",
+    "someUserNotExist": "Some users do not exist. UserIds: [{missingIds}]",
+    "userNameExist": "Username already exists",
+    "noLocalPassword": "User does not have a local password set",
+    "invalidCurrentPassword": "Current password is incorrect",
+    "passwordUpdatedSuccessfully": "Password updated successfully",
+    "profileUpdatedSuccessfully": "Profile updated successfully"
+  },
+  "adminuser": {
+    "action": {
+      "create": {
+        "success": "Create user successfully",
+        "error": "Failed to create user. Please try again"
+      },
+      "updateRoles": {
+        "success": "Update roles successfully",
+        "failed": "Failed to update roles. Please try again"
+      },
+      "updateStatuses": {
+        "success": "Update statuses successfully",
+        "failed": "Failed to update statuses. Please try again",
+        "unchanged": "No user statuses were changed"
+      },
+      "delete": {
+        "success": "Delete user successfully",
+        "failed": "Failed to delete user. Please try again",
+        "unChanged": "No user was deleted"
+      }
+    }
+  },
+  "errors": {
+    "internalServerError": "Internal server error",
+    "serviceUnavailable": "Service unavailable",
+    "uniqueConstraint": "Unique constraint violation",
+    "foreignKeyConstraint": "Foreign key constraint violation",
+    "recordNotFound": "Record not found",
+    "invalidInput": "Invalid input",
+    "dbSchema": "Database schema error",
+    "unexpectedDbError": "Unexpected database error",
+    "unauthorized": "Unauthorized",
+    "validationError": "Validation error",
+    "createUser": {
+      "error": "Create user failed",
+      "roleNotFound": "Role not found",
+      "exists": "User already exists",
+      "missingFields": "Missing user information"
+    },
+    "signToken": {
+      "error": "Error when creating token"
+    },
+    "checkUserExists": {
+      "error": "Error when checking user"
+    },
+    "twitter": {
+      "invalidConfig": "Invalid configuration",
+      "error": "Error when authenticating user"
+    },
+    "registerUser": {
+      "userExists": "User already exists",
+      "error": "Register user not success",
+      "notToken": "Not found token"
+    },
+    "changeIsActive": {
+      "invalidPayload": "Invalid payload",
+      "alreadyActive": "Account is already active"
+    },
+    "sendEmailComplete": {
+      "dataNotFound": "Data is required"
+    },
+    "invalidTypeImage": "Only |jpg|jpeg|png|gif| image types are allowed",
+    "invalidSizeImage": "Image size must be less than 2MB",
+    "cloudinary": {
+      "fileExists": "File with name '{fileName}' already exists."
+    }
+  },
+  "review": {
+    "success": {
+      "created": "Review created successfully",
+      "deleted": "Review deleted successfully"
+    },
+    "errors": {
+      "createFailed": "Failed to create review",
+      "fetchFailed": "Failed to fetch reviews",
+      "deleteFailed": "Failed to delete review",
+      "alreadyReviewed": "You have already reviewed this product",
+      "productNotFound": "Product not found",
+      "reviewNotFound": "Review not found or you don't have permission to delete it"
     }
   }
 }

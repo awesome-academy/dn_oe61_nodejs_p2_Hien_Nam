@@ -15,6 +15,8 @@ import { CookieResponse } from '@app/common/interfaces/request-cookie.interface'
 import { GoogleProfileDto } from '@app/common/dto/google-profile.dro';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { ConfigService } from '@nestjs/config';
+import { ApiResponseRegister } from '@app/common/decorators/document/auth-documents/register.dto';
+import { ApiResponseLogout } from '@app/common/decorators/document/auth-documents/logout.dto';
 
 @Controller('/auth')
 export class AuthController {
@@ -82,6 +84,7 @@ export class AuthController {
     return await this.authService.googleCallback(user);
   }
 
+  @ApiResponseRegister()
   @Public()
   @Post('register')
   async registerUser(@Body() userInput: CreateUserDto): Promise<BaseResponse<UserResponse>> {
@@ -100,6 +103,7 @@ export class AuthController {
     return this.authService.completeRegister(token);
   }
 
+  @ApiResponseLogout()
   @Get('logout')
   logout(@ResponseDecorator() res: CookieResponse) {
     return this.authService.logout(res);

@@ -3,7 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { of, throwError } from 'rxjs';
 import { ProductService } from '../../src/product/admin/product.service';
-import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { StatusKey } from '@app/common/enums/status-key.enum';
@@ -72,7 +72,7 @@ describe('ProductService - Delete Product', () => {
   });
 
   describe('delete', () => {
-    const validDeleteProductDto: DeleteProductDto = {
+    const validskuIdProductDto: skuIdProductDto = {
       skuId: 'TEST-SKU-001',
     };
 
@@ -101,17 +101,17 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(of(mockProductResponse)); // DELETE_PRODUCT
 
         // Act
-        const result = await service.delete(validDeleteProductDto);
+        const result = await service.delete(validskuIdProductDto);
 
         // Assert
         expect(mockProductClient.send).toHaveBeenCalledTimes(2);
         expect(mockProductClient.send).toHaveBeenNthCalledWith(
           1,
           ProductPattern.CHECK_PRODUCT_EXISTS,
-          validDeleteProductDto.skuId,
+          validskuIdProductDto.skuId,
         );
         expect(mockProductClient.send).toHaveBeenNthCalledWith(2, ProductPattern.DELETE_PRODUCT, {
-          skuId: validDeleteProductDto.skuId,
+          skuId: validskuIdProductDto.skuId,
         });
         expect(result.statusKey).toBe(StatusKey.SUCCESS);
         expect(result.data).toEqual(mockProductResponse);
@@ -119,7 +119,7 @@ describe('ProductService - Delete Product', () => {
 
       it('should handle deletion with different skuId format', async () => {
         // Arrange
-        const differentSkuDto: DeleteProductDto = {
+        const differentSkuDto: skuIdProductDto = {
           skuId: 'PROD-2023-ABC123',
         };
         const differentProductResponse: ProductResponse = {
@@ -152,7 +152,7 @@ describe('ProductService - Delete Product', () => {
 
       it('should handle deletion of product with special characters in skuId', async () => {
         // Arrange
-        const specialSkuDto: DeleteProductDto = {
+        const specialSkuDto: skuIdProductDto = {
           skuId: 'TEST-SKU@#$%',
         };
         const specialProductResponse: ProductResponse = {
@@ -183,11 +183,11 @@ describe('ProductService - Delete Product', () => {
         mockI18nService.translate.mockReturnValue('Product not found');
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(BadRequestException);
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow('Product not found');
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(BadRequestException);
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow('Product not found');
         expect(mockProductClient.send).toHaveBeenCalledWith(
           ProductPattern.CHECK_PRODUCT_EXISTS,
-          validDeleteProductDto.skuId,
+          validskuIdProductDto.skuId,
         );
         expect(mockI18nService.translate).toHaveBeenCalledWith(
           'common.product.error.productNotFound',
@@ -200,7 +200,7 @@ describe('ProductService - Delete Product', () => {
         mockI18nService.translate.mockReturnValue('Product not found');
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(BadRequestException);
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(BadRequestException);
         expect(mockI18nService.translate).toHaveBeenCalledWith(
           'common.product.error.productNotFound',
         );
@@ -217,7 +217,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(of(undefined));
 
         // Act
-        const result = await service.delete(validDeleteProductDto);
+        const result = await service.delete(validskuIdProductDto);
 
         // Assert
         expect(result.statusKey).toBe(StatusKey.SUCCESS);
@@ -234,7 +234,7 @@ describe('ProductService - Delete Product', () => {
         mockI18nService.translate.mockReturnValue('Delete failed');
 
         // Act
-        const result = await service.delete(validDeleteProductDto);
+        const result = await service.delete(validskuIdProductDto);
 
         // Assert
         expect(result.statusKey).toBe(StatusKey.SUCCESS);
@@ -252,7 +252,7 @@ describe('ProductService - Delete Product', () => {
         mockI18nService.translate.mockReturnValue('Delete failed');
 
         // Act
-        const result = await service.delete(validDeleteProductDto);
+        const result = await service.delete(validskuIdProductDto);
 
         // Assert
         expect(result.data).toBeUndefined();
@@ -269,12 +269,12 @@ describe('ProductService - Delete Product', () => {
         mockProductClient.send.mockReturnValueOnce(throwError(() => microserviceError));
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(
           'common.errors.internalServerError',
         );
         expect(mockProductClient.send).toHaveBeenCalledWith(
           ProductPattern.CHECK_PRODUCT_EXISTS,
-          validDeleteProductDto.skuId,
+          validskuIdProductDto.skuId,
         );
       });
 
@@ -286,7 +286,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(throwError(() => microserviceError));
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(
           'common.errors.internalServerError',
         );
         expect(mockProductClient.send).toHaveBeenCalledTimes(2);
@@ -298,7 +298,7 @@ describe('ProductService - Delete Product', () => {
         mockProductClient.send.mockReturnValueOnce(throwError(() => timeoutError));
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(
           'common.errors.internalServerError',
         );
       });
@@ -311,7 +311,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(throwError(() => networkError));
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(
           'common.errors.internalServerError',
         );
       });
@@ -326,7 +326,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(throwError(() => productInOrderError));
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(
           'common.errors.internalServerError',
         );
       });
@@ -339,7 +339,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(throwError(() => constraintError));
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(
           'common.errors.internalServerError',
         );
       });
@@ -348,7 +348,7 @@ describe('ProductService - Delete Product', () => {
     describe('Input validation', () => {
       it('should handle empty skuId', async () => {
         // Arrange
-        const emptySkuDto: DeleteProductDto = {
+        const emptySkuDto: skuIdProductDto = {
           skuId: '',
         };
         mockProductClient.send.mockReturnValueOnce(of(null));
@@ -364,7 +364,7 @@ describe('ProductService - Delete Product', () => {
 
       it('should handle whitespace-only skuId', async () => {
         // Arrange
-        const whitespaceSkuDto: DeleteProductDto = {
+        const whitespaceSkuDto: skuIdProductDto = {
           skuId: '   ',
         };
         mockProductClient.send.mockReturnValueOnce(of(null));
@@ -381,7 +381,7 @@ describe('ProductService - Delete Product', () => {
       it('should handle very long skuId', async () => {
         // Arrange
         const longSkuId = 'A'.repeat(100);
-        const longSkuDto: DeleteProductDto = {
+        const longSkuDto: skuIdProductDto = {
           skuId: longSkuId,
         };
         mockProductClient.send.mockReturnValueOnce(of(null));
@@ -404,7 +404,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(of(mockProductResponse));
 
         // Act
-        const result = await service.delete(validDeleteProductDto);
+        const result = await service.delete(validskuIdProductDto);
 
         // Assert
         expect(result).toHaveProperty('statusKey');
@@ -421,7 +421,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(of(undefined));
 
         // Act
-        const result = await service.delete(validDeleteProductDto);
+        const result = await service.delete(validskuIdProductDto);
 
         // Assert
         expect(result.data).toBeUndefined();
@@ -430,7 +430,7 @@ describe('ProductService - Delete Product', () => {
     });
 
     describe('Method signature and types', () => {
-      it('should accept DeleteProductDto parameter', () => {
+      it('should accept skuIdProductDto parameter', () => {
         // This test ensures the method signature is correct
         const methodExists = typeof service.delete === 'function';
         expect(methodExists).toBe(true);
@@ -443,7 +443,7 @@ describe('ProductService - Delete Product', () => {
           .mockReturnValueOnce(of(mockProductResponse));
 
         // Act
-        const result = service.delete(validDeleteProductDto);
+        const result = service.delete(validskuIdProductDto);
 
         // Assert
         expect(result).toBeInstanceOf(Promise);
@@ -460,7 +460,7 @@ describe('ProductService - Delete Product', () => {
         mockI18nService.translate.mockReturnValue('Sản phẩm không tồn tại');
 
         // Act & Assert
-        await expect(service.delete(validDeleteProductDto)).rejects.toThrow(BadRequestException);
+        await expect(service.delete(validskuIdProductDto)).rejects.toThrow(BadRequestException);
         expect(mockI18nService.translate).toHaveBeenCalledWith(
           'common.product.error.productNotFound',
         );
@@ -474,7 +474,7 @@ describe('ProductService - Delete Product', () => {
         mockI18nService.translate.mockReturnValue('Xóa thất bại');
 
         // Act
-        await service.delete(validDeleteProductDto);
+        await service.delete(validskuIdProductDto);
 
         // Assert
         expect(mockI18nService.translate).toHaveBeenCalledWith(

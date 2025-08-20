@@ -13,7 +13,8 @@
     "isInt": "{field} phải là số nguyên",
     "isDateString": "{field} phải là chuỗi ngày ISO hợp lệ",
     "isUrl": "{field} phải là URL hợp lệ",
-    "arrayNotEmpty": "{field} không được để trống"
+    "arrayNotEmpty": "{field} không được để trống",
+    "max": "{field} phải có nhiều nhất {max}"
   },
   "product": {
     "invalidCredentials": "Thông tin sản phẩm không chính xác",
@@ -60,6 +61,18 @@
       "createProductImages": {
         "success": "Tạo ảnh sản phẩm thành công",
         "failed": "Tạo ảnh sản phẩm thất bại"
+      },
+      "createReview": {
+        "success": "Tạo đánh giá thành công",
+        "failed": "Tạo đánh giá thất bại"
+      },
+      "getProductReviews": {
+        "success": "Lấy danh sách đánh giá thành công",
+        "failed": "Lấy danh sách đánh giá thất bại"
+      },
+      "deleteReview": {
+        "success": "Xóa đánh giá thành công",
+        "failed": "Xóa đánh giá thất bại"
       }
     },
     "error": {
@@ -131,11 +144,21 @@
         "failed": "Xoá sản phẩm khỏi giỏ hàng thất bại, vui lòng thử lại"
       }
     },
+  "cart": {
+    "notFound": "Không tìm thấy giỏ hàng",
     "userproduct": {
       "action": {
         "listProductsForUser": {
           "success": "Lấy danh sách sản phẩm thành công",
           "failed": "Lấy danh sách sản phẩm thất bại"
+        },
+        "getProductDetailForUser": {
+          "success": "Lấy thông tin sản phẩm thành công",
+          "failed": "Lấy thông tin sản phẩm thất bại"
+        },
+        "shareProduct": {
+          "success": "Chia sẻ sản phẩm thành công",
+          "failed": "Chia sẻ sản phẩm thất bại"
         }
       },
       "error": {
@@ -145,6 +168,22 @@
         "productNotFound": "Sản phẩm chưa tồn tại",
         "skuIdExists": "SkuId đã tồn tại",
         "productInOrder": "Sản phẩm đã tồn tại trong đơn hàng"
+      }
+    },
+    "userprofile": {
+      "action": {
+        "getUserProfile": {
+          "success": "Lấy thông tin hồ sơ người dùng thành công",
+          "failed": "Lấy thông tin hồ sơ người dùng thất bại"
+        },
+        "updateUserProfile": {
+          "success": "Cập nhật hồ sơ người dùng thành công",
+          "failed": "Cập nhật hồ sơ người dùng thất bại"
+        },
+        "updatePassword": {
+          "success": "Cập nhật mật khẩu thành công",
+          "failed": "Cập nhật mật khẩu thất bại"
+        }
       }
     },
     "file": {
@@ -160,46 +199,168 @@
       "invalidCredentials": "Thông tin người dùng không chính xác",
       "inactiveAccount": "Tài khoản không hoạt động",
       "action": {
-        "login": {
-          "success": "Đăng nhập thành công"
+        "addProductCart": {
+          "success": "Thêm sản phẩm vào giỏ hàng thành công",
+          "failed": "Thêm sản phẩm vào giỏ hàng thất bại, vui lòng thử lại"
         },
-        "facebook": {
-          "success": "Chuyển hướng đến trang đăng nhập thành công"
+        "deleteProductCart": {
+          "success": "Xoá sản phẩm khỏi giỏ hàng thành công",
+          "failed": "Xoá sản phẩm khỏi giỏ hàng thất bại, vui lòng thử lại"
+        }
+      },
+      "userproduct": {
+        "action": {
+          "listProductsForUser": {
+            "success": "Lấy danh sách sản phẩm thành công",
+            "failed": "Lấy danh sách sản phẩm thất bại"
+          }
         },
-        "facebookCallback": {
-          "success": "Đăng nhập thành công"
+        "error": {
+          "productExists": "Sản phẩm đã tồn tại",
+          "filesExists": "Chưa nhận được files",
+          "failed": "Tạo mới thất bại",
+          "productNotFound": "Sản phẩm chưa tồn tại",
+          "skuIdExists": "SkuId đã tồn tại",
+          "productInOrder": "Sản phẩm đã tồn tại trong đơn hàng"
+        }
+      },
+      "file": {
+        "validation": {
+          "unsupportedType": "Loại file không được hỗ trợ. Chỉ cho phép JPG, JPEG, PNG, WEBP. Nhận được: {fileType}",
+          "sizeExceeded": "Kích thước file quá lớn. Tối đa cho phép: 300MB. Nhận được: {fileSize}MB"
+        },
+        "error": {
+          "invalidUrl": "URL không hợp lệ"
+        }
+      },
+      "auth": {
+        "invalidCredentials": "Thông tin người dùng không chính xác",
+        "inactiveAccount": "Tài khoản không hoạt động",
+        "action": {
+          "login": {
+            "success": "Đăng nhập thành công"
+          },
+          "facebook": {
+            "success": "Chuyển hướng đến trang đăng nhập thành công"
+          },
+          "facebookCallback": {
+            "success": "Đăng nhập thành công"
+          },
+          "twitter": {
+            "invalidConfig": "Cấu hình không hợp lệ",
+            "error": "Lỗi khi xác thực user"
+          },
+          "twitterCallback": {
+            "success": "Đăng nhập thành công"
+          },
+          "google": {
+            "invalidConfig": "Cấu hình không hợp lệ",
+            "error": "Lỗi khi xác thực user"
+          },
+          "googleCallback": {
+            "success": "Đăng nhập thành công"
+          },
+          "registerUser": {
+            "success": "Đăng ký thành công"
+          },
+          "logout": {
+            "error": "Thiếu cấu hình cookie",
+            "success": "Đăng xuất thành công"
+          },
+          "signToken": {
+            "error": "Lỗi khi tạo token",
+            "success": "Tạo token thành công"
+          },
+          "signJwtTokenUserCreate": {
+            "error": "Lỗi khi tạo token",
+            "success": "Tạo token thành công"
+          },
+          "sendEmailComplete": {
+            "complete": "Đăng ký thành công"
+          }
+        }
+      },
+      "guard": {
+        "token_missing": "Token không tồn tại",
+        "invalid_or_expired_token": "Token không hợp lệ hoặc đã hết hạn",
+        "forbidden": "Bạn không có quyền truy cập",
+        "unauthorized": "Bạn không có quyền truy cập"
+      },
+      "user": {
+        "notFound": "Không tìm thấy người dùng",
+        "phoneNumberExist": "Số điện thoại đã tồn tại",
+        "emailExist": "Email đã tồn tại",
+        "someUserNotExist": "Một số người dùng không tồn tại. UserIds: [{missingIds}]"
+      },
+      "adminuser": {
+        "action": {
+          "create": {
+            "success": "Tạo tài khoản thành công",
+            "error": "Tạo tài khoản thất bại, vui lòng thử lại sau"
+          },
+          "updateRoles": {
+            "success": "Cập nhật vai trò thành công",
+            "failed": "Cập nhật vai trò thất bại, vui lòng thử lại sau"
+          },
+          "updateStatuses": {
+            "success": "Cập nhật trạng thái thành công",
+            "failed": "Cập nhật trạng thái thất bại, vui lòng thử lại sau",
+            "unchanged": "Không có trạng thái nào được thay đổi"
+          },
+          "delete": {
+            "success": "Xóa tài khoản thành công",
+            "failed": "Xóa tài khoản thất bại, vui lòng thử lại sau",
+            "unChanged": "Không có tài khoản nào được xóa"
+          }
+        }
+      },
+      "errors": {
+        "internalServerError": "Lỗi máy chủ",
+        "serviceUnavailable": "Dịch vụ không khả dụng",
+        "uniqueConstraint": "Vi phạm ràng buộc duy nhất",
+        "foreignKeyConstraint": "Vi phạm ràng buộc khóa ngoại",
+        "recordNotFound": "Mã số không tìm thấy",
+        "invalidInput": "Dữ liệu không hợp lệ",
+        "dbSchema": "Lỗi lược đồ cơ sở dữ liệu",
+        "unexpectedDbError": "Lỗi cơ sở dữ liệu không mong đợi",
+        "unauthorized": "Bạn không có quyền truy cập",
+        "validationError": "Lỗi xác thực dữ liệu",
+        "createUser": {
+          "error": "Tạo người dùng thất bại",
+          "roleNotFound": "Role không tồn tại",
+          "exists": "User đã tồn tại",
+          "missingFields": "Thiếu thông tin người dùng"
+        },
+        "signToken": {
+          "error": "Lỗi khi tạo token"
+        },
+        "checkUserExists": {
+          "error": "Lỗi khi kiểm tra user"
         },
         "twitter": {
           "invalidConfig": "Cấu hình không hợp lệ",
           "error": "Lỗi khi xác thực user"
         },
-        "twitterCallback": {
-          "success": "Đăng nhập thành công"
-        },
-        "google": {
-          "invalidConfig": "Cấu hình không hợp lệ",
-          "error": "Lỗi khi xác thực user"
-        },
-        "googleCallback": {
+        "login": {
           "success": "Đăng nhập thành công"
         },
         "registerUser": {
-          "success": "Đăng ký thành công"
+          "userExists": "Người dùng đã tồn tại",
+          "error": "Đăng ký người dùng không thành công",
+          "notToken": "Không tìm thấy token",
+          "userNotFound": "Yêu cầu nhập thông tin"
         },
-        "logout": {
-          "error": "Thiếu cấu hình cookie",
-          "success": "Đăng xuất thành công"
-        },
-        "signToken": {
-          "error": "Lỗi khi tạo token",
-          "success": "Tạo token thành công"
-        },
-        "signJwtTokenUserCreate": {
-          "error": "Lỗi khi tạo token",
-          "success": "Tạo token thành công"
+        "changeIsActive": {
+          "invalidPayload": "Dữ liệu không hợp lệ",
+          "alreadyActive": "Tài khoản đã được kích hoạt"
         },
         "sendEmailComplete": {
-          "complete": "Đăng ký thành công"
+          "dataNotFound": "Dữ liệu không hợp lệ"
+        },
+        "invalidTypeImage": "Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
+        "invalidSizeImage": "Kích thước hình ảnh phải nhỏ hơn {maxImageSizeMB} MB",
+        "cloudinary": {
+          "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
         }
       }
     },
@@ -213,7 +374,12 @@
       "notFound": "Không tìm thấy người dùng",
       "phoneNumberExist": "Số điện thoại đã tồn tại",
       "emailExist": "Email đã tồn tại",
-      "someUserNotExist": "Một số người dùng không tồn tại. UserIds: [{missingIds}]"
+      "someUserNotExist": "Một số người dùng không tồn tại. UserIds: [{missingIds}]",
+      "userNameExist": "Tên người dùng đã tồn tại",
+      "noLocalPassword": "Người dùng chưa thiết lập mật khẩu cục bộ",
+      "invalidCurrentPassword": "Mật khẩu hiện tại không chính xác",
+      "passwordUpdatedSuccessfully": "Cập nhật mật khẩu thành công",
+      "profileUpdatedSuccessfully": "Cập nhật hồ sơ thành công"
     },
     "adminuser": {
       "action": {
@@ -285,6 +451,21 @@
       "cloudinary": {
         "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
       }
+    },
+    "review": {
+      "success": {
+        "created": "Tạo đánh giá thành công",
+        "deleted": "Xóa đánh giá thành công"
+      },
+      "errors": {
+        "createFailed": "Tạo đánh giá thất bại",
+        "fetchFailed": "Lấy danh sách đánh giá thất bại",
+        "deleteFailed": "Xóa đánh giá thất bại",
+        "alreadyReviewed": "Bạn đã đánh giá sản phẩm này rồi",
+        "productNotFound": "Không tìm thấy sản phẩm",
+        "reviewNotFound": "Không tìm thấy đánh giá hoặc bạn không có quyền xóa"
+      }
     }
   }
+}
 }

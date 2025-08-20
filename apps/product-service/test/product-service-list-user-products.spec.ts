@@ -171,10 +171,13 @@ describe('ProductService - listProductsForUser', () => {
 
     const createMockPaginationResult = (items: ProductWithIncludes[]) => ({
       items,
-      total: items.length,
-      page: 1,
-      pageSize: 50,
-      totalPages: Math.ceil(items.length / 50),
+      paginations: {
+        currentPage: 1,
+        totalPages: Math.ceil(items.length / 50) || 1,
+        pageSize: 50,
+        totalItems: items.length,
+        itemsOnPage: items.length,
+      },
     });
 
     it('should be defined', () => {
@@ -213,23 +216,24 @@ describe('ProductService - listProductsForUser', () => {
           },
         );
 
-        expect(result).toHaveLength(1);
-        expect(result[0]).toEqual({
-          id: 1,
-          skuId: 'SKU1',
-          name: 'Test Product',
-          description: 'Description for Test Product',
-          status: ProductStatus.IN_STOCK,
-          basePrice: new Decimal(10.99),
-          quantity: 100,
-          createdAt: expect.any(Date) as Date,
-          updatedAt: expect.any(Date) as Date,
-          deletedAt: null,
-          images: expect.any(Array) as unknown[],
-          categories: expect.any(Array) as unknown[],
-          variants: expect.any(Array) as unknown[],
-          reviews: expect.any(Array) as unknown[],
-        });
+        expect(result).toEqual(mockPaginationResult);
+
+        // Verify structure and field mapping
+        const product = result.items[0];
+        expect(product.description).toBe('Description for Test Product');
+        expect(product.basePrice).toEqual(new Decimal(10.99));
+        expect(product.quantity).toBe(100);
+        expect(product.updatedAt).toBeInstanceOf(Date);
+
+        // Verify nested properties
+        expect(product.images).toBeDefined();
+        expect(product.categories).toBeDefined();
+        expect(product.variants).toBeDefined();
+        expect(product.reviews).toBeDefined();
+        expect(Array.isArray(result.items[0].images)).toBe(true);
+        expect(Array.isArray(result.items[0].categories)).toBe(true);
+        expect(Array.isArray(result.items[0].variants)).toBe(true);
+        expect(Array.isArray(result.items[0].reviews)).toBe(true);
       });
 
       it('should filter by name correctly', async () => {
@@ -262,8 +266,29 @@ describe('ProductService - listProductsForUser', () => {
           },
         );
 
-        expect(result).toHaveLength(1);
-        expect(result[0].name).toBe('Pizza');
+        expect(result).toEqual(mockPaginationResult);
+        expect(result).toHaveProperty('items');
+        expect(result).toHaveProperty('paginations');
+        expect(Array.isArray(result.items)).toBe(true);
+        expect(result.items.length).toBe(1);
+        expect(mockPaginationService.queryWithPagination).toHaveBeenCalledWith(
+          mockPrismaService.client.product,
+          { page: 1, pageSize: 50 },
+          {
+            orderBy: { createdAt: 'asc' },
+            where: {
+              deletedAt: null,
+              status: ProductStatus.IN_STOCK,
+              name: { contains: 'Pizza' },
+            },
+            include: {
+              images: true,
+              categories: { include: { category: true } },
+              variants: { include: { size: true } },
+              reviews: true,
+            },
+          },
+        );
       });
 
       it('should filter by price range correctly', async () => {
@@ -308,7 +333,7 @@ describe('ProductService - listProductsForUser', () => {
           },
         );
 
-        expect(result).toHaveLength(1);
+        expect(result.items).toHaveLength(1);
       });
 
       it('should filter by rating correctly', async () => {
@@ -343,7 +368,7 @@ describe('ProductService - listProductsForUser', () => {
           },
         );
 
-        expect(result).toHaveLength(1);
+        expect(result.items).toHaveLength(1);
       });
 
       it('should handle complex filtering with all parameters', async () => {
@@ -404,7 +429,7 @@ describe('ProductService - listProductsForUser', () => {
           },
         );
 
-        expect(result).toHaveLength(1);
+        expect(result.items).toHaveLength(1);
       });
     });
 
@@ -433,9 +458,10 @@ describe('ProductService - listProductsForUser', () => {
 
         const result = await service.listProductsForUser(query);
 
-        expect(result).toEqual([]);
-        expect(Array.isArray(result)).toBe(true);
-        expect(result.length).toBe(0);
+        expect(result).toHaveProperty('items');
+        expect(result).toHaveProperty('paginations');
+        expect(Array.isArray(result.items)).toBe(true);
+        expect(result.items.length).toBe(0);
         expect(mockPaginationService.queryWithPagination).toHaveBeenCalledWith(
           mockPrismaService.client.product,
           { page: 1, pageSize: 50 },
@@ -503,7 +529,7 @@ describe('ProductService - listProductsForUser', () => {
           },
         );
 
-        expect(result).toHaveLength(1);
+        expect(result.items).toHaveLength(1);
       });
 
       it('should verify correct method signature and return type', async () => {
@@ -518,11 +544,13 @@ describe('ProductService - listProductsForUser', () => {
         const result = await service.listProductsForUser(query);
 
         // Verify return type structure
-        expect(Array.isArray(result)).toBe(true);
-        expect(result).toHaveLength(1);
+        expect(result).toHaveProperty('items');
+        expect(result).toHaveProperty('paginations');
+        expect(Array.isArray(result.items)).toBe(true);
+        expect(result.items).toHaveLength(1);
 
         // Verify product structure
-        const product = result[0];
+        const product = result.items[0];
         expect(product).toHaveProperty('id');
         expect(product).toHaveProperty('name');
         expect(product).toHaveProperty('skuId');
@@ -774,12 +802,108 @@ describe('ProductService - listProductsForUser', () => {
         expect(mockPaginationService.queryWithPagination).toHaveBeenCalledWith(
           mockPrismaService.client.product,
           { page: 3, pageSize: 10 },
-          expect.any(Object),
+          expect.objectContaining({}),
         );
 
-        expect(result).toHaveLength(2);
-        expect(result[0].name).toBe('Product 1');
-        expect(result[1].name).toBe('Product 2');
+        expect(result.items).toHaveLength(2);
+        expect(result.items[0].name).toBe('Product 1');
+        expect(result.items[1].name).toBe('Product 2');
+      });
+
+      it('should handle products with null/undefined fields and empty arrays', async () => {
+        const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
+
+        // Create product with null/undefined values to trigger fallback logic
+        const mockProductWithNulls = {
+          id: 1,
+          skuId: 'NULL-PRODUCT-001',
+          name: 'Product with nulls',
+          description: null, // Will trigger ?? '' fallback
+          status: ProductStatus.IN_STOCK,
+          basePrice: null, // Will trigger ?? 0 fallback
+          quantity: null, // Will trigger ?? 0 fallback
+          createdAt: new Date('2024-01-01T00:00:00.000Z'),
+          updatedAt: null, // Will trigger ?? null fallback
+          deletedAt: null,
+          images: [], // Will trigger ?.length ? images : [] fallback
+          categories: [], // Will trigger ?.length ? categories : [] fallback
+          variants: [], // Will trigger ?.length ? variants : [] fallback
+          reviews: [], // Will trigger ?.length ? reviews : [] fallback
+        };
+
+        const mockPaginationResult = {
+          items: [mockProductWithNulls],
+          total: 1,
+          page: 1,
+          pageSize: 50,
+          totalPages: 1,
+        };
+
+        mockPlainToInstance.mockReturnValue(query);
+        mockValidateOrReject.mockResolvedValue(undefined);
+        mockPaginationService.queryWithPagination.mockResolvedValue(mockPaginationResult);
+
+        const result = await service.listProductsForUser(query);
+
+        expect(result.items).toHaveLength(1);
+        const product = result.items[0];
+
+        // Verify fallback values are applied correctly
+        expect(product.description).toBe(''); // null ?? '' = ''
+        expect(product.basePrice).toBe(0); // null ?? 0 = 0
+        expect(product.quantity).toBe(0); // null ?? 0 = 0
+        expect(product.updatedAt).toBeNull(); // null ?? null = null
+
+        // Verify empty arrays are handled correctly
+        expect(product.images).toEqual([]); // [].length ? [] : [] = []
+        expect(product.categories).toEqual([]); // [].length ? [] : [] = []
+        expect(product.variants).toEqual([]); // [].length ? [] : [] = []
+        expect(product.reviews).toEqual([]); // [].length ? [] : [] = []
+      });
+
+      it('should handle products with undefined arrays', async () => {
+        const query: GetAllProductUserDto = { page: 1, pageSize: 50 };
+
+        // Create product with undefined arrays to trigger fallback logic
+        const mockProductWithUndefinedArrays = {
+          id: 2,
+          skuId: 'UNDEFINED-ARRAYS-002',
+          name: 'Product with undefined arrays',
+          description: 'Valid description',
+          status: ProductStatus.IN_STOCK,
+          basePrice: 100,
+          quantity: 10,
+          createdAt: new Date('2024-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2024-01-02T00:00:00.000Z'),
+          deletedAt: null,
+          images: undefined, // Will trigger ?.length ? images : [] fallback
+          categories: undefined, // Will trigger ?.length ? categories : [] fallback
+          variants: undefined, // Will trigger ?.length ? variants : [] fallback
+          reviews: undefined, // Will trigger ?.length ? reviews : [] fallback
+        };
+
+        const mockPaginationResult = {
+          items: [mockProductWithUndefinedArrays],
+          total: 1,
+          page: 1,
+          pageSize: 50,
+          totalPages: 1,
+        };
+
+        mockPlainToInstance.mockReturnValue(query);
+        mockValidateOrReject.mockResolvedValue(undefined);
+        mockPaginationService.queryWithPagination.mockResolvedValue(mockPaginationResult);
+
+        const result = await service.listProductsForUser(query);
+
+        expect(result.items).toHaveLength(1);
+        const product = result.items[0];
+
+        // Verify undefined arrays fallback to empty arrays
+        expect(product.images).toEqual([]); // undefined?.length ? undefined : [] = []
+        expect(product.categories).toEqual([]); // undefined?.length ? undefined : [] = []
+        expect(product.variants).toEqual([]); // undefined?.length ? undefined : [] = []
+        expect(product.reviews).toEqual([]); // undefined?.length ? undefined : [] = []
       });
     });
   });
