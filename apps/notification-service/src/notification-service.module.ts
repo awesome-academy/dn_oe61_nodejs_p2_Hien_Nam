@@ -9,10 +9,7 @@ import configuration from '../configuration';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: path.resolve(
-        process.cwd(),
-        'apps/notification-service/.env',
-      ),
+      envFilePath: path.resolve(process.cwd(), 'apps/notification-service/.env'),
       load: [configuration],
     }),
   ],

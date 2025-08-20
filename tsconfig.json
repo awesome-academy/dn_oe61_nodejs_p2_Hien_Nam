@@ -18,6 +18,12 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
+      "@app/prisma": [
+        "libs/prisma/src/index.ts"
+      ],
+      "@app/prisma/*": [
+        "libs/prisma/src/*"
+      ],
       "@app/common": [
         "libs/common/src"
       ],

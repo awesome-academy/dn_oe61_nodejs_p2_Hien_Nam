@@ -8,4 +8,7 @@ async function bootstrap() {
   const port = configService.get<number>('app.port');
   await app.listen(port ?? 3000);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
