@@ -1,3 +1,4 @@
+import { USER_SERVICE } from '@app/common/constant/service.constant';
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
@@ -6,11 +7,11 @@ import * as micro from '@app/common/helpers/microservices';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AuthProvider, Provider } from '../../user-service/generated/prisma';
-import { I18nService } from 'nestjs-i18n';
+import * as bcrypt from 'bcrypt';
 import * as classValidator from 'class-validator';
+import { AuthProvider, Provider } from '../../user-service/generated/prisma';
 import { AuthService } from '../src/auth-service.service';
-import { USER_SERVICE } from '@app/common/constant/service.constant';
+import { ConfigService } from '@nestjs/config';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -27,12 +28,12 @@ describe('AuthService', () => {
           useValue: { send: jest.fn() },
         },
         {
-          provide: I18nService,
-          useValue: { translate: jest.fn().mockReturnValue('Invalid credentials') },
-        },
-        {
           provide: CustomLogger,
           useValue: { error: jest.fn(), log: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(3600) },
         },
       ],
     }).compile();
@@ -167,5 +168,18 @@ describe('AuthService', () => {
       expect((error as TypedRpcException).getError()).toEqual(rpcError);
       expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
     }
+  });
+
+  describe('comparePassword', () => {
+    it('should return true when bcrypt.compare resolves true', async () => {
+      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true as never);
+      const result = await service.comparePassword('plain', 'hashed');
+      expect(result).toBe(true);
+    });
+    it('should return false when bcrypt.compare resolves false', async () => {
+      jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(false as never);
+      const result = await service.comparePassword('plain', 'hashed');
+      expect(result).toBe(false);
+    });
   });
 });
