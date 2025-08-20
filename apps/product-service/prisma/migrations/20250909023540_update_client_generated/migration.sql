@@ -110,14 +110,47 @@ CREATE TABLE `orders` (
     `deliveryAddress` VARCHAR(255) NOT NULL,
     `paymentMethod` ENUM('CASH', 'CREDIT_CARD', 'E_WALLET', 'BANK_TRANSFER') NOT NULL DEFAULT 'CASH',
 <<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
     `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
 =======
+=======
+<<<<<<< HEAD
+    `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
+=======
+=======
+>>>>>>> 0bfb2ab (feat: view-order/get-list-order/get-list-user)
+>>>>>>> 6441ff4 (feat: view-order/get-list-order/get-list-user)
+=======
+<<<<<<< HEAD
+    `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
+=======
+=======
+>>>>>>> 0bfb2ab (feat: view-order/get-list-order/get-list-user)
+=======
+>>>>>>> 5b661be (feat: implement api docs)
+>>>>>>> c25f5ac (feat: implement api docs)
 <<<<<<<< HEAD:apps/product-service/prisma/migrations/20250909023540_update_client_generated/migration.sql
     `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
 ========
     `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED', 'FAILED') NOT NULL DEFAULT 'UNPAID',
 >>>>>>>> a987e86 (# This is a combination of 7 commits.):apps/product-service/prisma/migrations/20250908084512_update_db_product_service/migration.sql
+<<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 4808628 (feat: implement feature confirm-reject-order)
+=======
+=======
+>>>>>>> c25f5ac (feat: implement api docs)
+<<<<<<< HEAD
+>>>>>>> 4808628 (feat: implement feature confirm-reject-order)
+=======
+>>>>>>> 0bfb2ab (feat: view-order/get-list-order/get-list-user)
+<<<<<<< HEAD
+>>>>>>> 6441ff4 (feat: view-order/get-list-order/get-list-user)
+=======
+=======
+>>>>>>> 5b661be (feat: implement api docs)
+>>>>>>> c25f5ac (feat: implement api docs)
     `note` VARCHAR(255) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
@@ -130,14 +163,47 @@ CREATE TABLE `orders` (
 CREATE TABLE `payments` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
 <<<<<<< HEAD
+<<<<<<< HEAD
+<<<<<<< HEAD
     `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
 =======
+=======
+<<<<<<< HEAD
+    `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
+=======
+=======
+>>>>>>> 0bfb2ab (feat: view-order/get-list-order/get-list-user)
+>>>>>>> 6441ff4 (feat: view-order/get-list-order/get-list-user)
+=======
+<<<<<<< HEAD
+    `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
+=======
+=======
+>>>>>>> 0bfb2ab (feat: view-order/get-list-order/get-list-user)
+=======
+>>>>>>> 5b661be (feat: implement api docs)
+>>>>>>> c25f5ac (feat: implement api docs)
 <<<<<<<< HEAD:apps/product-service/prisma/migrations/20250909023540_update_client_generated/migration.sql
     `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
 ========
     `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED', 'FAILED') NOT NULL DEFAULT 'UNPAID',
 >>>>>>>> a987e86 (# This is a combination of 7 commits.):apps/product-service/prisma/migrations/20250908084512_update_db_product_service/migration.sql
+<<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 4808628 (feat: implement feature confirm-reject-order)
+=======
+=======
+>>>>>>> c25f5ac (feat: implement api docs)
+<<<<<<< HEAD
+>>>>>>> 4808628 (feat: implement feature confirm-reject-order)
+=======
+>>>>>>> 0bfb2ab (feat: view-order/get-list-order/get-list-user)
+<<<<<<< HEAD
+>>>>>>> 6441ff4 (feat: view-order/get-list-order/get-list-user)
+=======
+=======
+>>>>>>> 5b661be (feat: implement api docs)
+>>>>>>> c25f5ac (feat: implement api docs)
     `amount` DECIMAL(65, 30) NOT NULL,
     `transactionCode` VARCHAR(100) NOT NULL,
     `accountNumber` VARCHAR(100) NOT NULL,

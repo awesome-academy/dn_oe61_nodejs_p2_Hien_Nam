@@ -1,5 +1,5 @@
 import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
-import { AddProductPayload } from '@app/common/dto/product/requests/add-product-payload';
+import { AddProductCartPayload } from '@app/common/dto/product/requests/add-product-payload';
 import { DeleteProductCartPayload } from '@app/common/dto/product/requests/delete-product-cart-payload';
 import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
@@ -69,7 +69,7 @@ describe('CartController', () => {
     const user = {
       id: 123,
     } as unknown as AccessTokenPayload;
-    const payload: AddProductPayload = {
+    const payload: AddProductCartPayload = {
       productVariantId: 10,
       quantity: 2,
     };

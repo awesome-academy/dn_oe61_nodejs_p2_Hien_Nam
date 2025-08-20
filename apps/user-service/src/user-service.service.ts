@@ -1,12 +1,17 @@
+import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
+import { FilterGetUsersRequest } from '@app/common/dto/user/requests/filter-get-orders.request';
 import { GetUserProfileRequest } from '@app/common/dto/user/requests/get-user-profile.request';
+import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { UpdatePasswordRequest } from '@app/common/dto/user/requests/update-password.request';
 import { UpdateUserProfileRequest } from '@app/common/dto/user/requests/update-user-profile.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
 import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { AdminInfoResponse } from '@app/common/dto/user/responses/admin-info.response';
+import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
 import { UpdatePasswordResponse } from '@app/common/dto/user/responses/update-password.response';
 import { UpdateUserProfileResponse } from '@app/common/dto/user/responses/update-user-profile.response';
 import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
@@ -14,11 +19,16 @@ import { UserProfileResponse } from '@app/common/dto/user/responses/user-profile
 import { UserSummaryResponse } from '@app/common/dto/user/responses/user-summary.response';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { SortDirection } from '@app/common/enums/query.enum';
 import { RoleEnum } from '@app/common/enums/role.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { validateDto } from '@app/common/helpers/validation.helper';
 import { BaseResponse } from '@app/common/interfaces/data-type';
+import { PaginationResult } from '@app/common/interfaces/pagination';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { buildBaseResponse } from '@app/common/utils/data.util';
 import { handlePrismaError } from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
 import { Injectable } from '@nestjs/common';
@@ -36,15 +46,10 @@ import {
   Role,
   User,
   UserProfile,
+  UserStatus,
 } from '../generated/prisma';
 import { INCLUDE_AUTH_PROVIDER_USER } from './constants/include-auth-user';
-import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
-import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
-import { buildBaseResponse } from '@app/common/utils/data.util';
-import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { ProductProducer } from './producer/product.producer';
-import { validateDto } from '@app/common/helpers/validation.helper';
-import { AdminInfoResponse } from '@app/common/dto/user/responses/admin-info.response';
 @Injectable()
 export class UserService {
   constructor(
@@ -52,6 +57,7 @@ export class UserService {
     private readonly loggerService: CustomLogger,
     private readonly configService: ConfigService,
     private readonly productProducer: ProductProducer,
+    private readonly paginationService: PaginationService,
   ) {}
   async getUserByEmail(dto: UserByEmailRequest): Promise<UserResponse | null> {
     const userFindByEmail = await this.prismaService.client.user.findUnique({
@@ -1000,6 +1006,41 @@ export class UserService {
     });
     return adminUsers;
   }
+  async getUsers(
+    filter: FilterGetUsersRequest,
+  ): Promise<BaseResponse<PaginationResult<UserSummaryResponse>>> {
+    const dto = plainToInstance(FilterGetUsersRequest, filter);
+    await validateOrReject(dto);
+    const { page, pageSize } = filter;
+    const whereOptions = this.buildFilterUsers(filter);
+    const orderBy = {
+      name: SortDirection.ASC,
+    };
+    const querys = {
+      orderBy,
+      where: whereOptions,
+      include: {
+        role: true,
+        profile: true,
+      },
+    };
+    const users = await this.paginationService.queryWithPagination(
+      this.prismaService.client.user,
+      {
+        page,
+        pageSize,
+      },
+      querys,
+    );
+    const usersResponse = users.items.map(
+      (item: User & { role: Role; profile: UserProfile | null }) =>
+        this.mapToUserSummaryResponse(item),
+    );
+    return buildBaseResponse(StatusKey.SUCCESS, {
+      items: usersResponse,
+      paginations: users.paginations,
+    });
+  }
   private mapToUserSummaryResponse(
     data: User & { role: Role; profile: UserProfile | null },
   ): UserSummaryResponse {
@@ -1016,7 +1057,6 @@ export class UserService {
       role: data.role.name,
     };
   }
-
   async cleanupInactiveUsers(): Promise<{ deletedCount: number; message: string }> {
     this.loggerService.log(
       '🔄 Cleanup inactive users bắt đầu chạy lúc: ' + new Date().toISOString(),
@@ -1077,5 +1117,22 @@ export class UserService {
         message: 'common.errors.internalServerError',
       });
     }
+  }
+  private buildFilterUsers(filter: FilterGetUsersRequest) {
+    const statusesArray: UserStatus[] = this.getStatusesArrayByFilter(filter.statuses);
+    const whereOptions = {
+      ...(filter.name ? { name: { contains: filter.name } } : {}),
+      ...(filter.email ? { email: { contains: filter.email } } : {}),
+      ...(filter.statuses ? { status: { in: statusesArray } } : {}),
+    };
+    return whereOptions;
+  }
+  private getStatusesArrayByFilter(methods: UserStatus[] | undefined): UserStatus[] {
+    const statusesArray: UserStatus[] = Array.isArray(methods)
+      ? methods.filter((s): s is UserStatus => s !== undefined)
+      : methods !== undefined
+        ? [methods]
+        : [];
+    return statusesArray;
   }
 }

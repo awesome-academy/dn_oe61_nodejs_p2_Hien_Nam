@@ -18,6 +18,7 @@ import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-upda
 import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
 import { RpcExceptionsFilter } from '@app/common/filters/rpc-exceptions.filter';
+import { FilterGetUsersRequest } from '@app/common/dto/user/requests/filter-get-orders.request';
 
 @Controller()
 @UseFilters(RpcExceptionsFilter)
@@ -98,9 +99,12 @@ export class UserServiceController {
   async getAllAdmin() {
     return await this.userService.getAllAdmin();
   }
-
   @MessagePattern(UserMsgPattern.CLEANUP_INACTIVE_USERS)
   async cleanupInactiveUsers(): Promise<{ deletedCount: number; message: string }> {
     return await this.userService.cleanupInactiveUsers();
+  }
+  @MessagePattern(UserMsgPattern.GET_ALL_USER)
+  async getUsers(@Payload() filter: FilterGetUsersRequest) {
+    return await this.userService.getUsers(filter);
   }
 }

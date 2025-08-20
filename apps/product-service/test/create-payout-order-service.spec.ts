@@ -15,6 +15,7 @@ import { PayOSPayoutPaymentResponseDto } from '@app/common/dto/product/response/
 import { PayBalanceResponseDto } from '@app/common/dto/product/response/payos-balance.response';
 import axios, { AxiosRequestConfig } from 'axios';
 import { PaymentCreationException } from '@app/common/exceptions/payment-creation-exception';
+import { CacheService } from '@app/common/cache/cache.service';
 // Mock axios
 jest.mock('axios');
 const mockedAxios = axios as jest.MockedFunction<typeof axios> & {
@@ -133,6 +134,12 @@ describe('ProductService - createPayoutOrder', () => {
   const mockPrismaService = {
     client: mockPrismaClient,
   };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn(),
+  } as unknown as CacheService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -167,6 +174,10 @@ describe('ProductService - createPayoutOrder', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
