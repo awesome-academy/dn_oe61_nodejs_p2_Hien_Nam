@@ -119,15 +119,24 @@
       "getCart":{
         "success":"Lấy thông tin giỏ hàng thành công",
         "failed":"Lấy thông tin giỏ hàng thất bại"
+      },
+      "confirmOrder":{
+        "success":"Xác nhận đơn hàng thành công",
+        "failed":"Xác nhận đơn hàng thất bại, vui lòng thử lại"
       }
     }    
   },
   "order":{
     "notFound":"Không tìm thấy đơn hàng",
+    "orderPendingPayment":"Đơn hàng đang đợi thanh toán",
     "action":{
       "create":{
         "success":"Tạo đơn hàng thành công",
         "failed":"Tạo đơn hàng thất bại, vui lòng thử lại"
+      },
+      "rejectOrder":{
+        "success":"Từ chối đơn hàng thành công",
+        "failed":"Từ chối đơn hàng thất bại, vui lòng thử lại"
       }
     },
     "notification":{

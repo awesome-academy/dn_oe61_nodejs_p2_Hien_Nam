@@ -17,5 +17,10 @@ export default () => ({
     endpoint: process.env.PAYOS_ENDPOINT,
     expireTime: process.env.EXPIRE_TIME,
     reminderBeforeExpire: process.env.REMINDER_BEFOR_EXPIRED,
+    payout: {
+      clientId: process.env.PAYOUT_CLIENT_ID,
+      apiKey: process.env.PAYOUT_API_KEY,
+      checkSumKey: process.env.PAYOUT_CHECK_SUM_KEY,
+    },
   },
 });

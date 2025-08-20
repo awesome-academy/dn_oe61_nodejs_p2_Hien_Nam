@@ -189,10 +189,19 @@
           }
     }
   },
+  "orderPendingPayment":"Order pending payment",
     "action":{
       "createOrder":{
         "success":"Create order successfully",
         "failed":"Failed to create order"
+      },
+      "rejectOrder":{
+        "success":"Reject order successfully",
+        "failed":"Failed to reject order"
+      },
+      "confirmOrder":{
+        "success":"Confirm order successfully",
+        "failed":"Failed to confirm order"
       }
     }
   },

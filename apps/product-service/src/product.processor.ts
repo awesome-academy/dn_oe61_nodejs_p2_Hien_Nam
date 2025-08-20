@@ -51,4 +51,17 @@ export class ProductProcessor {
       await handleJobError(error, job, this.loggerService, '[Error payment retry]');
     }
   }
+  @Process(ProductEvent.EXPIRED_PAYMENT_ORDER)
+  async handleExpiredPaymentOrder(job: Job<{ orderId: number }>) {
+    if (!job.data.orderId) {
+      this.loggerService.error(`[Handle Expired Payment Order Failed by Underfield Order]`);
+      return;
+    }
+    try {
+      this.loggerService.log(`[HANDLE CANCEL ORDER ${job.data.orderId}] by expired payment`);
+      await this.productService.handleExpirePaymentOrder(job.data.orderId);
+    } catch (error) {
+      await handleJobError(error, job, this.loggerService, '[Error expired payment order]');
+    }
+  }
 }
