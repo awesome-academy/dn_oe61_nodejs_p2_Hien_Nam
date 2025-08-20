@@ -6,6 +6,7 @@ import { PrismaModule } from '@app/prisma';
 import * as path from 'path';
 import configuration from '../configuration';
 import { PrismaClient } from '../generated/prisma';
+import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
 
 @Module({
   imports: [
@@ -20,6 +21,12 @@ import { PrismaClient } from '../generated/prisma';
     }),
   ],
   controllers: [ProductServiceController],
-  providers: [ProductServiceService],
+  providers: [
+    ProductServiceService,
+    {
+      provide: 'APP_PIPE',
+      useClass: I18nRpcValidationPipe,
+    },
+  ],
 })
 export class ProductServiceModule {}

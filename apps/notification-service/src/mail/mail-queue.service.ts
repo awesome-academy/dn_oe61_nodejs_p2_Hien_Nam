@@ -7,8 +7,8 @@ import { MailJobDataDto } from '@app/common/dto/mail.dto';
 export class MailQueueService {
   constructor(
     @InjectQueue('mailQueue') private mailQueue: Queue,
-    private readonly logger: Logger
-  ) { }
+    private readonly logger: Logger,
+  ) {}
 
   async enqueueMailJob(jobName: string, data: MailJobDataDto) {
     if (!jobName) {
@@ -29,7 +29,7 @@ export class MailQueueService {
     } catch (error) {
       this.logger.error(
         `Failed to add mail job '${jobName}' for recipient: ${data.to}`,
-        error.stack,
+        (error as Error).stack,
       );
       throw error;
     }
