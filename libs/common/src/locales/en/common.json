@@ -189,14 +189,35 @@
           }
     }
   },
+  "orderPendingPayment":"Order pending payment",
     "action":{
       "createOrder":{
         "success":"Create order successfully",
         "failed":"Failed to create order"
+      },
+      "rejectOrder":{
+        "success":"Reject order successfully",
+        "failed":"Failed to reject order"
+      },
+      "confirmOrder":{
+        "success":"Confirm order successfully",
+
+        "failed":"Failed to confirm order",
+        "unChanged":"Order has confirmed"
+      },
+      "getOrder":{
+        "success":"Get order successfully",
+        "failed":"Failed to get order"
+      },
+      "getOrders":{
+        "success":"Get order successfully",
+        "failed":"Failed to get order"
       }
+   
     }
   },
   "payment":{
+    "balanceNotEnough":"Balance not enough",
     "action":{
       "retryPayment":{
         "success":"Retry create payment info successfully",
@@ -290,6 +311,10 @@
           "success": "Delete user successfully",
           "failed": "Failed to delete user. Please try again",
           "unChanged": "No user was deleted"
+        },
+        "getUsers": {
+          "success": "Get users successfully",
+          "failed": "Failed to get users. Please try again"
         }
       }
     },
@@ -311,5 +336,46 @@
       "productNotFound": "Product not found",
       "reviewNotFound": "Review not found or you don't have permission to delete it"
     }
+  },
+  "errors": {
+  "internalServerError": "Internal server error",
+  "serviceUnavailable": "Service unavailable",
+  "uniqueConstraint": "Unique constraint violation",
+  "foreignKeyConstraint": "Foreign key constraint violation",
+  "recordNotFound": "Record not found",
+  "invalidInput": "Invalid input data",
+  "dbSchema": "Database schema error",
+  "unexpectedDbError": "Unexpected database error",
+  "unauthorized": "You are not authorized to access",
+ "forbidden": "You don't have permission to perform this action",
+  "validationError": "Validation error",
+  "createUser": {
+    "error": "Failed to create user",
+    "roleNotFound": "Role not found",
+    "exists": "User already exists",
+    "missingFields": "Missing user information"
+  },
+  "signToken": {
+    "error": "Error generating token"
+  },
+  "checkUserExists": {
+    "error": "Error checking user"
+  },
+  "twitter": {
+    "invalidConfig": "Invalid configuration",
+    "error": "Error authenticating user"
+  },
+  "changeIsActive": {
+    "invalidPayload": "Invalid payload",
+    "alreadyActive": "Account is already activated"
+  },
+  "sendEmailComplete": {
+    "dataNotFound": "Invalid data"
+  },
+  "invalidTypeImage": "Only image formats |jpg|jpeg|png|gif| are accepted",
+  "invalidSizeImage": "Image size must be smaller than {maxImageSizeMB} MB",
+  "cloudinary": {
+    "fileExists": "File with name '{fileName}' already exists."
   }
+}
 }
