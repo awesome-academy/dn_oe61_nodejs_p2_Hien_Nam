@@ -44,9 +44,11 @@
     "bullmq": "^5.58.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "cloudinary": "^2.7.0",
     "cookie-parser": "^1.4.7",
     "express-session": "^1.18.2",
     "ioredis": "^5.7.0",
+    "multer": "^2.0.2",
     "nestjs-i18n": "^10.5.1",
     "passport": "^0.7.0",
     "passport-facebook": "^3.0.0",
@@ -55,6 +57,7 @@
     "pug": "^3.0.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "streamifier": "^0.1.1",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
@@ -72,10 +75,12 @@
     "@types/i18n": "^0.13.12",
     "@types/ioredis": "^4.28.10",
     "@types/jest": "^29.5.14",
+    "@types/multer": "^2.0.0",
     "@types/node": "^22.10.7",
     "@types/passport": "^1.0.17",
     "@types/passport-facebook": "^3.0.3",
     "@types/passport-google-oauth20": "^2.0.16",
+    "@types/streamifier": "^0.1.2",
     "@types/supertest": "^6.0.2",
     "@types/swagger-ui-express": "^4.1.8",
     "concurrently": "^9.2.0",
@@ -118,7 +123,8 @@
     "moduleNameMapper": {
       "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1",
       "^apps/(.*)$": "<rootDir>/apps/$1",
-      "^@app/prisma(|/.*)$": "<rootDir>/libs/prisma/src/$1"
+      "^@app/prisma(|/.*)$": "<rootDir>/libs/prisma/src/$1",
+      "^libs/(.*)$": "<rootDir>/libs/$1" 
     }
   }
 }

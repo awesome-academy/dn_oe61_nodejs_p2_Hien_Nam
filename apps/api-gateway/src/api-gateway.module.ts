@@ -22,6 +22,11 @@ import { FacebookStrategy } from './auth/strategy/facebook.stragety';
 import { PassportModule } from '@nestjs/passport';
 import { TwitterStrategy } from './auth/strategy/twitter.strategy';
 import { GoogleStrategy } from './auth/strategy/google-strategy';
+import { CloudinaryModule } from 'libs/cloudinary/cloudinary.module';
+import { AdminUserController } from './user/admin-user.controller';
+import { UserService } from './user/user.service';
+import { BullModule } from '@nestjs/bullmq';
+import { QueueName } from '@app/common/enums/queue/queue-name.enum';
 
 @Module({
   imports: [
@@ -29,6 +34,9 @@ import { GoogleStrategy } from './auth/strategy/google-strategy';
       isGlobal: true,
       envFilePath: path.resolve(process.cwd(), 'apps/api-gateway/.env'),
       load: [configuration],
+    }),
+    BullModule.registerQueue({
+      name: QueueName.CLOUDINARY,
     }),
     ClientsModule.registerAsync([
       {
@@ -91,11 +99,13 @@ import { GoogleStrategy } from './auth/strategy/google-strategy';
       ],
     }),
     PassportModule.register({ session: true }),
+    CloudinaryModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AdminUserController],
   providers: [
     AuthService,
     CustomLogger,
+    UserService,
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,

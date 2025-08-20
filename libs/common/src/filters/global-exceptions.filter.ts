@@ -31,7 +31,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       const errorResponse = exception.getResponse();
       this.loggerService.debug('Response error validation:: ', JSON.stringify(errorResponse));
       if (typeof errorResponse === 'string') {
-        message = errorResponse;
+        message = this.i18nService.translate(errorResponse);
         code = HttpStatus[status];
       } else if (typeof errorResponse === 'object' && errorResponse !== null) {
         const {
@@ -40,7 +40,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           statusCode,
           ...rest
         } = errorResponse as Record<string, unknown>;
-        message = (msg as string) ?? HTTP_EXCEPTION_CODE;
+        message = (msg as string) ? this.i18nService.translate(msg as string) : HTTP_EXCEPTION_CODE;
         detail = Object.keys(rest).length > 0 ? rest : undefined;
         code = (typeof err === 'string' ? err : HttpStatus[status]) ?? HTTP_EXCEPTION_CODE;
         status = typeof statusCode === 'number' ? statusCode : status;
@@ -61,6 +61,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = this.i18nService.translate(exception.message);
       detail = exception.details;
     } else if (exception instanceof Error) {
+      this.loggerService.error('[Internal Server Error]', `Details:: ${exception.stack}`);
       code = HTTP_ERROR_NAME.INTERNAL_SERVER_ERROR;
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = this.i18nService.translate('common.errors.internalServerError');

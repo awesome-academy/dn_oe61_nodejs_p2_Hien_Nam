@@ -6,4 +6,6 @@ export enum UserMsgPattern {
   CREATE_OAUTH_USER = 'CREATE_OAUTH_USER',
   REGISTER_USER = 'REGISTER_USER',
   CHANGE_IS_ACTIVE = 'CHANGE_IS_ACTIVE',
+  CREATE_USER = 'user.createUser',
+  ADMIN_CREATE_USER = 'admin.user.createUser',
 }

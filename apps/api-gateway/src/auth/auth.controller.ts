@@ -23,7 +23,6 @@ export class AuthController {
     private readonly i18nService: I18nService,
     private readonly configService: ConfigService,
   ) {}
-
   @Public()
   @Post('/login')
   @UseInterceptors(SetAccessTokenInterceptor)

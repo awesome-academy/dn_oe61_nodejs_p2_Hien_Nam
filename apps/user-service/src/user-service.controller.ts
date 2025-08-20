@@ -6,6 +6,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UserService } from './user-service.service';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
+import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 
 @Controller()
 export class UserServiceController {
@@ -42,5 +43,9 @@ export class UserServiceController {
   @MessagePattern(UserMsgPattern.CHANGE_IS_ACTIVE)
   async changeIsActive(@Payload() user: UserResponse): Promise<UserResponse | null> {
     return await this.userService.changeIsActive(user);
+  }
+  @MessagePattern(UserMsgPattern.ADMIN_CREATE_USER)
+  async adminCreateUser(@Payload() dto: UserCreationRequest) {
+    return await this.userService.create(dto);
   }
 }

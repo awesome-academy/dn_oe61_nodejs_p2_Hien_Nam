@@ -1,5 +1,5 @@
 import { USER_SERVICE } from '@app/common/constant/service.constant';
-import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
+import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request.';
 import { LoginResponse } from '@app/common/dto/auth/responses/login.response';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
@@ -128,7 +128,6 @@ export class AuthService {
       throw error;
     }
   }
-
   buildLoginResponse(accessToken: string, user: UserResponse): LoginResponse {
     return {
       accessToken,

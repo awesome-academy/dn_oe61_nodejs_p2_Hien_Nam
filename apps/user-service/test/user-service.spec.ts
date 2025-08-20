@@ -8,17 +8,22 @@ import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PrismaService } from '@app/prisma';
 import { RpcException } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import * as classValidator from 'class-validator';
 import * as bcrypt from 'bcrypt';
 import { PrismaClient, Provider, Role } from '../generated/prisma';
 import { UserService } from '../src/user-service.service';
+import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
+import { RoleEnum } from '@app/common/enums/role.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
+import { handlePrismaError } from '@app/common/utils/prisma-client-error';
+import * as prismaClientError from '@app/common/utils/prisma-client-error';
 
 jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password') }));
 
 describe('UserService', () => {
   let service: UserService;
   let moduleRef: TestingModule;
-
   beforeEach(async () => {
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -34,13 +39,19 @@ describe('UserService', () => {
                 update: jest.fn(),
               },
               role: { findUnique: jest.fn() },
-              authProvider: { findFirst: jest.fn(), findUnique: jest.fn() },
+              userProfile: { findUnique: jest.fn() },
+              authProvider: { findFirst: jest.fn() },
+              $transaction: jest.fn(),
             },
           },
         },
         {
           provide: CustomLogger,
           useValue: { error: jest.fn(), log: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('default-avatar.png') },
         },
       ],
     }).compile();
@@ -151,7 +162,6 @@ describe('UserService', () => {
       email: undefined,
     });
   });
-
   describe('checkUserExists', () => {
     const providerId = '123';
 
@@ -212,7 +222,6 @@ describe('UserService', () => {
       expect(result).toBeNull();
     });
   });
-
   describe('getRole', () => {
     it('should return role when found', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
@@ -643,6 +652,124 @@ describe('UserService', () => {
 
       expect(result.imageUrl).toBe('');
       expect(result.email).toBe(profile.email);
+    });
+  });
+  describe('adminCreateUser', () => {
+    const baseDto: UserCreationRequest = {
+      name: 'John',
+      password: 'password123',
+      role: RoleEnum.USER,
+    } as UserCreationRequest;
+    it('should create user successfully', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue(null);
+      (_prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(null);
+      const fakeTransactionResult = {
+        user: {
+          id: 1,
+          name: 'John',
+          userName: 'john@abcd',
+          email: null,
+          imageUrl: 'default-avatar.png',
+          role: { name: 'USER' },
+          createdAt: new Date(),
+        },
+        profile: { phoneNumber: null, address: null, dob: null },
+        authProvider: { id: 10 },
+      };
+      (_prismaMock.client.$transaction as jest.Mock).mockImplementation(
+        async (cb: (tx: typeof _prismaMock.client) => Promise<unknown>) =>
+          cb({
+            user: { create: jest.fn().mockResolvedValue(fakeTransactionResult.user) },
+            authProvider: {
+              create: jest.fn().mockResolvedValue(fakeTransactionResult.authProvider),
+            },
+            userProfile: { create: jest.fn().mockResolvedValue(fakeTransactionResult.profile) },
+          } as unknown as typeof _prismaMock.client),
+      );
+      const result = await service.create({ ...baseDto });
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toEqual(
+        expect.objectContaining({
+          id: 1,
+          name: 'John',
+          role: 'USER',
+        }),
+      );
+      expect(_prismaMock.client.$transaction).toHaveBeenCalled();
+    });
+    it('should throw validation error if dto is invalid', async () => {
+      const invalidDto: UserByEmailRequest = { email: 'invalid-email' } as UserByEmailRequest;
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      } as const;
+      jest
+        .spyOn(classValidator, 'validateOrReject')
+        .mockRejectedValueOnce(new TypedRpcException(rpcError));
+      try {
+        await service.getUserByEmail(invalidDto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+      }
+    });
+    it('should throw conflict error when phone exists', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue({ id: 99 });
+      await expect(service.create({ ...baseDto, phone: '0123456789' })).rejects.toEqual(
+        new TypedRpcException({
+          code: HTTP_ERROR_CODE.CONFLICT,
+          message: 'common.user.phoneNumberExist',
+        }),
+      );
+    });
+    it('should throw conflict error when email exists', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue(null);
+      (_prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue({ id: 100 });
+      await expect(service.create({ ...baseDto, email: 'exist@mail.com' })).rejects.toEqual(
+        new TypedRpcException({
+          code: HTTP_ERROR_CODE.CONFLICT,
+          message: 'common.user.emailExist',
+        }),
+      );
+    });
+    it('should throw TypedRpcException when prisma error occurs', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue(null);
+      (_prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(null);
+      const prismaError = new Error('db');
+      (_prismaMock.client.$transaction as jest.Mock).mockRejectedValue(prismaError);
+      const mappedError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+      jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementation(() => {
+        throw mappedError;
+      });
+      await expect(service.create({ ...baseDto })).rejects.toBe(mappedError);
+      expect(handlePrismaError).toHaveBeenCalledWith(
+        prismaError,
+        'UserService',
+        'create',
+        expect.anything(),
+      );
+    });
+    it('should throw validation error when dto is invalid', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      } as const;
+      jest
+        .spyOn(classValidator, 'validateOrReject')
+        .mockRejectedValueOnce(new TypedRpcException(rpcError));
+      try {
+        await service.create({} as unknown as UserCreationRequest);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+      }
     });
   });
 });

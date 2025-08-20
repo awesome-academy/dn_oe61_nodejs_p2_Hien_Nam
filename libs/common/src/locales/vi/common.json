@@ -5,7 +5,9 @@
     "isEmail": "{field} phải là email hợp lệ",
     "isNotEmpty": "{field} không được để trống",
     "minLength": "{field} phải có ít nhất {min} ký tự",
-    "maxLength": "{field} phải có nhiều nhất {max} ký tự"
+    "maxLength": "{field} phải có nhiều nhất {max} ký tự",
+    "isDate":"{field} phải là ngày hợp lệ",
+    "phoneInvalidType": "{field} phải là số điện thoại hợp lệ"
   },
   "auth": {
     "invalidCredentials": "Thông tin người dùng không chính xác",
@@ -59,15 +61,27 @@
     "forbidden": "Bạn không có quyền truy cập",
     "unauthorized": "Bạn không có quyền truy cập"
   },
-  "errors": {
-    "internalServerError": "Lỗi máy chủ",
-    "serviceUnavailable": "Dịch vụ không khả dụng",
-    "uniqueConstraint": "Vi phạm ràng buộc duy nhất",
-    "foreignKeyConstraint": "Vi phạm ràng buộc khóa ngoại",
-    "recordNotFound": "Mã số không tìm thấy",
-    "invalidInput": "Dữ liệu không hợp lệ",
-    "dbSchema": "Lỗi lược đồ cơ sở dữ liệu",
-    "unexpectedDbError": "Lỗi cơ sở dữ liệu không mong đợi",
+  "user":{
+    "phoneNumberExist":"Số điện thoại đã tồn tại",
+    "emailExist":"Email đã tồn tại"
+  },
+  "adminuser":{
+    "action":{
+      "create":{
+        "success":"Tạo tài khoản thành công",
+        "error":"Tạo tài khoản thất bại, vui lòng thử lại sau"
+      }
+    }
+  },
+  "errors":{
+    "internalServerError":"Lỗi máy chủ",
+    "serviceUnavailable":"Dịch vụ không khả dụng",
+    "uniqueConstraint":"Vi phạm ràng buộc duy nhất",
+    "foreignKeyConstraint":"Vi phạm ràng buộc khóa ngoại",
+    "recordNotFound":"Mã số không tìm thấy",
+    "invalidInput":"Dữ liệu không hợp lệ",
+    "dbSchema":"Lỗi lược đồ cơ sở dữ liệu",
+    "unexpectedDbError":"Lỗi cơ sở dữ liệu không mong đợi",
     "unauthorized": "Bạn không có quyền truy cập",
     "validationError": "Lỗi xác thực dữ liệu",
     "createUser": {
@@ -101,6 +115,8 @@
     },
     "sendEmailComplete": {
       "dataNotFound": "Dữ liệu không hợp lệ"
-    }
+    },
+    "invalidTypeImage":"Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
+    "invalidSizeImage":"Kích thước hình ảnh phải nhỏ hơn 2MB"
   }
 }

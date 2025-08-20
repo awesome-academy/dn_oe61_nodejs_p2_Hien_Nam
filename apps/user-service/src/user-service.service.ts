@@ -5,23 +5,28 @@ import { RoleEnum } from '@app/common/enums/role.enum';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { handlePrismaError } from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
-import { Injectable } from '@nestjs/common';
 import { validateOrReject } from 'class-validator';
 import { randomUUID } from 'crypto';
+import { Injectable } from '@nestjs/common';
 import { AuthProvider, Prisma, PrismaClient, Provider, Role, User } from '../generated/prisma';
-import { INCLUDE_AUTH_PROVIDER_USER } from './constants/include-auth-user';
 import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { RpcException } from '@nestjs/microservices';
 import { plainToInstance } from 'class-transformer';
-import * as bcrypt from 'bcrypt';
+import { INCLUDE_AUTH_PROVIDER_USER } from './constants/include-auth-user';
+import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
-
+import { BaseResponse } from '@app/common/interfaces/data-type';
+import * as bcrypt from 'bcrypt';
+import { StatusKey } from '@app/common/enums/status-key.enum';
+import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
+import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class UserService {
   constructor(
     private readonly prismaService: PrismaService<PrismaClient>,
     private readonly loggerService: CustomLogger,
+    private readonly configService: ConfigService,
   ) {}
 
   async getUserByEmail(dto: UserByEmailRequest): Promise<UserResponse | null> {
@@ -138,6 +143,98 @@ export class UserService {
       }
     }
     return userByEmail;
+  }
+  async create(dto: UserCreationRequest): Promise<BaseResponse<UserCreationResponse>> {
+    await validateOrReject(Object.assign(new UserCreationRequest(), dto));
+    if (dto?.phone) {
+      const userByPhone = await this.prismaService.client.userProfile.findUnique({
+        where: {
+          phoneNumber: dto.phone,
+        },
+      });
+      if (userByPhone) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.CONFLICT,
+          message: 'common.user.phoneNumberExist',
+        });
+      }
+    }
+    if (dto?.email) {
+      const userByEmail = await this.prismaService.client.user.findUnique({
+        where: {
+          email: dto.email,
+        },
+      });
+      if (userByEmail) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.CONFLICT,
+          message: 'common.user.emailExist',
+        });
+      }
+    }
+    const userName = this.generateUserName(dto.name);
+    if (!dto?.imageUrl) {
+      dto.imageUrl = this.configService.get<string>('user.avatarDefault');
+    }
+    const userData: Prisma.UserCreateInput = {
+      name: dto.name,
+      userName: userName,
+      email: dto.email,
+      imageUrl: dto.imageUrl,
+      role: {
+        connect: {
+          name: dto.role,
+        },
+      },
+    };
+    try {
+      const created = await this.prismaService.client.$transaction(async (tx) => {
+        const userCreated = await tx.user.create({
+          data: userData,
+          include: {
+            role: true,
+          },
+        });
+        const authProviderCreated = await tx.authProvider.create({
+          data: {
+            provider: Provider.LOCAL,
+            providerId: null,
+            user: {
+              connect: {
+                id: userCreated.id,
+              },
+            },
+            password: await this.hashPassword(dto.password),
+          },
+        });
+        const profileCreated = await tx.userProfile.create({
+          data: {
+            userId: userCreated.id,
+            ...(dto.phone && { phoneNumber: dto.phone }),
+            ...(dto.address && { address: dto.address }),
+            ...(dto.dateOfBirth && { dob: dto.dateOfBirth }),
+          },
+        });
+        return { user: userCreated, authProvider: authProviderCreated, profile: profileCreated };
+      });
+      return {
+        statusKey: StatusKey.SUCCESS,
+        data: {
+          id: created.user.id,
+          name: created.user.name,
+          userName: created.user.userName,
+          email: created.user.email,
+          imageUrl: created.user.imageUrl,
+          phone: created.profile.phoneNumber,
+          address: created.profile.address,
+          dateOfBirth: created.profile.dob,
+          role: created.user.role.name,
+          createdAt: created.user.createdAt,
+        },
+      };
+    } catch (error) {
+      return handlePrismaError(error, UserService.name, 'create', this.loggerService);
+    }
   }
   private mapUserFromAuthProvider(
     authProvider: AuthProvider & { user: User & { role: Role; authProviders?: AuthProvider[] } },
@@ -377,5 +474,8 @@ export class UserService {
         message: 'common.errors.internalServerError',
       });
     }
+  }
+  async hashPassword(rawPassword: string, saltRound: number = 10): Promise<string> {
+    return await bcrypt.hash(rawPassword, saltRound);
   }
 }

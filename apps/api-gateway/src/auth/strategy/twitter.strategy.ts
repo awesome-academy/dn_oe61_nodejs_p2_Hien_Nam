@@ -19,7 +19,6 @@ export class TwitterStrategy extends PassportStrategy(TwitterStrategyOAuth1, 'tw
         i18nService.translate('common.auth.action.twitter.invalidConfig'),
       );
     }
-
     super({
       consumerKey,
       consumerSecret,

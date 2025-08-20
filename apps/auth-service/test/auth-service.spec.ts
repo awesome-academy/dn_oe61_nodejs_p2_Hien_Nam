@@ -34,14 +34,6 @@ describe('AuthService', () => {
           useValue: { send: jest.fn() },
         },
         {
-          provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue('secret') },
-        },
-        {
-          provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue('secret') },
-        },
-        {
           provide: CustomLogger,
           useValue: { error: jest.fn(), log: jest.fn() },
         },
@@ -235,9 +227,7 @@ describe('AuthService', () => {
     it('should sign token successfully', async () => {
       const token = 'new-token';
       jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue(token);
-
       const result = await service.signJwtToken(data);
-
       expect(result).toEqual({
         accessToken: token,
         user: {
