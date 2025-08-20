@@ -6,4 +6,5 @@ export enum HTTP_ERROR_NAME {
   CONFLICT = 'Conflict',
   INTERNAL_SERVER_ERROR = 'Internal Server Error',
   VALIDATION_ERROR = 'Validation Error',
+  SERVICE_UNAVAILABLE = 'Service Unavailbale',
 }

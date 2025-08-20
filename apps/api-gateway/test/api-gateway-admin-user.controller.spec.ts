@@ -1,23 +1,23 @@
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
+import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
 import { UserSummaryResponse } from '@app/common/dto/user/responses/user-summary.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { Role } from '@app/common/enums/roles/users.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
+import { UserStatus } from '@app/common/enums/user-status.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { BaseResponse } from '@app/common/interfaces/data-type';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { buildBaseResponse } from '@app/common/utils/data.util';
 import { BadRequestException } from '@nestjs/common';
-import { I18nService } from 'nestjs-i18n';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UploadApiResponse } from 'cloudinary';
 import { CloudinaryService } from 'libs/cloudinary/cloudinary.service';
+import { I18nService } from 'nestjs-i18n';
 import { AdminUserController } from '../src/user/admin-user.controller';
 import { UserService } from '../src/user/user.service';
-import { UserStatus } from '@app/common/enums/user-status.enum';
-import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
-import { BaseResponse } from '@app/common/interfaces/data-type';
-import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
 
 function createMockCloudinaryService(): jest.Mocked<CloudinaryService> {
   return {

@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { ProductProducer } from '../src/producer/product.producer';
 import { assertRpcException } from '@app/common/helpers/test.helper';
 import { UserStatus } from '@app/common/enums/user-status.enum';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 describe('UserService – Facebook login', () => {
   let service: UserService;
   let moduleRef: TestingModule;
@@ -46,6 +47,7 @@ describe('UserService – Facebook login', () => {
           provide: ProductProducer,
           useValue: { addJobSoftDeleteCart: jest.fn() },
         },
+        { provide: PaginationService, useValue: { queryWithPagination: jest.fn() } },
       ],
     }).compile();
     service = moduleRef.get<UserService>(UserService);

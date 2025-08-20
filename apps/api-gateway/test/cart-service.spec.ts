@@ -766,7 +766,6 @@ describe('CartService', () => {
         expect((error as TypedRpcException).getError()).toEqual(rpcError);
         expect((error as TypedRpcException).message).toEqual(rpcError.message);
       }
-
       expect(mockCallMicroservice).toHaveBeenCalledWith(
         mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
