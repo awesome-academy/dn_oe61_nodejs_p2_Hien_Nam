@@ -39,13 +39,23 @@ export async function formatValidationErrors(
   }
   return formatted;
 }
-
+export function parseRpcError(err: unknown): RpcError | null {
+  const candidate = unwrapRpcError(err);
+  return candidate && isRpcError(candidate) ? candidate : null;
+}
 export function isRpcError(obj: unknown): obj is RpcError {
-  if (typeof obj !== 'object' || obj === null) return false;
-  const maybe = obj as Record<string, unknown>;
-  const httpErrorCodeValues =
-    HTTP_ERROR_CODE && typeof HTTP_ERROR_CODE === 'object' ? Object.values(HTTP_ERROR_CODE) : [];
-  if (!httpErrorCodeValues.length) return false;
-  const isCodeValid = httpErrorCodeValues.includes(maybe.code as HTTP_ERROR_CODE);
-  return isCodeValid && typeof maybe.message === 'string';
+  const candidate = unwrapRpcError(obj);
+  if (!candidate) return false;
+  const isCodeValid = Object.values(HTTP_ERROR_CODE).includes(candidate.code as HTTP_ERROR_CODE);
+  return isCodeValid && typeof candidate.message === 'string';
+}
+function unwrapRpcError(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const rec = value as Record<string, unknown>;
+  if ('code' in rec && 'message' in rec) return rec;
+  if ('error' in rec && typeof rec.error === 'object' && rec.error !== null) {
+    const nested = rec.error as Record<string, unknown>;
+    if ('code' in nested && 'message' in nested) return nested;
+  }
+  return null;
 }

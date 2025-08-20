@@ -13,6 +13,8 @@ export const httpErrorCodeToHttpStatus = (code: HTTP_ERROR_CODE): HttpStatus => 
       return HttpStatus.NOT_FOUND;
     case HTTP_ERROR_CODE.CONFLICT:
       return HttpStatus.CONFLICT;
+    case HTTP_ERROR_CODE.SERVICE_UNAVAILABLE:
+      return HttpStatus.SERVICE_UNAVAILABLE;
     case HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR:
       return HttpStatus.INTERNAL_SERVER_ERROR;
     default:

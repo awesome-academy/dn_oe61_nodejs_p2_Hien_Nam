@@ -6,5 +6,17 @@
     "isNotEmpty": "{field} không được để trống",
     "minLength": "{field} phải có ít nhất {min} ký tự",
     "maxLength": "{field} phải có nhiều nhất {max} ký tự"
+  },
+  "auth": {
+    "invalidCredentials": "Thông tin người dùng không chính xác",
+    "action":{
+      "login":{
+        "success":"Đăng nhập thành công"
+      }
+    }
+  },
+  "errors":{
+    "internalServerError":"Lỗi máy chủ",
+    "serviceUnavailable":"Dịch vụ không khả dụng"
   }
 }

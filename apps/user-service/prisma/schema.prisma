@@ -20,39 +20,54 @@ model User {
   name      String    @db.VarChar(50)
   userName  String    @db.VarChar(50)
   imageUrl  String?   @db.VarChar(255)
-  email     String    @db.VarChar(50)
-  password  String?    @db.VarChar(255)
-  provider  Provider  @default(LOCAL)
+  email     String?   @unique @db.VarChar(50)
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
-  
-  roleId Int @unique
-  role   Role        @relation(fields: [roleId], references: [id])
 
-  profile    UserProfile?
+  roleId Int  @unique
+  role   Role @relation(fields: [roleId], references: [id])
+
+  profile       UserProfile?
+  authProviders AuthProvider[]
+
   @@map("users")
 }
 
 model UserProfile {
-  id          Int      @id @default(autoincrement())
-  address     String?  @db.VarChar(255)
-  phoneNumber String?  @db.VarChar(20)
+  id          Int       @id @default(autoincrement())
+  address     String?   @db.VarChar(255)
+  phoneNumber String?   @db.VarChar(20)
   dob         DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   updatedAt   DateTime? @updatedAt
 
-  userId      Int      @unique
-  user        User     @relation(fields: [userId], references: [id])
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
   @@map("user_profiles")
 }
 
+model AuthProvider {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  provider   Provider  @default(LOCAL)
+  providerId String?   @unique @db.VarChar(255)
+  password   String?   @db.VarChar(255)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime? @updatedAt
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@map("auth_providers")
+}
+
 model Role {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(50)
-  createdAt DateTime @default(now())
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(50)
+  createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 
   users User[]
+
   @@map("roles")
 }
 

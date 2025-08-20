@@ -1,7 +1,7 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsEmail } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
 
-export class LoginRequest {
+export class UserByEmailRequest {
   @IsEmail(
     {},
     {
@@ -11,6 +11,4 @@ export class LoginRequest {
     },
   )
   email: string;
-  @IsString()
-  password: string;
 }
