@@ -1,15 +1,15 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ProductService } from '../src/product-service.service';
-import { PrismaService } from '@app/prisma';
-import { PaginationService } from '@app/common/shared/pagination.shared';
-import { Logger } from '@nestjs/common';
 import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
-import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { PrismaService } from '@app/prisma';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Decimal } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
+import { ProductService } from '../src/product-service.service';
 
 // Mock class-validator
 jest.mock('class-validator', () => {
@@ -131,7 +131,7 @@ describe('ProductService - updateProduct and validationDataProduct', () => {
           },
         },
         {
-          provide: Logger,
+          provide: CustomLogger,
           useValue: {
             error: jest.fn(),
           },

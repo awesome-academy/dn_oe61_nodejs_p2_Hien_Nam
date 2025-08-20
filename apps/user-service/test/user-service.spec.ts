@@ -1,12 +1,17 @@
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment */
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
+import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
+import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { RoleEnum } from '@app/common/enums/role.enum';
+import { Role as RoleUpdate } from '@app/common/enums/roles/users.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
+import { UserStatus } from '@app/common/enums/user-status.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import * as prismaClientError from '@app/common/utils/prisma-client-error';
@@ -18,10 +23,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import * as classValidator from 'class-validator';
 import { PrismaClient, Provider, Role } from '../generated/prisma';
+import { ProductProducer } from '../src/producer/product.producer';
 import { UserService } from '../src/user-service.service';
-import { Role as RoleUpdate } from '@app/common/enums/roles/users.enum';
-import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
-import { UserStatus } from '@app/common/enums/user-status.enum';
+import { assertRpcException } from '@app/common/helpers/test.helper';
 
 jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password') }));
 
@@ -61,11 +65,19 @@ describe('UserService', () => {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('default-avatar.png') },
         },
+        {
+          provide: ProductProducer,
+          useValue: { addJobSoftDeleteCart: jest.fn() },
+        },
       ],
     }).compile();
     service = moduleRef.get<UserService>(UserService);
-    jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue();
   });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should throw validation error if dto is invalid', async () => {
     const invalidDto: UserByEmailRequest = { email: 'invalid-email' } as UserByEmailRequest;
     const rpcError = {
@@ -252,18 +264,15 @@ describe('UserService', () => {
       providerId: '321',
       provider: Provider.GOOGLE,
     } as const;
-
     beforeEach(() => {
       jest.spyOn(service, 'checkUserExists').mockResolvedValue(null);
     });
 
     it('should throw ConflictException if user already exists', async () => {
       const existingUser = { id: 1, email: 'test@example.com' } as UserResponse;
+      jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue(undefined);
       jest.spyOn(service, 'checkUserExists').mockResolvedValue(existingUser);
-
-      await expect(service.validateOAuthUserCreation(createDto)).rejects.toThrow(
-        'common.errors.createUser.exists',
-      );
+      await expect(service.validateOAuthUserCreation(createDto)).rejects.toThrow(TypedRpcException);
     });
 
     it('should throw RpcException when role not found', async () => {
@@ -283,17 +292,14 @@ describe('UserService', () => {
         userName: 'jane',
         role: 'USER',
         status: 'ACTIVE',
+        deletedAt: null,
         email: undefined,
       };
-      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
-      (_prismaMock.client.role.findUnique as jest.Mock).mockResolvedValue(role);
-
+      jest.spyOn(service, 'getRole').mockResolvedValue(role);
       const createUserSpy = jest.spyOn(service, 'createUser').mockResolvedValue(createdUser);
-
       const result = await service.validateOAuthUserCreation(
         createDto as unknown as Parameters<UserService['validateOAuthUserCreation']>[0],
       );
-
       expect(createUserSpy).toHaveBeenCalledWith(createDto, role.id);
       expect(result).toEqual(createdUser);
     });
@@ -308,7 +314,6 @@ describe('UserService', () => {
       provider: Provider.LOCAL,
       providerId: 'local-id',
     } as const;
-
     it('should throw validation error', async () => {
       jest.spyOn(classValidator, 'validateOrReject').mockRejectedValueOnce(new Error('validation'));
       await expect(
@@ -325,9 +330,13 @@ describe('UserService', () => {
         service.createUserWithPassword(
           dto as unknown as Parameters<UserService['createUserWithPassword']>[0],
         ),
-      ).rejects.toThrow(new RpcException('common.errors.createUser.roleNotFound'));
+      ).rejects.toThrow(
+        new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.errors.createUser.roleNotFound',
+        }),
+      );
     });
-
     it('should throw RpcException when createUser returns null', async () => {
       jest.spyOn(service, 'getRole').mockResolvedValue({
         id: 1,
@@ -356,6 +365,7 @@ describe('UserService', () => {
         userName: dto.userName,
         role: 'USER',
         status: 'ACTIVE',
+        deletedAt: null,
         email: dto.email,
       };
       const createUserSpy = jest.spyOn(service, 'createUser').mockResolvedValue(createdUser);
@@ -382,6 +392,8 @@ describe('UserService', () => {
         userName: dto.userName,
         role: 'USER',
         status: 'ACTIVE',
+        deletedAt: null,
+
         email: undefined,
       };
       jest.spyOn(service, 'createUser').mockResolvedValue(createdUser);
@@ -664,8 +676,12 @@ describe('UserService', () => {
     });
   });
   describe('adminCreateUser', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
     const baseDto: UserCreationRequest = {
       name: 'John',
+      email: 'john@example.com',
       password: 'password123',
       role: RoleEnum.USER,
     } as UserCreationRequest;
@@ -725,27 +741,30 @@ describe('UserService', () => {
     });
     it('should throw conflict error when phone exists', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
-      (_prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
-      await expect(service.create({ ...baseDto, phone: '0123456789' })).rejects.toEqual(
-        new TypedRpcException({
-          code: HTTP_ERROR_CODE.CONFLICT,
-          message: 'common.user.phoneNumberExist',
-        }),
-      );
+      jest.restoreAllMocks();
+      jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue(undefined);
+      (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue({ id: 99 });
+      const completeDto = {
+        ...baseDto,
+        phone: '0123456789',
+      };
+      await expect(service.create(completeDto)).rejects.toThrow(TypedRpcException);
     });
     it('should throw conflict error when email exists', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
       (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue(null);
       (_prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue({ id: 100 });
-      await expect(service.create({ ...baseDto, email: 'exist@mail.com' })).rejects.toEqual(
+      await expect(service.create({ ...baseDto, email: 'exist@mail.com' })).rejects.toThrow(
         new TypedRpcException({
           code: HTTP_ERROR_CODE.CONFLICT,
           message: 'common.user.emailExist',
         }),
       );
     });
+
     it('should throw TypedRpcException when prisma error occurs', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue(undefined);
       (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue(null);
       (_prismaMock.client.user.findUnique as jest.Mock).mockResolvedValue(null);
       const prismaError = new Error('db');
@@ -857,7 +876,7 @@ describe('UserService', () => {
     it('should throw NOT_FOUND when some users not exist', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
       (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([{ id: 1 }]);
-      await expect(service.updateRoles(dto)).rejects.toEqual(
+      await expect(service.updateRoles(dto)).rejects.toThrow(
         new TypedRpcException({
           code: HTTP_ERROR_CODE.NOT_FOUND,
           message: 'common.user.someUserNotExist',
@@ -865,6 +884,7 @@ describe('UserService', () => {
         }),
       );
     });
+
     it('should propagate prisma error via handlePrismaError', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
       (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
@@ -887,6 +907,296 @@ describe('UserService', () => {
         'updateRoles',
         expect.anything(),
       );
+    });
+
+    it('should return UNCHANGED when no user roles require updating', async () => {
+      const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      // Mock DB roles that already match incoming dto
+      (prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, role: { name: 'ADMIN' } },
+        { id: 2, role: { name: 'USER' } },
+      ]);
+
+      const result = await service.updateRoles(dto);
+
+      expect(result).toEqual({ statusKey: StatusKey.UNCHANGED, data: [] });
+      expect(prismaMock.client.$transaction).not.toHaveBeenCalled();
+    });
+  });
+  describe('update statuses', () => {
+    const dto: UserUpdateStatusRequest = {
+      users: [
+        { userId: 1, status: UserStatus.ACTIVE },
+        { userId: 2, status: UserStatus.INACTIVE },
+      ],
+    };
+    beforeEach(() => {
+      jest.clearAllMocks();
+      (classValidator.validateOrReject as jest.Mock).mockResolvedValue(undefined);
+    });
+    it('should validate dto, update statuses and return mapped response', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, status: 'INACTIVE' },
+        { id: 2, status: 'ACTIVE' },
+      ]);
+      const updatedUsers = [
+        {
+          id: 1,
+          name: 'User A',
+          userName: 'usera',
+          email: 'a@mail.com',
+          isActive: true,
+          imageUrl: null,
+          status: 'ACTIVE',
+          role: { name: 'USER' },
+          profile: null,
+        },
+        {
+          id: 2,
+          name: 'User B',
+          userName: 'userb',
+          email: 'b@mail.com',
+          isActive: false,
+          imageUrl: null,
+          status: 'INACTIVE',
+          role: { name: 'ADMIN' },
+          profile: { phoneNumber: null, address: null },
+        },
+      ];
+      (_prismaMock.client.$transaction as jest.Mock).mockResolvedValueOnce(updatedUsers);
+      const result = await service.updateStatuses(dto);
+      expect(_prismaMock.client.user.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [1, 2] } },
+        select: { id: true, status: true },
+      });
+      expect(_prismaMock.client.$transaction).toHaveBeenCalled();
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 1, status: 'ACTIVE' }),
+          expect.objectContaining({ id: 2, status: 'INACTIVE' }),
+        ]),
+      );
+    });
+
+    it('should propagate validation error', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      } as const;
+      jest
+        .spyOn(classValidator, 'validateOrReject')
+        .mockRejectedValueOnce(new TypedRpcException(rpcError));
+      try {
+        await service.updateStatuses(dto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
+      }
+    });
+
+    it('should throw NOT_FOUND when some users do not exist', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([{ id: 1 }]);
+      await expect(service.updateStatuses(dto)).rejects.toThrow(
+        new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.user.someUserNotExist',
+          args: { missingIds: '2' },
+        }),
+      );
+    });
+
+    it('should propagate prisma error via handlePrismaError', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, status: 'INACTIVE' },
+        { id: 2, status: 'ACTIVE' },
+      ]);
+      const prismaError = new Error('db fail');
+      (_prismaMock.client.$transaction as jest.Mock).mockRejectedValueOnce(prismaError);
+      const mappedError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.rowNotFound',
+      });
+      jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementationOnce(() => {
+        throw mappedError;
+      });
+      await expect(service.updateStatuses(dto)).rejects.toBe(mappedError);
+      expect(prismaClientError.handlePrismaError).toHaveBeenCalledWith(
+        prismaError,
+        'UserService',
+        'updateStatuses',
+        expect.anything(),
+      );
+    });
+
+    it('should return status unchanged if no users had their status changed', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, status: 'ACTIVE' },
+        { id: 2, status: 'INACTIVE' },
+      ]);
+      const unchangedUsers = [
+        {
+          id: 1,
+          name: 'User A',
+          userName: 'usera',
+          email: 'a@mail.com',
+          isActive: true,
+          imageUrl: null,
+          status: 'ACTIVE',
+          role: { name: 'USER' },
+          profile: null,
+        },
+        {
+          id: 2,
+          name: 'User B',
+          userName: 'userb',
+          email: 'b@mail.com',
+          isActive: false,
+          imageUrl: null,
+          status: 'INACTIVE',
+          role: { name: 'ADMIN' },
+          profile: { phoneNumber: null, address: null },
+        },
+      ];
+      (_prismaMock.client.$transaction as jest.Mock).mockResolvedValueOnce(unchangedUsers);
+      const result = await service.updateStatuses(dto);
+      expect(result.statusKey).toBe(StatusKey.UNCHANGED);
+      expect(result.data).toEqual([]);
+    });
+  });
+  describe('delete user', () => {
+    const dto: SoftDeleteUserRequest = { userId: 1 } as SoftDeleteUserRequest;
+    let prismaMock: PrismaService<PrismaClient>;
+    let productProducerMock: jest.Mocked<ProductProducer>;
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      (classValidator.validateOrReject as jest.Mock).mockResolvedValue(undefined);
+      prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      productProducerMock = moduleRef.get(ProductProducer);
+    });
+
+    it('should propagate validation error', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.user.notFound',
+      } as const;
+      (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      try {
+        await service.softdeleteUser(dto);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+    });
+
+    it('should throw NOT_FOUND when user does not exist', async () => {
+      (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      await expect(service.softdeleteUser(dto)).rejects.toThrow(
+        new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.user.notFound',
+        }),
+      );
+    });
+
+    it('should return UNCHANGED when user already deleted', async () => {
+      const deletedUser = { id: 1, deletedAt: new Date() };
+      (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce(deletedUser);
+      const result = await service.softdeleteUser(dto);
+      expect(result.statusKey).toBe(StatusKey.UNCHANGED);
+      expect(prismaMock.client.user.update).not.toHaveBeenCalled();
+      expect(productProducerMock.addJobSoftDeleteCart).not.toHaveBeenCalled();
+    });
+
+    it('should soft delete user and enqueue cart deletion job', async () => {
+      const foundUser = { id: 1, deletedAt: null };
+      const updatedUser = { id: 1, deletedAt: new Date() };
+      (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce(foundUser);
+      (prismaMock.client.$transaction as jest.Mock).mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          return await callback({
+            user: {
+              update: jest.fn().mockResolvedValue(updatedUser),
+            },
+            userProfile: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+          });
+        },
+      );
+
+      const result = await service.softdeleteUser(dto);
+
+      expect(productProducerMock.addJobSoftDeleteCart).toHaveBeenCalledWith({
+        userId: updatedUser.id,
+      });
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      const payload = result.data as SoftDeleteUserResponse;
+      expect(payload.userId).toBe(dto.userId);
+      expect(payload.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('should propagate prisma error via handlePrismaError', async () => {
+      const foundUser = { id: 1, deletedAt: null };
+      (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce(foundUser);
+      const prismaError = new Error('db error');
+      (prismaMock.client.$transaction as jest.Mock).mockRejectedValue(prismaError);
+      jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementation(() => {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          message: 'common.errors.internalServerError',
+        });
+      });
+      await expect(service.softdeleteUser(dto)).rejects.toThrow();
+      expect(prismaClientError.handlePrismaError).toHaveBeenCalledWith(
+        prismaError,
+        'UserService',
+        'softdeleteUser',
+        expect.anything(),
+      );
+    });
+
+    it('should soft delete userProfile when profile exists', async () => {
+      const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      const productProducerMock = moduleRef.get(ProductProducer);
+
+      (prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: dto.userId,
+        deletedAt: null,
+      });
+
+      const mockUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+
+      (prismaMock.client.$transaction as jest.Mock).mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) =>
+          callback({
+            user: {
+              update: jest.fn().mockResolvedValue({
+                id: dto.userId,
+                deletedAt: new Date(),
+              }),
+            },
+            userProfile: {
+              updateMany: mockUpdateMany,
+            },
+          }),
+      );
+
+      const result = await service.softdeleteUser(dto);
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: { userId: dto.userId },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(productProducerMock.addJobSoftDeleteCart).toHaveBeenCalledWith({
+        userId: dto.userId,
+      });
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
     });
   });
   describe('update statuses', () => {

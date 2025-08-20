@@ -47,6 +47,7 @@ export async function callMicroservice<T>(
   );
   return result;
 }
+
 function throwErrorMicroservice(
   error: Error,
   serviceName: string,

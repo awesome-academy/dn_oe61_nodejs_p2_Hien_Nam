@@ -1,13 +1,13 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject } from 'class-validator';
 import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
-import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
-import { PrismaService } from '@app/prisma/prisma.service';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
+import { PrismaService } from '@app/prisma/prisma.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { plainToInstance } from 'class-transformer';
+import { validateOrReject } from 'class-validator';
 import { ProductService } from '../src/product-service.service';
 
 // Mock class-transformer, class-validator, and nestjs-i18n
@@ -80,7 +80,7 @@ describe('ProductService', () => {
           },
         },
         {
-          provide: Logger,
+          provide: CustomLogger,
           useValue: mockLoggerService,
         },
         {
@@ -307,7 +307,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          validationError,
+          validationError.stack,
         );
         expect(mockPrismaClient.product.findUnique).not.toHaveBeenCalled();
       });
@@ -324,7 +324,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          transformError,
+          transformError.stack,
         );
       });
     });
@@ -371,14 +371,12 @@ describe('ProductService', () => {
       it('should handle product findUnique database error', async () => {
         const dbError = new Error('Database connection failed');
         mockPrismaClient.product.findUnique.mockRejectedValue(dbError);
-
         await expect(service.createProductCategory(validCreateProductCategoryDto)).rejects.toThrow(
           TypedRpcException,
         );
-
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          dbError,
+          dbError.stack,
         );
       });
     });
@@ -421,7 +419,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          dbError,
+          dbError.stack,
         );
       });
     });
@@ -474,7 +472,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          dbError,
+          dbError.stack,
         );
       });
     });
@@ -498,7 +496,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          constraintError,
+          constraintError.stack,
         );
       });
 
@@ -512,7 +510,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          connectionError,
+          connectionError.stack,
         );
       });
 
@@ -526,7 +524,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          timeoutError,
+          timeoutError.stack,
         );
       });
     });
@@ -714,7 +712,7 @@ describe('ProductService', () => {
 
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          typedError,
+          typedError.stack,
         );
       });
 
@@ -731,10 +729,9 @@ describe('ProductService', () => {
           .catch((e: unknown) => e)) as TypedRpcException;
         expect(thrownError.getError().code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
         expect(thrownError.getError().message).toBe('common.errors.internalServerError');
-
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error creating product category:',
-          genericError,
+          genericError.stack,
         );
       });
 

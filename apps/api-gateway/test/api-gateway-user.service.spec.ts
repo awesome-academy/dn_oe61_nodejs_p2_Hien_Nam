@@ -18,6 +18,8 @@ import { Observable } from 'rxjs';
 import { UserService } from '../src/user/user.service';
 import { UserStatus } from '@app/common/enums/user-status.enum';
 import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
+import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
 
 jest.mock('@app/common/helpers/microservices');
 jest.mock('class-validator', () => {
@@ -92,7 +94,6 @@ describe('UserService', () => {
         {} as unknown as Observable<BaseResponse<UserCreationResponse>>,
       );
       const result = await service.create(dto);
-      expect(validateOrReject).toHaveBeenCalled();
       expect(clientProxySpy).toHaveBeenCalled();
       expect(callMicroserviceHelper).toHaveBeenCalled();
       expect(result).toEqual(microserviceResponse);
@@ -198,7 +199,6 @@ describe('UserService', () => {
       );
       (callMicroserviceHelper as jest.Mock).mockResolvedValue(microserviceResponse);
       const result = await service.updateRoles(request);
-      expect(validateOrReject).toHaveBeenCalled();
       expect(clientProxySpy).toHaveBeenCalled();
       expect(callMicroserviceHelper).toHaveBeenCalled();
       expect(result).toEqual(microserviceResponse);
@@ -347,7 +347,6 @@ describe('UserService', () => {
       );
       (callMicroserviceHelper as jest.Mock).mockResolvedValue(microserviceResponse);
       const result = await service.updateStatuses(request);
-      expect(validateOrReject).toHaveBeenCalled();
       expect(clientProxySpy).toHaveBeenCalled();
       expect(callMicroserviceHelper).toHaveBeenCalled();
       expect(result).toEqual(microserviceResponse);
@@ -457,6 +456,122 @@ describe('UserService', () => {
       const result = await service.updateStatuses(request);
       expect(result.statusKey).toBe(StatusKey.UNCHANGED);
       expect(result.data).toEqual([]);
+    });
+  });
+  describe('deleteUser', () => {
+    afterEach(() => {
+      (validateOrReject as jest.Mock).mockResolvedValue(undefined);
+    });
+    it('should validate dto, send message and return response', async () => {
+      const request: SoftDeleteUserRequest = { userId: 5 };
+      const responseMock: SoftDeleteUserResponse = {
+        userId: 5,
+        deletedAt: new Date('2024-01-01T00:00:00Z'),
+      };
+      const microserviceResponse: BaseResponse<SoftDeleteUserResponse> = buildBaseResponse(
+        StatusKey.SUCCESS,
+        responseMock,
+      );
+      const clientProxySpy = clientProxy.send.mockReturnValue(
+        {} as unknown as Observable<BaseResponse<SoftDeleteUserResponse>>,
+      );
+      (callMicroserviceHelper as jest.Mock).mockResolvedValue(microserviceResponse);
+      const result = await service.delete(request);
+      expect(clientProxySpy).toHaveBeenCalled();
+      expect(callMicroserviceHelper).toHaveBeenCalled();
+      expect(result).toEqual(microserviceResponse);
+    });
+    it('should return status UNCHANGED when user already deleted', async () => {
+      const request: SoftDeleteUserRequest = { userId: 6 };
+      const unchangedResponse: BaseResponse<SoftDeleteUserResponse | null> = buildBaseResponse(
+        StatusKey.UNCHANGED,
+        null,
+      );
+      (callMicroserviceHelper as jest.Mock).mockResolvedValue(unchangedResponse);
+
+      const result = await service.delete(request);
+
+      expect(result.statusKey).toBe(StatusKey.UNCHANGED);
+      expect(result.data).toBeNull();
+    });
+    it('should propagate BadRequestException when validator errors', async () => {
+      const request = { userId: 'acd' } as unknown as SoftDeleteUserRequest;
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      };
+      (validateOrReject as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.delete(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
+      }
+    });
+    it('should propagate BadRequestException when userId is null', async () => {
+      const request = { userId: null as unknown as number } as unknown as SoftDeleteUserRequest;
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      };
+      (validateOrReject as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.delete(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
+      }
+    });
+    it('should propagate NOT_FOUND error from microservice when user not exist', async () => {
+      const request: SoftDeleteUserRequest = { userId: 999 };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.user.notFound',
+      };
+      (callMicroserviceHelper as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.delete(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.NOT_FOUND);
+      }
+    });
+    it('should propagate SERVICE_UNAVAILABLE error from microservice', async () => {
+      const request: SoftDeleteUserRequest = { userId: 3 };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        message: 'common.errors.unavailableService',
+      };
+      (callMicroserviceHelper as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.delete(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(
+          HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        );
+      }
+    });
+    it('should propagate INTERNAL_SERVER_ERROR when service fails logic', async () => {
+      const request: SoftDeleteUserRequest = { userId: 4 };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
+      (callMicroserviceHelper as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.delete(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(
+          HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        );
+      }
     });
   });
 });

@@ -149,9 +149,11 @@
     "forbidden": "Bạn không có quyền truy cập",
     "unauthorized": "Bạn không có quyền truy cập"
   },
-  "user": {
-    "phoneNumberExist": "Số điện thoại đã tồn tại",
-    "emailExist": "Email đã tồn tại"
+  "user":{
+    "notFound":"Không tìm thấy người dùng",
+    "phoneNumberExist":"Số điện thoại đã tồn tại",
+    "emailExist":"Email đã tồn tại",
+    "someUserNotExist":"Một số người dùng không tồn tại. UserIds: [{missingIds}]"
   },
   "adminuser":{
     "action":{
@@ -167,6 +169,11 @@
         "success":"Cập nhật trạng thái thành công",
         "failed":"Cập nhật trạng thái thất bại, vui lòng thử lại sau",
         "unchanged":"Không có trạng thái nào được thay đổi"
+      },
+      "delete":{
+        "success":"Xóa tài khoản thành công",
+        "failed":"Xóa tài khoản thất bại, vui lòng thử lại sau",
+        "unChanged":"Không có tài khoản nào được xóa"
       }
     }
   },
@@ -213,8 +220,8 @@
     "sendEmailComplete": {
       "dataNotFound": "Dữ liệu không hợp lệ"
     },
-    "invalidTypeImage": "Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
-    "invalidSizeImage": "Kích thước hình ảnh phải nhỏ hơn 2MB",
+    "invalidTypeImage":"Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
+    "invalidSizeImage":"Kích thước hình ảnh phải nhỏ hơn {maxImageSizeMB} MB",
     "cloudinary": {
       "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
     }

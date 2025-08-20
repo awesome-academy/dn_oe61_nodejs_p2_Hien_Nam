@@ -1,15 +1,16 @@
-import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
+import { USER_SERVICE } from '@app/common/constant/service.constant';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
 import * as path from 'path';
 import configuration from '../configuration';
 import { AuthServiceController } from './auth-service.controller';
 import { AuthService } from './auth-service.service';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import { USER_SERVICE } from '@app/common/constant/service.constant';
-import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { APP_FILTER } from '@nestjs/core';
+import { RpcExceptionsFilter } from '@app/common/filters/rpc-exceptions.filter';
 
 @Module({
   imports: [
@@ -60,8 +61,8 @@ import { CustomLogger } from '@app/common/logger/custom-logger.service';
     AuthService,
     CustomLogger,
     {
-      provide: 'APP_PIPE',
-      useClass: I18nRpcValidationPipe,
+      provide: APP_FILTER,
+      useClass: RpcExceptionsFilter,
     },
   ],
 })

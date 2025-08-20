@@ -59,6 +59,7 @@ describe('AuthService', () => {
         imageUrl: undefined,
         createdAt: new Date(),
         updatedAt: null,
+        deletedAt: null,
         role: 'USER',
         status: UserStatus.ACTIVE.toString(),
         authProviders: [
@@ -80,6 +81,7 @@ describe('AuthService', () => {
         imageUrl: undefined,
         createdAt: new Date(),
         updatedAt: null,
+        deletedAt: null,
         role: 'USER',
         status: UserStatus.ACTIVE.toString(),
         authProviders: [
@@ -112,6 +114,7 @@ describe('AuthService', () => {
         imageUrl: undefined,
         createdAt: new Date(),
         updatedAt: null,
+        deletedAt: null,
         role: 'USER',
         status: UserStatus.ACTIVE.toString(),
         authProviders: [],
@@ -134,6 +137,7 @@ describe('AuthService', () => {
         imageUrl: undefined,
         createdAt: new Date(),
         updatedAt: null,
+        deletedAt: null,
         role: 'USER',
         status: UserStatus.ACTIVE.toString(),
         authProviders: [
@@ -159,6 +163,7 @@ describe('AuthService', () => {
         imageUrl: undefined,
         createdAt: new Date(),
         updatedAt: null,
+        deletedAt: null,
         role: 'USER',
         status: UserStatus.ACTIVE.toString(),
         authProviders: [
@@ -194,6 +199,7 @@ describe('AuthService', () => {
         imageUrl: undefined,
         createdAt: new Date(),
         updatedAt: null,
+        deletedAt: null,
         role: 'USER',
         status: UserStatus.INACTIVE.toString(),
         authProviders: [],
@@ -203,6 +209,29 @@ describe('AuthService', () => {
         new TypedRpcException({
           code: HTTP_ERROR_CODE.UNAUTHORIZED,
           message: 'common.auth.inactiveAccount',
+        }),
+      );
+    });
+    it('should propagate unauthorized if user deleted', async () => {
+      const dto: LoginRequestDto = { email: 'nopass@example.com', password: '123456' };
+      const user: UserResponse = {
+        id: 1,
+        name: 'Test User',
+        userName: 'testuser',
+        email: 'test@example.com',
+        imageUrl: undefined,
+        createdAt: new Date(),
+        updatedAt: null,
+        deletedAt: new Date(),
+        role: 'USER',
+        status: UserStatus.ACTIVE.toString(),
+        authProviders: [],
+      };
+      jest.spyOn(micro, 'callMicroservice').mockResolvedValue(user);
+      await expect(service.login(dto)).rejects.toThrow(
+        new TypedRpcException({
+          code: HTTP_ERROR_CODE.UNAUTHORIZED,
+          message: 'common.auth.invalidCredentials',
         }),
       );
     });
@@ -241,6 +270,7 @@ describe('AuthService', () => {
       name: 'John',
       role: 'USER',
       providerName: 'LOCAL',
+      deletedAt: null,
       status: UserStatus.ACTIVE.toString(),
       email: 'john@example.com',
     };
@@ -297,6 +327,7 @@ describe('AuthService', () => {
       providerName: 'LOCAL',
       status: UserStatus.ACTIVE.toString(),
       email: 'jane@example.com',
+      deletedAt: null,
     };
 
     it('should throw RpcException when data is null', async () => {

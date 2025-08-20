@@ -1,20 +1,20 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ProductService } from '../src/product-service.service';
-import { PrismaService } from '@app/prisma';
-import { PaginationService } from '@app/common/shared/pagination.shared';
-import { Logger } from '@nestjs/common';
 import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
-import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
 import {
   CategoryResponse,
   ChildCategories,
 } from '@app/common/dto/product/response/category-response';
+import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
-import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { PrismaService } from '@app/prisma';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Decimal } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
+import { ProductService } from '../src/product-service.service';
 
 jest.mock('class-validator', () => {
   const actual = jest.requireActual<typeof import('class-validator')>('class-validator');
@@ -101,7 +101,7 @@ describe('ProductService - getById and groupedCategories', () => {
           },
         },
         {
-          provide: Logger,
+          provide: CustomLogger,
           useValue: mockLogger,
         },
         {

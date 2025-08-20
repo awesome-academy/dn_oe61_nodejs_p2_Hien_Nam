@@ -1,18 +1,20 @@
 import { AuthMsgPattern } from '@app/common';
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request.';
-import { Controller } from '@nestjs/common';
-import { AuthService } from './auth-service.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
-import { TUserPayload } from '@app/common/types/user-payload.type';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { PayLoadJWT } from '@app/common/dto/user/sign-token.dto';
+import { TUserPayload } from '@app/common/types/user-payload.type';
+import { Controller, UseFilters } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { AuthService } from './auth-service.service';
+import { RpcExceptionsFilter } from '@app/common/filters/rpc-exceptions.filter';
 
 @Controller()
+@UseFilters(RpcExceptionsFilter)
 export class AuthServiceController {
   constructor(private readonly authService: AuthService) {}
-
+  // @UsePipes(new I18nRpcValidationPipe())
   @MessagePattern(AuthMsgPattern.AUTH_LOGIN)
-  async login(data: LoginRequestDto) {
+  async login(@Payload() data: LoginRequestDto) {
     return this.authService.login(data);
   }
 

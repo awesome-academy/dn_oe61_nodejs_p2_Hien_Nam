@@ -16,6 +16,7 @@ export class PayLoadJWT {
   email?: string;
   @IsEnum(UserStatus)
   status: string;
+  deletedAt: Date | null;
   @IsString()
   providerName: string;
 }

@@ -7,12 +7,23 @@ import { Role } from '@app/common/enums/roles/users.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { isRpcError } from '@app/common/utils/error.util';
-import { Body, Controller, Patch, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadApiResponse } from 'cloudinary';
 import { CloudinaryService } from 'libs/cloudinary/cloudinary.service';
 import { multerConfig } from 'libs/cloudinary/multer.config';
 import { UserService } from './user.service';
+import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { Public } from '@app/common/decorators/metadata.decorator';
 
 @Controller('/admin/user')
@@ -55,5 +66,13 @@ export class AdminUserController {
   @Patch('status')
   async updateStatuses(@Body() dto: UserUpdateStatusRequest) {
     return await this.userService.updateStatuses(dto);
+  }
+  @AuthRoles(Role.ADMIN)
+  @Delete('/:id')
+  async delete(@Param('id', ParseIntPipe) id: number) {
+    const payload: SoftDeleteUserRequest = {
+      userId: id,
+    };
+    return await this.userService.delete(payload);
   }
 }

@@ -1,12 +1,12 @@
+import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { PrismaService } from '@app/prisma/prisma.service';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
-import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
-import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
-import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
-import { PrismaService } from '@app/prisma/prisma.service';
-import { PaginationService } from '@app/common/shared/pagination.shared';
 import { ProductService } from '../src/product-service.service';
 
 // Mock dependencies
@@ -80,7 +80,7 @@ describe('ProductService', () => {
           },
         },
         {
-          provide: Logger,
+          provide: CustomLogger,
           useValue: mockLoggerService,
         },
         {
@@ -326,7 +326,7 @@ describe('ProductService', () => {
         );
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error updating product category:',
-          validationError,
+          validationError.stack,
         );
       });
 
@@ -347,7 +347,7 @@ describe('ProductService', () => {
         expect(error.getError().message).toBe('common.product.action.updateProductCategory.failed');
         expect(mockLoggerService.error).toHaveBeenCalledWith(
           'Error updating product category:',
-          genericError,
+          genericError.stack,
         );
       });
     });

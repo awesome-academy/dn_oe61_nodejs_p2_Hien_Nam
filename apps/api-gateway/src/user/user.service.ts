@@ -1,8 +1,10 @@
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { USER_SERVICE } from '@app/common/constant/service.constant';
+import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
 import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
 import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
 import { UserSummaryResponse } from '@app/common/dto/user/responses/user-summary.response';
 import { UserMsgPattern } from '@app/common/enums/message-patterns/user.pattern';
@@ -57,6 +59,20 @@ export class UserService {
     return await callMicroservice(
       this.userClient.send<BaseResponse<UserSummaryResponse[] | []>>(
         UserMsgPattern.ADMIN_UPDATE_STATUS,
+        dto,
+      ),
+      USER_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+  }
+  async delete(dto: SoftDeleteUserRequest): Promise<BaseResponse<SoftDeleteUserResponse>> {
+    return await callMicroservice(
+      this.userClient.send<BaseResponse<SoftDeleteUserResponse>>(
+        UserMsgPattern.ADMIN_DELETE_USER,
         dto,
       ),
       USER_SERVICE,

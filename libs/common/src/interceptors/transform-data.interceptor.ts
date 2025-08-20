@@ -52,11 +52,11 @@ export class TransformDataInterceptor implements NestInterceptor {
     }
     return next.handle().pipe(
       map((data) => {
-        const statusCode = response.statusCode;
+        let statusCode = response.statusCode;
         const isResponse = isBaseResponse(data);
         const statusKey = parseStatusKey(isResponse ? data.statusKey : undefined, statusCode);
         if (statusKey == StatusKey.UNCHANGED) {
-          response.status(HttpStatus.NO_CONTENT);
+          statusCode = HttpStatus.NO_CONTENT;
         }
         let messageActionPrefix = MESSAGE_ACTION_PREFIX;
         if (!messageActionPrefix) {

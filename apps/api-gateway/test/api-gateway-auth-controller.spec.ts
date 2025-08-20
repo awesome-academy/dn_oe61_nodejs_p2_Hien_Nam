@@ -329,6 +329,7 @@ describe('AuthController', () => {
           name: 'A',
           userName: 'a',
           role: 'user',
+          deletedAt: null,
           status: UserStatus.ACTIVE.toString(),
         },
       } as const;

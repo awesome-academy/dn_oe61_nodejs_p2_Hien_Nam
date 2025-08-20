@@ -1,15 +1,18 @@
+import { QueueName } from '@app/common/enums/queue/queue-name.enum';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 import { PrismaModule } from '@app/prisma';
+import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
 import * as path from 'path';
 import configuration from '../configuration';
 import { PrismaClient } from '../generated/prisma';
 import { ProductServiceController } from './product-service.controller';
 import { ProductService } from './product-service.service';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { PaginationService } from '@app/common/shared/pagination.shared';
+import { ProductProcessor } from './product.processor';
 
 @Module({
   imports: [
@@ -21,6 +24,18 @@ import { PaginationService } from '@app/common/shared/pagination.shared';
     PrismaModule.forRoot({
       isGlobal: true,
       client: PrismaClient,
+    }),
+    BullModule.forRootAsync({
+      useFactory: (configService: ConfigService) => ({
+        redis: {
+          host: configService.get<string>('redis.host'),
+          port: configService.get<number>('redis.port'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+    BullModule.registerQueue({
+      name: QueueName.PRODUCT,
     }),
     I18nModule.forRoot({
       fallbackLanguage: 'en',
@@ -46,6 +61,7 @@ import { PaginationService } from '@app/common/shared/pagination.shared';
       provide: 'APP_PIPE',
       useClass: I18nRpcValidationPipe,
     },
+    ProductProcessor,
   ],
 })
 export class ProductServiceModule {}

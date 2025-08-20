@@ -27,9 +27,9 @@ import { UserService } from './user/user.service';
 import { BullModule } from '@nestjs/bullmq';
 import { QueueName } from '@app/common/enums/queue/queue-name.enum';
 import { ProductController } from './product/admin/product.controller';
-import { ProductService } from './product/admin/product.service';
 import { CloudinaryConsoleModule } from '@app/common/cloudinary/cloudinary.module';
 import { CloudinaryModule } from 'libs/cloudinary/cloudinary.module';
+import { ProductService } from './product/admin/product.service';
 
 @Module({
   imports: [

@@ -1,14 +1,18 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ProductService } from '../src/product-service.service';
-import { PrismaService } from '@app/prisma';
-import { PaginationService } from '@app/common/shared/pagination.shared';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
 import { ProductDto } from '@app/common/dto/product/product.dto';
+import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { VariantInput } from '@app/common/dto/product/variants.dto';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import * as prismaClientError from '@app/common/utils/prisma-client-error';
+import { PrismaService } from '@app/prisma';
+import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
-import { Logger } from '@nestjs/common';
+import { ProductService } from '../src/product-service.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 
 jest.mock('class-validator', () => {
   const actual = jest.requireActual<typeof import('class-validator')>('class-validator');
@@ -26,6 +30,8 @@ jest.mock('class-transformer', () => {
   };
 });
 
+jest.mock('@app/common/utils/prisma-client-error');
+
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
 
@@ -35,7 +41,7 @@ interface MockProduct {
   name: string;
   description?: string;
   status: StatusProduct;
-  basePrice: string | number; // Can be string (Decimal) or number
+  basePrice: string | number;
   quantity: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -66,6 +72,14 @@ interface MockPrismaTransaction {
   categoryProduct: {
     create: jest.MockedFunction<
       (args: { data: { categoryId: number; productId: number } }) => Promise<{ id: number }>
+    >;
+  };
+  cart: {
+    findUnique: jest.MockedFunction<
+      (args: { where: { userId: number } }) => Promise<{ id: number } | null>
+    >;
+    update: jest.MockedFunction<
+      (args: { where: { userId: number }; data: { deletedAt: Date } }) => Promise<{ id: number }>
     >;
   };
 }
@@ -108,6 +122,17 @@ describe('ProductService', () => {
           (args: { data: { categoryId: number; productId: number } }) => Promise<{ id: number }>
         >,
       },
+      cart: {
+        findUnique: jest.fn() as jest.MockedFunction<
+          (args: { where: { userId: number } }) => Promise<{ id: number } | null>
+        >,
+        update: jest.fn() as jest.MockedFunction<
+          (args: {
+            where: { userId: number };
+            data: { deletedAt: Date };
+          }) => Promise<{ id: number }>
+        >,
+      },
       $transaction: jest.fn() as jest.MockedFunction<
         (callback: TransactionCallback) => Promise<MockProduct>
       >,
@@ -122,21 +147,10 @@ describe('ProductService', () => {
           provide: PrismaService,
           useValue: mockPrismaService,
         },
-        {
-          provide: Logger,
-          useValue: {
-            error: jest.fn(),
-          },
-        },
-        {
-          provide: PaginationService,
-          useValue: {
-            queryWithPagination: jest.fn(),
-          },
-        },
+        { provide: CustomLogger, useValue: { error: jest.fn(), log: jest.fn() } },
+        { provide: PaginationService, useValue: { paginate: jest.fn() } },
       ],
     }).compile();
-
     service = module.get<ProductService>(ProductService);
   });
 
@@ -283,6 +297,10 @@ describe('ProductService', () => {
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
             },
+            cart: {
+              findUnique: jest.fn(),
+              update: jest.fn(),
+            },
           };
           return await callback(prismaMock);
         },
@@ -344,6 +362,10 @@ describe('ProductService', () => {
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
             },
+            cart: {
+              findUnique: jest.fn(),
+              update: jest.fn(),
+            },
           };
           return await callback(prismaMock);
         },
@@ -389,6 +411,10 @@ describe('ProductService', () => {
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
             },
+            cart: {
+              findUnique: jest.fn(),
+              update: jest.fn(),
+            },
           };
           return await callback(prismaMock);
         },
@@ -431,6 +457,10 @@ describe('ProductService', () => {
             },
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
+            },
+            cart: {
+              findUnique: jest.fn(),
+              update: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -476,6 +506,10 @@ describe('ProductService', () => {
             },
             categoryProduct: {
               create: jest.fn().mockRejectedValue(categoryCreationError),
+            },
+            cart: {
+              findUnique: jest.fn(),
+              update: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -542,6 +576,10 @@ describe('ProductService', () => {
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
             },
+            cart: {
+              findUnique: jest.fn(),
+              update: jest.fn(),
+            },
           };
           return await callback(prismaMock);
         },
@@ -553,6 +591,48 @@ describe('ProductService', () => {
       expect(capturedVariantData).toHaveLength(2);
       expect(capturedVariantData[0].endDate).toBeInstanceOf(Date);
       expect(capturedVariantData[1].endDate).toBeNull();
+    });
+  });
+
+  describe('deleteSoftCart', () => {
+    const dto: DeleteSoftCartRequest = { userId: 1 } as DeleteSoftCartRequest;
+
+    it('should update cart.deletedAt when cart exists', async () => {
+      mockPrismaService.client.cart.findUnique.mockResolvedValueOnce({ id: 10 });
+      mockPrismaService.client.cart.update.mockResolvedValueOnce({ id: 10 });
+
+      await service.deleteSoftCart(dto);
+
+      expect(mockPrismaService.client.cart.findUnique).toHaveBeenCalledWith({
+        where: { userId: dto.userId },
+      });
+      expect(mockPrismaService.client.cart.update).toHaveBeenCalledWith({
+        where: { userId: dto.userId },
+        data: { deletedAt: expect.any(Date) as unknown as Date },
+      });
+    });
+
+    it('should do nothing when cart not found', async () => {
+      mockPrismaService.client.cart.findUnique.mockResolvedValueOnce(null);
+
+      await service.deleteSoftCart(dto);
+
+      expect(mockPrismaService.client.cart.update).not.toHaveBeenCalled();
+    });
+
+    it('should propagate prisma error via handlePrismaError', async () => {
+      const prismaErr = new Error('db fail');
+      mockPrismaService.client.cart.findUnique.mockRejectedValueOnce(prismaErr);
+      const mappedErr = new TypedRpcException({ code: HTTP_ERROR_CODE.CONFLICT, message: 'msg' });
+      jest.spyOn(prismaClientError, 'handlePrismaError').mockReturnValueOnce(mappedErr as never);
+      const result = await service.deleteSoftCart(dto);
+      expect(result).toBe(mappedErr);
+      expect(prismaClientError.handlePrismaError).toHaveBeenCalledWith(
+        prismaErr,
+        'ProductService',
+        'deleteSoftCart',
+        expect.anything(),
+      );
     });
   });
 });

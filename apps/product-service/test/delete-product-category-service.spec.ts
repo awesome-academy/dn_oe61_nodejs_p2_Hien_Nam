@@ -1,14 +1,14 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
-import { ProductService } from '../src/product-service.service';
-import { PrismaService } from '@app/prisma/prisma.service';
-import { PaginationService } from '@app/common/shared/pagination.shared';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
-import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { PrismaService } from '@app/prisma/prisma.service';
+import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
+import { ProductService } from '../src/product-service.service';
 
 // Mock class-transformer
 jest.mock('class-transformer', () => ({
@@ -89,7 +89,7 @@ jest.mock('class-validator', () => ({
 
 describe('ProductService - deleteProductCategory', () => {
   let service: ProductService;
-  let logger: Logger;
+  let logger: CustomLogger;
   let loggerErrorSpy: jest.SpyInstance;
 
   const mockPrismaClient = {
@@ -109,7 +109,7 @@ describe('ProductService - deleteProductCategory', () => {
             client: mockPrismaClient,
           },
         },
-        Logger,
+        CustomLogger,
         {
           provide: PaginationService,
           useValue: {
@@ -120,7 +120,7 @@ describe('ProductService - deleteProductCategory', () => {
     }).compile();
 
     service = module.get<ProductService>(ProductService);
-    logger = module.get(Logger);
+    logger = module.get(CustomLogger);
     loggerErrorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
 
     // Reset all mocks
@@ -244,7 +244,7 @@ describe('ProductService - deleteProductCategory', () => {
       await expect(service.deleteProductCategory(deleteDto)).rejects.toThrow(TypedRpcException);
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         'Error deleting product category:',
-        validationError,
+        validationError.stack,
       );
     });
 
@@ -314,7 +314,10 @@ describe('ProductService - deleteProductCategory', () => {
         expect(rpcError.message).toBe('common.product.action.deleteProductCategory.failed');
       }
 
-      expect(loggerErrorSpy).toHaveBeenCalledWith('Error deleting product category:', dbError);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error deleting product category:',
+        dbError.stack,
+      );
     });
 
     it('should handle database error during delete operation', async () => {
@@ -329,7 +332,10 @@ describe('ProductService - deleteProductCategory', () => {
 
       // Act & Assert
       await expect(service.deleteProductCategory(deleteDto)).rejects.toThrow(TypedRpcException);
-      expect(loggerErrorSpy).toHaveBeenCalledWith('Error deleting product category:', dbError);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error deleting product category:',
+        dbError.stack,
+      );
     });
 
     it('should handle Prisma unique constraint error', async () => {
@@ -503,7 +509,7 @@ describe('ProductService - deleteProductCategory', () => {
       await expect(service.deleteProductCategory(deleteDto)).rejects.toThrow(originalError);
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         'Error deleting product category:',
-        originalError,
+        originalError.stack,
       );
     });
 
@@ -528,7 +534,7 @@ describe('ProductService - deleteProductCategory', () => {
 
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         'Error deleting product category:',
-        originalError,
+        originalError.stack,
       );
     });
   });
@@ -630,7 +636,10 @@ describe('ProductService - deleteProductCategory', () => {
       }
 
       // Assert
-      expect(loggerErrorSpy).toHaveBeenCalledWith('Error deleting product category:', dbError);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error deleting product category:',
+        dbError.stack,
+      );
     });
 
     it('should not log when operation succeeds', async () => {

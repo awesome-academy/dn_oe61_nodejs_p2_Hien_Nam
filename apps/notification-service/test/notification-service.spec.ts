@@ -65,6 +65,7 @@ describe('NotificationService', () => {
         userName: 'testuser',
         status: 'ACTIVE',
         role: 'USER',
+        deletedAt: null,
       },
       token: 'some-jwt-token',
     };

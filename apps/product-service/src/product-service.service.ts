@@ -1,40 +1,43 @@
-import { PrismaService } from '@app/prisma';
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaClient, Product } from '../generated/prisma';
+import { PaginationDto } from '@app/common/dto/pagination.dto';
+import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject } from 'class-validator';
-import { ProductResponse } from '@app/common/dto/product/response/product-response';
-import { Decimal } from '@prisma/client/runtime/library';
-import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
-import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
-import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import {
   CategoryResponse,
   ChildCategories,
   RootCategory,
 } from '@app/common/dto/product/response/category-response';
-import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
-import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
-import { StatusProduct } from '@app/common/enums/product/product-status.enum';
-import { PaginationService } from '@app/common/shared/pagination.shared';
-import { PaginationDto } from '@app/common/dto/pagination.dto';
-import { PaginationResult } from '@app/common/interfaces/pagination';
-import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
-import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
-import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
 import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
 import { MAX_IMAGES } from '@app/common/constant/cloudinary';
 import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
 import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
+import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
+import { ProductResponse } from '@app/common/dto/product/response/product-response';
+import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
+import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
+import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { PaginationResult } from '@app/common/interfaces/pagination';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { handlePrismaError } from '@app/common/utils/prisma-client-error';
+import { PrismaService } from '@app/prisma';
+import { Injectable } from '@nestjs/common';
+import { Decimal } from '@prisma/client/runtime/library';
+import { plainToInstance } from 'class-transformer';
+import { validateOrReject } from 'class-validator';
+import { PrismaClient, Product } from '../generated/prisma';
 
 @Injectable()
 export class ProductService {
   constructor(
     private readonly prismaService: PrismaService<PrismaClient>,
-    private readonly loggerService: Logger,
+    private readonly loggerService: CustomLogger,
     private readonly paginationService: PaginationService,
   ) {}
 
@@ -273,7 +276,6 @@ export class ProductService {
             deletedAt: new Date(),
           },
         });
-
         return deletedProduct;
       });
     } catch (error) {
@@ -320,9 +322,7 @@ export class ProductService {
           message: 'common.product.error.productNotFound',
         });
       }
-
       const groupedCategories = await this.groupedCategories(product);
-
       const result: ProductDetailResponse = {
         id: product.id,
         name: product.name,
@@ -438,7 +438,7 @@ export class ProductService {
         message: 'common.product.error.productNotFound',
       });
     }
-    const items = products.items as Product[];
+    const items = products.items;
     const result: ProductResponse[] = items.map(
       (product: Product) =>
         ({
@@ -541,7 +541,7 @@ export class ProductService {
         },
       };
     } catch (error) {
-      this.loggerService.error('Error creating product category:', error);
+      this.loggerService.error('Error creating product category:', (error as Error).stack);
       if (error instanceof TypedRpcException) {
         throw error;
       }
@@ -661,7 +661,7 @@ export class ProductService {
         },
       };
     } catch (error) {
-      this.loggerService.error('Error updating product category:', error);
+      this.loggerService.error('Error updating product category:', (error as Error).stack);
       if (error instanceof TypedRpcException) {
         throw error;
       }
@@ -716,7 +716,7 @@ export class ProductService {
         },
       };
     } catch (error) {
-      this.loggerService.error('Error deleting product category:', error);
+      this.loggerService.error('Error deleting product category:', (error as Error).stack);
       if (error instanceof TypedRpcException) {
         throw error;
       }
@@ -783,7 +783,7 @@ export class ProductService {
 
       return result;
     } catch (error) {
-      this.loggerService.error('Error create Product Images:', error);
+      this.loggerService.error('Error create Product Images:', (error as Error).stack);
       if (error instanceof TypedRpcException) {
         throw error;
       }
@@ -841,5 +841,26 @@ export class ProductService {
     });
 
     return result;
+  }
+  async deleteSoftCart(dto: DeleteSoftCartRequest): Promise<void> {
+    try {
+      const cartByUser = await this.prismaService.client.cart.findUnique({
+        where: {
+          userId: dto.userId,
+        },
+      });
+      if (cartByUser) {
+        await this.prismaService.client.cart.update({
+          where: {
+            userId: dto.userId,
+          },
+          data: {
+            deletedAt: new Date(),
+          },
+        });
+      }
+    } catch (error) {
+      return handlePrismaError(error, ProductService.name, 'deleteSoftCart', this.loggerService);
+    }
   }
 }

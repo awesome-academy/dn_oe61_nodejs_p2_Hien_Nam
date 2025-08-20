@@ -16,6 +16,8 @@ import { AdminUserController } from '../src/user/admin-user.controller';
 import { UserService } from '../src/user/user.service';
 import { UserStatus } from '@app/common/enums/user-status.enum';
 import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { BaseResponse } from '@app/common/interfaces/data-type';
+import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
 
 function createMockCloudinaryService(): jest.Mocked<CloudinaryService> {
   return {
@@ -29,9 +31,9 @@ function createMockUserService(): jest.Mocked<UserService> {
     create: jest.fn(),
     updateRoles: jest.fn(),
     updateStatuses: jest.fn(),
+    delete: jest.fn(),
   } as unknown as jest.Mocked<UserService>;
 }
-
 function createMockLogger(): jest.Mocked<CustomLogger> {
   return {
     log: jest.fn(),
@@ -475,6 +477,48 @@ describe('AdminUserController', () => {
         expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.NOT_FOUND);
       }
       expect(userServiceSpy).toHaveBeenCalledWith(request);
+    });
+  });
+  describe('Delete user', () => {
+    it('should delete user successfully', async () => {
+      const id = 10;
+      const deleteResponse = buildBaseResponse(StatusKey.SUCCESS, {
+        userId: id,
+        deletedAt: new Date(),
+      });
+      const userServiceSpy = jest.spyOn(userService, 'delete').mockResolvedValue(deleteResponse);
+      const result = await controller.delete(id);
+      expect(userServiceSpy).toHaveBeenCalledWith({ userId: id });
+      expect(result).toEqual(deleteResponse);
+    });
+    it('should return unchanged when user already deleted', async () => {
+      const id = 11;
+      const unchangedResponse = buildBaseResponse(
+        StatusKey.UNCHANGED,
+      ) as unknown as BaseResponse<SoftDeleteUserResponse>;
+      const userServiceSpy = jest.spyOn(userService, 'delete').mockResolvedValue(unchangedResponse);
+      const result = await controller.delete(id);
+      expect(userServiceSpy).toHaveBeenCalledWith({ userId: id });
+      expect(result).toEqual(unchangedResponse);
+    });
+
+    it('should propagate TypedRpcException when service fails', async () => {
+      const id = 12;
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.user.notFound',
+      } as const;
+      const userServiceSpy = jest
+        .spyOn(userService, 'delete')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await controller.delete(id);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.NOT_FOUND);
+      }
+      expect(userServiceSpy).toHaveBeenCalledWith({ userId: id });
     });
   });
 });
