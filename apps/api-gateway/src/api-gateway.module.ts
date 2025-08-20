@@ -30,6 +30,8 @@ import { ProductController } from './product/admin/product.controller';
 import { CloudinaryConsoleModule } from '@app/common/cloudinary/cloudinary.module';
 import { CloudinaryModule } from 'libs/cloudinary/cloudinary.module';
 import { ProductService } from './product/admin/product.service';
+import { CartController } from './cart/cart.controller';
+import { CartService } from './cart/cart.service';
 
 @Module({
   imports: [
@@ -106,12 +108,13 @@ import { ProductService } from './product/admin/product.service';
     CloudinaryConsoleModule,
     CloudinaryModule,
   ],
-  controllers: [AuthController, AdminUserController, ProductController],
+  controllers: [AuthController, AdminUserController, ProductController, CartController],
   providers: [
     AuthService,
     ProductService,
     CustomLogger,
     UserService,
+    CartService,
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,

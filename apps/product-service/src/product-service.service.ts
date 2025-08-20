@@ -1,37 +1,43 @@
+import { MAX_IMAGES } from '@app/common/constant/cloudinary';
 import { PaginationDto } from '@app/common/dto/pagination.dto';
 import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
+import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
+import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
 import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
+import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
+import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import {
   CategoryResponse,
   ChildCategories,
   RootCategory,
 } from '@app/common/dto/product/response/category-response';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
-import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
-import { MAX_IMAGES } from '@app/common/constant/cloudinary';
-import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
-import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
 import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
+import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
 import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
 import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
 import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { BaseResponse } from '@app/common/interfaces/data-type';
 import { PaginationResult } from '@app/common/interfaces/pagination';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
-import { handlePrismaError } from '@app/common/utils/prisma-client-error';
+import { buildBaseResponse } from '@app/common/utils/data.util';
+import { handleServiceError } from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
 import { Injectable } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
-import { PrismaClient, Product } from '../generated/prisma';
+import { Cart, CartItem, PrismaClient, Product } from '../generated/prisma';
 
 @Injectable()
 export class ProductService {
@@ -79,7 +85,6 @@ export class ProductService {
       updatedAt: product.updatedAt,
     } as ProductResponse;
   }
-
   async createProduct(data: CreateProductDto): Promise<ProductResponse | null> {
     const dto = plainToInstance(CreateProductDto, data);
     await validateOrReject(dto);
@@ -860,7 +865,154 @@ export class ProductService {
         });
       }
     } catch (error) {
-      return handlePrismaError(error, ProductService.name, 'deleteSoftCart', this.loggerService);
+      return handleServiceError(error, ProductService.name, 'deleteSoftCart', this.loggerService);
     }
+  }
+  async addProductCart(dto: AddProductCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
+    try {
+      const payload = plainToInstance(AddProductCartRequest, dto);
+      await validateOrReject(payload);
+      const cart = await this.prismaService.client.cart.upsert({
+        where: { userId: dto.userId },
+        create: { userId: dto.userId },
+        update: {},
+      });
+      const productVariant = await this.prismaService.client.productVariant.findUnique({
+        where: { id: dto.productVariantId },
+        select: {
+          id: true,
+          price: true,
+          product: { select: { quantity: true } },
+        },
+      });
+      if (!productVariant) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.product.notFound',
+        });
+      }
+      const existingItem = await this.prismaService.client.cartItem.findUnique({
+        where: {
+          cartId_productVariantId: {
+            cartId: cart.id,
+            productVariantId: dto.productVariantId,
+          },
+        },
+      });
+      const currentQuantityInCart = existingItem ? existingItem.quantity : 0;
+      if (dto.quantity + currentQuantityInCart > productVariant.product.quantity) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.quantityNotEnough',
+        });
+      }
+      if (existingItem) {
+        await this.prismaService.client.cartItem.update({
+          where: { id: existingItem.id },
+          data: { quantity: existingItem.quantity + dto.quantity },
+        });
+      } else {
+        await this.prismaService.client.cartItem.create({
+          data: {
+            quantity: dto.quantity,
+            cartId: cart.id,
+            productVariantId: dto.productVariantId,
+          },
+        });
+      }
+      const cartSummary = await this.prismaService.client.cart.findUniqueOrThrow({
+        where: { id: cart.id },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
+    } catch (error) {
+      handleServiceError(error, ProductService.name, 'addProductCart', this.loggerService);
+    }
+  }
+  async deleteProductCart(
+    dto: DeleteProductCartRequest,
+  ): Promise<BaseResponse<CartSummaryResponse>> {
+    try {
+      const payload = plainToInstance(DeleteProductCartRequest, dto);
+      await validateOrReject(payload);
+      const cartDetail = await this.prismaService.client.cart.findUnique({
+        where: {
+          userId: dto.userId,
+        },
+      });
+      if (!cartDetail) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.cart.notFound',
+        });
+      }
+      const productVariants = await this.prismaService.client.productVariant.findMany({
+        where: { id: { in: dto.productVariantIds } },
+        select: { id: true },
+      });
+      const existingIds = productVariants.map((v) => v.id);
+      if (existingIds.length !== dto.productVariantIds.length) {
+        const notFoundProductVariantIds = dto.productVariantIds.filter(
+          (id) => !existingIds.includes(id),
+        );
+        if (notFoundProductVariantIds.length > 0) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.NOT_FOUND,
+            message: 'common.product.someProductNotExist',
+            args: {
+              missingIds: notFoundProductVariantIds.join(', '),
+            },
+          });
+        }
+      }
+      await this.prismaService.client.cartItem.deleteMany({
+        where: {
+          cartId: cartDetail.id,
+          productVariantId: { in: dto.productVariantIds },
+        },
+      });
+      const cartSummary = await this.prismaService.client.cart.findUniqueOrThrow({
+        where: { id: cartDetail.id },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
+    } catch (error) {
+      handleServiceError(error, ProductService.name, 'deleteProductCart', this.loggerService);
+    }
+  }
+  private toCartSummaryResponse(
+    cartSummary: Cart & {
+      items: (CartItem & { productVariant: { id: number; price: Decimal } })[];
+    },
+  ): CartSummaryResponse {
+    return {
+      cartId: cartSummary.id,
+      userId: cartSummary.userId,
+      cartItems: cartSummary.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        productVariant: {
+          id: item.productVariant.id,
+          price: Number(item.productVariant.price),
+        },
+      })),
+      totalQuantity: cartSummary.items.reduce((total, item) => total + item.quantity, 0),
+      totalAmount: cartSummary.items.reduce(
+        (total, item) => total + item.quantity * Number(item.productVariant.price),
+        0,
+      ),
+    };
   }
 }

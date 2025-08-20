@@ -44,13 +44,30 @@ export function mapPrismaErrorToHttp(error: PrismaClientKnownRequestError): Type
       });
   }
 }
-
 export function handlePrismaError(
   error: unknown,
   resource: string,
   methodName: string,
   loggerService: CustomLogger,
 ): never {
+  loggerService.error(`[Error ${resource}.${methodName}]`, `Details:: ${(error as Error).stack}`);
+  if (error instanceof PrismaClientKnownRequestError) {
+    return logAndThrowPrismaClientError(error, loggerService, resource, methodName);
+  }
+  throw new TypedRpcException({
+    code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+    message: 'common.errors.internalServerError',
+  });
+}
+export function handleServiceError(
+  error: unknown,
+  resource: string,
+  methodName: string,
+  loggerService: CustomLogger,
+): never {
+  if (error instanceof TypedRpcException) {
+    throw error;
+  }
   loggerService.error(`[Error ${resource}.${methodName}]`, `Details:: ${(error as Error).stack}`);
   if (error instanceof PrismaClientKnownRequestError) {
     return logAndThrowPrismaClientError(error, loggerService, resource, methodName);

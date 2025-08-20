@@ -1,5 +1,5 @@
 import { UserStatus } from '@app/common/enums/user-status.enum';
-import { StatusUser } from 'apps/user-service/generated/prisma';
+import { UserStatus as StatusUser } from 'apps/user-service/generated/prisma';
 import { Transform, Type } from 'class-transformer';
 import { ArrayNotEmpty, IsEnum, IsInt, ValidateNested } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
@@ -18,7 +18,7 @@ export class UserUpdateStatusItem {
   @IsEnum(UserStatus, {
     message: i18nValidationMessage('common.validation.isEnum', {
       field: 'status',
-      enum: [UserStatus.ACTIVE, UserStatus.INACTIVE],
+      enum: [StatusUser.ACTIVE, StatusUser.INACTIVE],
     }),
   })
   status: StatusUser;

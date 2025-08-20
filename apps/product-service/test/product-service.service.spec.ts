@@ -1,18 +1,23 @@
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
 import { ProductDto } from '@app/common/dto/product/product.dto';
+import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
+import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { VariantInput } from '@app/common/dto/product/variants.dto';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { assertRpcException } from '@app/common/helpers/test.helper';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 import * as prismaClientError from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { ProductService } from '../src/product-service.service';
-import { PaginationService } from '@app/common/shared/pagination.shared';
 
 jest.mock('class-validator', () => {
   const actual = jest.requireActual<typeof import('class-validator')>('class-validator');
@@ -41,10 +46,10 @@ interface MockProduct {
   name: string;
   description?: string;
   status: StatusProduct;
-  basePrice: string | number;
+  basePrice: number;
   quantity: number;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface MockPrismaTransaction {
@@ -68,6 +73,9 @@ interface MockPrismaTransaction {
         };
       }) => Promise<{ id: number }>
     >;
+    findMany: jest.MockedFunction<
+      (args: { where: { id: { in: number[] } } }) => Promise<{ id: number }[]>
+    >;
   };
   categoryProduct: {
     create: jest.MockedFunction<
@@ -80,6 +88,35 @@ interface MockPrismaTransaction {
     >;
     update: jest.MockedFunction<
       (args: { where: { userId: number }; data: { deletedAt: Date } }) => Promise<{ id: number }>
+    >;
+    upsert: jest.MockedFunction<
+      (args: {
+        where: { userId: number };
+        create: { userId: number };
+        update: { userId: number };
+      }) => Promise<{ id: number }>
+    >;
+    findUniqueOrThrow: jest.MockedFunction<
+      (args: { where: { userId: number } }) => Promise<{ id: number; userId: number; items: any[] }>
+    >;
+    $transaction: jest.MockedFunction<(callback: TransactionCallback) => Promise<MockProduct>>;
+  };
+  cartItem: {
+    findUnique: jest.MockedFunction<
+      (args: {
+        where: { cartId: number; productVariantId: number };
+      }) => Promise<{ userId: number } | null>
+    >;
+    create: jest.MockedFunction<
+      (args: {
+        data: { quantity: number; cartId: number; productVariantId: number };
+      }) => Promise<any>
+    >;
+    update: jest.MockedFunction<
+      (args: { where: { id: number }; data: { quantity: number } }) => Promise<any>
+    >;
+    deleteMany: jest.MockedFunction<
+      (args: { where: { cartId: number; productVariantId: number } }) => Promise<any>
     >;
   };
 }
@@ -116,6 +153,12 @@ describe('ProductService', () => {
             };
           }) => Promise<{ id: number }>
         >,
+        findUnique: jest.fn() as jest.MockedFunction<
+          (args: { where: { id: number } }) => Promise<{ id: number } | null>
+        >,
+        findMany: jest.fn() as jest.MockedFunction<
+          (args: { where: { id: { in: number[] } } }) => Promise<{ id: number }[]>
+        >,
       },
       categoryProduct: {
         create: jest.fn() as jest.MockedFunction<
@@ -131,6 +174,39 @@ describe('ProductService', () => {
             where: { userId: number };
             data: { deletedAt: Date };
           }) => Promise<{ id: number }>
+        >,
+        upsert: jest.fn() as jest.MockedFunction<
+          (args: {
+            where: { userId: number };
+            create: { userId: number };
+            update: { userId: number };
+          }) => Promise<{ id: number }>
+        >,
+        findUniqueOrThrow: jest.fn() as jest.MockedFunction<
+          (args: {
+            where: { userId: number };
+          }) => Promise<{ id: number; userId: number; items: any[] }>
+        >,
+        $transaction: jest.fn() as jest.MockedFunction<
+          (callback: TransactionCallback) => Promise<MockProduct>
+        >,
+      },
+      cartItem: {
+        findUnique: jest.fn() as jest.MockedFunction<
+          (args: {
+            where: { cartId: number; productVariantId: number };
+          }) => Promise<{ userId: number } | null>
+        >,
+        create: jest.fn() as jest.MockedFunction<
+          (args: {
+            data: { quantity: number; cartId: number; productVariantId: number };
+          }) => Promise<any>
+        >,
+        update: jest.fn() as jest.MockedFunction<
+          (args: { where: { id: number }; data: { quantity: number } }) => Promise<any>
+        >,
+        deleteMany: jest.fn() as jest.MockedFunction<
+          (args: { where: { cartId: number; productVariantId: number } }) => Promise<any>
         >,
       },
       $transaction: jest.fn() as jest.MockedFunction<
@@ -148,7 +224,7 @@ describe('ProductService', () => {
           useValue: mockPrismaService,
         },
         { provide: CustomLogger, useValue: { error: jest.fn(), log: jest.fn() } },
-        { provide: PaginationService, useValue: { paginate: jest.fn() } },
+        { provide: PaginationService, useValue: { queryWithPagination: jest.fn() } },
       ],
     }).compile();
     service = module.get<ProductService>(ProductService);
@@ -170,6 +246,8 @@ describe('ProductService', () => {
         status: StatusProduct.IN_STOCK,
         basePrice: 99.99,
         quantity: 10,
+        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2024-01-01T00:00:00.000Z'),
       };
       mockPrismaService.client.product.findUnique.mockResolvedValue(mockProduct);
 
@@ -245,26 +323,16 @@ describe('ProductService', () => {
       secureUrl: mockSecureUrl,
     };
 
-    const checkResultStructure = (result: unknown) => {
-      expect(result).toHaveProperty('id', 1);
-      expect(result).toHaveProperty('skuId', mockProductData.skuId);
-      expect(result).toHaveProperty('name', mockProductData.name);
-      expect(result).toHaveProperty('description', mockProductData.description);
-      expect(result).toHaveProperty('status', mockProductData.status);
-      expect(result).toHaveProperty('quantity', mockProductData.quantity);
-      expect(result).toHaveProperty('basePrice');
-      expect(result).toHaveProperty('createdAt');
-      expect(result).toHaveProperty('updatedAt');
-
-      const typedResult = result as {
-        basePrice: { toString(): string };
-        createdAt: Date;
-        updatedAt: Date;
-      };
-      expect(typeof typedResult.basePrice.toString).toBe('function');
-      expect(typedResult.basePrice.toString()).toBe('99.99');
-      expect(typedResult.createdAt).toBeInstanceOf(Date);
-      expect(typedResult.updatedAt).toBeInstanceOf(Date);
+    const mockCreatedProduct: MockProduct = {
+      id: 1,
+      skuId: mockProductData.skuId,
+      name: mockProductData.name,
+      description: mockProductData.description,
+      status: mockProductData.status,
+      basePrice: mockProductData.basePrice,
+      quantity: mockProductData.quantity,
+      createdAt: new Date('2024-01-01T00:00:00.000Z'),
+      updatedAt: new Date('2024-01-01T00:00:00.000Z'),
     };
 
     it('should create a product successfully', async () => {
@@ -276,23 +344,14 @@ describe('ProductService', () => {
         async (callback: TransactionCallback) => {
           const prismaMock: MockPrismaTransaction = {
             product: {
-              create: jest.fn().mockResolvedValue({
-                id: 1,
-                skuId: mockProductData.skuId,
-                name: mockProductData.name,
-                description: mockProductData.description,
-                status: mockProductData.status,
-                basePrice: mockProductData.basePrice,
-                quantity: mockProductData.quantity,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }),
+              create: jest.fn().mockResolvedValue(mockCreatedProduct),
             },
             productImage: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
             },
             productVariant: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
+              findMany: jest.fn(),
             },
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -300,6 +359,17 @@ describe('ProductService', () => {
             cart: {
               findUnique: jest.fn(),
               update: jest.fn(),
+              upsert: jest.fn(),
+              findUniqueOrThrow: jest.fn(),
+              $transaction: jest.fn() as jest.MockedFunction<
+                (callback: TransactionCallback) => Promise<MockProduct>
+              >,
+            },
+            cartItem: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+              update: jest.fn(),
+              deleteMany: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -311,7 +381,8 @@ describe('ProductService', () => {
       expect(mockPlainToInstance).toHaveBeenCalledWith(CreateProductDto, mockCreateProductDto);
       expect(mockValidateOrReject).toHaveBeenCalledWith(mockDto);
       expect(mockPrismaService.client.$transaction).toHaveBeenCalledTimes(1);
-      checkResultStructure(result);
+      expect(result?.id).toEqual(mockCreatedProduct.id);
+      expect(result?.basePrice.toString()).toEqual(mockCreatedProduct.basePrice.toString());
     });
 
     it('should throw an error if validation fails', async () => {
@@ -358,6 +429,7 @@ describe('ProductService', () => {
             },
             productVariant: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
+              findMany: jest.fn(),
             },
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -365,6 +437,17 @@ describe('ProductService', () => {
             cart: {
               findUnique: jest.fn(),
               update: jest.fn(),
+              upsert: jest.fn(),
+              findUniqueOrThrow: jest.fn(),
+              $transaction: jest.fn() as jest.MockedFunction<
+                (callback: TransactionCallback) => Promise<MockProduct>
+              >,
+            },
+            cartItem: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+              update: jest.fn(),
+              deleteMany: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -390,23 +473,14 @@ describe('ProductService', () => {
         async (callback: TransactionCallback) => {
           const prismaMock: MockPrismaTransaction = {
             product: {
-              create: jest.fn().mockResolvedValue({
-                id: 1,
-                skuId: mockProductData.skuId,
-                name: mockProductData.name,
-                description: mockProductData.description,
-                status: mockProductData.status,
-                basePrice: mockProductData.basePrice,
-                quantity: mockProductData.quantity,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }),
+              create: jest.fn().mockResolvedValue(mockCreatedProduct),
             },
             productImage: {
               create: jest.fn().mockRejectedValue(imageCreationError),
             },
             productVariant: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
+              findMany: jest.fn(),
             },
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -414,6 +488,17 @@ describe('ProductService', () => {
             cart: {
               findUnique: jest.fn(),
               update: jest.fn(),
+              upsert: jest.fn(),
+              findUniqueOrThrow: jest.fn(),
+              $transaction: jest.fn() as jest.MockedFunction<
+                (callback: TransactionCallback) => Promise<MockProduct>
+              >,
+            },
+            cartItem: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+              update: jest.fn(),
+              deleteMany: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -437,23 +522,14 @@ describe('ProductService', () => {
         async (callback: TransactionCallback) => {
           const prismaMock: MockPrismaTransaction = {
             product: {
-              create: jest.fn().mockResolvedValue({
-                id: 1,
-                skuId: mockProductData.skuId,
-                name: mockProductData.name,
-                description: mockProductData.description,
-                status: mockProductData.status,
-                basePrice: mockProductData.basePrice,
-                quantity: mockProductData.quantity,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }),
+              create: jest.fn().mockResolvedValue(mockCreatedProduct),
             },
             productImage: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
             },
             productVariant: {
               create: jest.fn().mockRejectedValue(variantCreationError),
+              findMany: jest.fn(),
             },
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -461,6 +537,17 @@ describe('ProductService', () => {
             cart: {
               findUnique: jest.fn(),
               update: jest.fn(),
+              upsert: jest.fn(),
+              findUniqueOrThrow: jest.fn(),
+              $transaction: jest.fn() as jest.MockedFunction<
+                (callback: TransactionCallback) => Promise<MockProduct>
+              >,
+            },
+            cartItem: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+              update: jest.fn(),
+              deleteMany: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -486,23 +573,14 @@ describe('ProductService', () => {
         async (callback: TransactionCallback) => {
           const prismaMock: MockPrismaTransaction = {
             product: {
-              create: jest.fn().mockResolvedValue({
-                id: 1,
-                skuId: mockProductData.skuId,
-                name: mockProductData.name,
-                description: mockProductData.description,
-                status: mockProductData.status,
-                basePrice: mockProductData.basePrice,
-                quantity: mockProductData.quantity,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }),
+              create: jest.fn().mockResolvedValue(mockCreatedProduct),
             },
             productImage: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
             },
             productVariant: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
+              findMany: jest.fn(),
             },
             categoryProduct: {
               create: jest.fn().mockRejectedValue(categoryCreationError),
@@ -510,6 +588,17 @@ describe('ProductService', () => {
             cart: {
               findUnique: jest.fn(),
               update: jest.fn(),
+              upsert: jest.fn(),
+              findUniqueOrThrow: jest.fn(),
+              $transaction: jest.fn() as jest.MockedFunction<
+                (callback: TransactionCallback) => Promise<MockProduct>
+              >,
+            },
+            cartItem: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+              update: jest.fn(),
+              deleteMany: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -542,17 +631,7 @@ describe('ProductService', () => {
         async (callback: TransactionCallback) => {
           const prismaMock: MockPrismaTransaction = {
             product: {
-              create: jest.fn().mockResolvedValue({
-                id: 1,
-                skuId: mockProductData.skuId,
-                name: mockProductData.name,
-                description: mockProductData.description,
-                status: mockProductData.status,
-                basePrice: mockProductData.basePrice,
-                quantity: mockProductData.quantity,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-              }),
+              create: jest.fn().mockResolvedValue(mockCreatedProduct),
             },
             productImage: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -572,6 +651,7 @@ describe('ProductService', () => {
                   return Promise.resolve({ id: 1 });
                 },
               ),
+              findMany: jest.fn(),
             },
             categoryProduct: {
               create: jest.fn().mockResolvedValue({ id: 1 }),
@@ -579,6 +659,17 @@ describe('ProductService', () => {
             cart: {
               findUnique: jest.fn(),
               update: jest.fn(),
+              upsert: jest.fn(),
+              findUniqueOrThrow: jest.fn(),
+              $transaction: jest.fn() as jest.MockedFunction<
+                (callback: TransactionCallback) => Promise<MockProduct>
+              >,
+            },
+            cartItem: {
+              findUnique: jest.fn(),
+              create: jest.fn(),
+              update: jest.fn(),
+              deleteMany: jest.fn(),
             },
           };
           return await callback(prismaMock);
@@ -587,7 +678,8 @@ describe('ProductService', () => {
 
       const result = await service.createProduct(mockCreateProductDto);
 
-      checkResultStructure(result);
+      expect(result?.id).toEqual(mockCreatedProduct.id);
+      expect(result?.basePrice.toString()).toEqual(mockCreatedProduct.basePrice.toString());
       expect(capturedVariantData).toHaveLength(2);
       expect(capturedVariantData[0].endDate).toBeInstanceOf(Date);
       expect(capturedVariantData[1].endDate).toBeNull();
@@ -624,15 +716,423 @@ describe('ProductService', () => {
       const prismaErr = new Error('db fail');
       mockPrismaService.client.cart.findUnique.mockRejectedValueOnce(prismaErr);
       const mappedErr = new TypedRpcException({ code: HTTP_ERROR_CODE.CONFLICT, message: 'msg' });
-      jest.spyOn(prismaClientError, 'handlePrismaError').mockReturnValueOnce(mappedErr as never);
+      jest.spyOn(prismaClientError, 'handleServiceError').mockReturnValueOnce(mappedErr as never);
       const result = await service.deleteSoftCart(dto);
       expect(result).toBe(mappedErr);
-      expect(prismaClientError.handlePrismaError).toHaveBeenCalledWith(
+      expect(prismaClientError.handleServiceError).toHaveBeenCalledWith(
         prismaErr,
         'ProductService',
         'deleteSoftCart',
         expect.anything(),
       );
+    });
+  });
+  describe('addProductCart', () => {
+    const mockAddProductCartRequest = {
+      userId: 123,
+      productVariantId: 10,
+      quantity: 2,
+    };
+
+    const mockCart = { id: 1, userId: 123 };
+    const mockProductVariant = {
+      id: 10,
+      price: 29.99,
+      product: { quantity: 100 },
+    };
+
+    const mockCartItem = {
+      id: 1,
+      quantity: 2,
+      cartId: 1,
+      productVariantId: 10,
+    };
+
+    const mockCartSummary = {
+      id: 1,
+      userId: 123,
+      items: [
+        {
+          id: 1,
+          quantity: 2,
+          productVariant: {
+            id: 10,
+            price: 29.99,
+          },
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      mockPrismaService.client.cart = {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        upsert: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+        $transaction: jest.fn() as jest.MockedFunction<
+          (callback: TransactionCallback) => Promise<MockProduct>
+        >,
+      };
+      mockPrismaService.client.productVariant = {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+      };
+      mockPrismaService.client.cartItem = {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        deleteMany: jest.fn(),
+      };
+    });
+
+    it('should successfully add product to new cart', async () => {
+      const mockDto = { ...mockAddProductCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.upsert as jest.Mock).mockResolvedValue(mockCart);
+
+      (mockPrismaService.client.productVariant.findUnique as jest.Mock).mockResolvedValue(
+        mockProductVariant,
+      );
+
+      (mockPrismaService.client.cartItem.findUnique as jest.Mock).mockResolvedValue(null);
+
+      (mockPrismaService.client.cartItem.create as jest.Mock).mockResolvedValue(mockCartItem);
+
+      (mockPrismaService.client.cart.findUniqueOrThrow as jest.Mock).mockResolvedValue(
+        mockCartSummary,
+      );
+      const result = await service.addProductCart(mockAddProductCartRequest);
+      expect(mockPlainToInstance).toHaveBeenCalledWith(
+        AddProductCartRequest,
+        mockAddProductCartRequest,
+      );
+      expect(mockValidateOrReject).toHaveBeenCalledWith(mockDto);
+      expect(mockPrismaService.client.cart.upsert).toHaveBeenCalledWith({
+        where: { userId: mockAddProductCartRequest.userId },
+        create: { userId: mockAddProductCartRequest.userId },
+        update: {},
+      });
+      expect(mockPrismaService.client.productVariant.findUnique).toHaveBeenCalledWith({
+        where: { id: mockAddProductCartRequest.productVariantId },
+        select: {
+          id: true,
+          price: true,
+          product: { select: { quantity: true } },
+        },
+      });
+      expect(mockPrismaService.client.cartItem.create).toHaveBeenCalledWith({
+        data: {
+          quantity: mockAddProductCartRequest.quantity,
+          cartId: mockCart.id,
+          productVariantId: mockAddProductCartRequest.productVariantId,
+        },
+      });
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toBeDefined();
+    });
+
+    it('should successfully add product to existing cart item (update quantity)', async () => {
+      const existingCartItem = { id: 1, quantity: 3, cartId: 1, productVariantId: 10 };
+      const mockDto = { ...mockAddProductCartRequest };
+
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      (mockPrismaService.client.cart.upsert as jest.Mock).mockResolvedValue(mockCart);
+      (mockPrismaService.client.productVariant.findUnique as jest.Mock).mockResolvedValue(
+        mockProductVariant,
+      );
+      (mockPrismaService.client.cartItem.findUnique as jest.Mock).mockResolvedValue(
+        existingCartItem,
+      );
+      (mockPrismaService.client.cartItem.update as jest.Mock).mockResolvedValue({
+        ...existingCartItem,
+        quantity: 5,
+      });
+      (mockPrismaService.client.cart.findUniqueOrThrow as jest.Mock).mockResolvedValue(
+        mockCartSummary,
+      );
+
+      const result = await service.addProductCart(mockAddProductCartRequest);
+
+      expect(mockPrismaService.client.cartItem.update).toHaveBeenCalledWith({
+        where: { id: existingCartItem.id },
+        data: { quantity: existingCartItem.quantity + mockAddProductCartRequest.quantity },
+      });
+
+      expect(mockPrismaService.client.cartItem.create).not.toHaveBeenCalled();
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+    });
+
+    it('should throw TypedRpcException when product variant not found', async () => {
+      const mockDto = { ...mockAddProductCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      (mockPrismaService.client.cart.upsert as jest.Mock).mockResolvedValue(mockCart);
+      (mockPrismaService.client.productVariant.findUnique as jest.Mock).mockResolvedValue(null);
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.product.notFound',
+      };
+      try {
+        await service.addProductCart(mockAddProductCartRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+    });
+
+    it('should throw TypedRpcException when quantity exceeds available stock', async () => {
+      const lowStockVariant = {
+        id: 10,
+        price: 29.99,
+        product: { quantity: 5 },
+      };
+      const existingCartItem = { id: 1, quantity: 3, cartId: 1, productVariantId: 10 }; // 3 already in cart
+      const mockDto = { ...mockAddProductCartRequest, quantity: 3 };
+
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      (mockPrismaService.client.cart.upsert as jest.Mock).mockResolvedValue(mockCart);
+      (mockPrismaService.client.productVariant.findUnique as jest.Mock).mockResolvedValue(
+        lowStockVariant,
+      );
+      (mockPrismaService.client.cartItem.findUnique as jest.Mock).mockResolvedValue(
+        existingCartItem,
+      );
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.product.quantityNotEnough',
+      };
+      try {
+        await service.addProductCart({ ...mockAddProductCartRequest, quantity: 3 });
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+    });
+
+    it('should handle validation errors', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.erros.validationError',
+      };
+      const mockDto = { ...mockAddProductCartRequest };
+
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.addProductCart(mockAddProductCartRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(mockPrismaService.client.cart.upsert).not.toHaveBeenCalled();
+    });
+    it('should handle PrismaClient error', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.prismaClientError',
+      };
+      const mockDto = { ...mockAddProductCartRequest };
+
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      (mockPrismaService.client.cart.upsert as jest.Mock).mockRejectedValue(
+        new Error('PrismaClient error'),
+      );
+
+      try {
+        await service.addProductCart(mockAddProductCartRequest);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).message).toEqual(rpcError.message);
+      }
+    });
+  });
+  describe('deleteProductCart', () => {
+    const mockDeleteProductCartRequest: DeleteProductCartRequest = {
+      userId: 123,
+      productVariantIds: [10],
+    };
+    const mockCart = { id: 1, userId: 123 };
+
+    const mockCartItem = {
+      id: 1,
+      quantity: 2,
+      cartId: 1,
+      productVariantId: 10,
+    };
+
+    const mockCartSummary = {
+      id: 1,
+      userId: 123,
+      items: [
+        {
+          id: 1,
+          quantity: 2,
+          productVariant: {
+            id: 10,
+            price: 29.99,
+          },
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      mockPrismaService.client.cart = {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        upsert: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+        $transaction: jest.fn() as jest.MockedFunction<
+          (callback: TransactionCallback) => Promise<MockProduct>
+        >,
+      };
+      mockPrismaService.client.productVariant = {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+      };
+      mockPrismaService.client.cartItem = {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        deleteMany: jest.fn(),
+      };
+    });
+
+    it('should successfully delete product from cart', async () => {
+      const mockDto = { ...mockDeleteProductCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(mockCart);
+
+      (mockPrismaService.client.productVariant.findMany as jest.Mock).mockResolvedValue(
+        mockDto.productVariantIds.map((id) => ({ id })),
+      );
+
+      (mockPrismaService.client.cartItem.deleteMany as jest.Mock).mockResolvedValue({
+        ...mockCartItem,
+        quantity: 0,
+      });
+
+      (mockPrismaService.client.cart.findUniqueOrThrow as jest.Mock).mockResolvedValue(
+        mockCartSummary,
+      );
+
+      const result = await service.deleteProductCart(mockDeleteProductCartRequest);
+
+      expect(mockPlainToInstance).toHaveBeenCalledWith(
+        DeleteProductCartRequest,
+        mockDeleteProductCartRequest,
+      );
+      expect(mockValidateOrReject).toHaveBeenCalledWith(mockDto);
+      expect(mockPrismaService.client.cart.findUnique).toHaveBeenCalledWith({
+        where: { userId: mockDeleteProductCartRequest.userId },
+      });
+      expect(mockPrismaService.client.productVariant.findMany).toHaveBeenCalledWith({
+        where: { id: { in: mockDto.productVariantIds } },
+        select: { id: true },
+      });
+      expect(mockPrismaService.client.cartItem.deleteMany).toHaveBeenCalledWith({
+        where: {
+          cartId: mockCart.id,
+          productVariantId: { in: mockDto.productVariantIds },
+        },
+      });
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(mockPrismaService.client.cartItem.deleteMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw TypedRpcException when some products variant not found', async () => {
+      const mockDto = { ...mockDeleteProductCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(mockCart);
+
+      (mockPrismaService.client.productVariant.findMany as jest.Mock).mockResolvedValue([
+        { id: mockDto.productVariantIds[0] },
+      ]);
+      try {
+        await service.deleteProductCart(mockDeleteProductCartRequest);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.NOT_FOUND);
+        expect((error as TypedRpcException).getError().message).toBe(
+          'common.product.someProductNotExist',
+        );
+        expect((error as TypedRpcException).getError().args).toEqual({
+          missingIds: mockDto.productVariantIds.slice(1).join(', '),
+        });
+      }
+    });
+
+    it('should throw TypedRpcException when multiple product variants requested but some not found', async () => {
+      const mockDto = {
+        userId: 123,
+        productVariantIds: [10, 20, 30],
+      };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(mockCart);
+      (mockPrismaService.client.productVariant.findMany as jest.Mock).mockResolvedValue([
+        { id: 10 },
+        { id: 20 },
+      ]);
+      try {
+        await service.deleteProductCart(mockDto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.NOT_FOUND);
+        expect((error as TypedRpcException).getError().message).toBe(
+          'common.product.someProductNotExist',
+        );
+        expect((error as TypedRpcException).getError().args).toEqual({
+          missingIds: '30',
+        });
+      }
+      expect(mockPrismaService.client.productVariant.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [10, 20, 30] } },
+        select: { id: true },
+      });
+    });
+    it('should throw TypedRpcException when cart not found', async () => {
+      const mockDto = { ...mockDeleteProductCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.cart.notFound',
+      };
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(null);
+
+      try {
+        await service.deleteProductCart(mockDeleteProductCartRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+    });
+
+    it('should throw TypedRpcException when prisma error occurs', async () => {
+      const mockDto = { ...mockDeleteProductCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockRejectedValue(
+        new PrismaClientKnownRequestError('error', {
+          code: 'P2002',
+          clientVersion: '1.0.0',
+        }),
+      );
+      try {
+        await service.deleteProductCart(mockDeleteProductCartRequest);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.CONFLICT);
+      }
     });
   });
 });

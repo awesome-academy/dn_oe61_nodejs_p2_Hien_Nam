@@ -4,6 +4,7 @@
     "isString": "{field} phải là chuỗi",
     "isEmail": "{field} phải là email hợp lệ",
     "isNotEmpty": "{field} không được để trống",
+    "min": "{field} phải lớn hơn hoặc bằng {min}",
     "minLength": "{field} phải có ít nhất {min} ký tự",
     "maxLength": "{field} phải có nhiều nhất {max} ký tự",
     "isDate": "{field} phải là ngày hợp lệ",
@@ -15,6 +16,9 @@
   },
   "product": {
     "invalidCredentials": "Thông tin sản phẩm không chính xác",
+    "notFound":"Sản phẩm không tồn tại",
+    "quantityNotEnough":"Số lượng sản phẩm không đủ",
+    "someProductNotExist":"Một số sản phẩm không tồn tại. ProductIds: [{missingIds}]",
     "action": {
       "create": {
         "success": "Tạo mới sản phẩm thành công",
@@ -84,6 +88,19 @@
         "maxImagesExceeded": "Sản phẩm chỉ được phép tối đa 10 ảnh",
         "productImagesNotFound": "Không tìm thấy ảnh sản phẩm",
         "productNotFound": "Không tìm thấy sản phẩm"
+      }
+    }
+  },
+  "cart":{
+    "notFound":"Không tìm thấy giỏ hàng",
+    "action":{
+      "addProductCart":{
+        "success":"Thêm sản phẩm vào giỏ hàng thành công",
+        "failed":"Thêm sản phẩm vào giỏ hàng thất bại, vui lòng thử lại"
+      },
+      "deleteProductCart":{
+        "success":"Xoá sản phẩm khỏi giỏ hàng thành công",
+        "failed":"Xoá sản phẩm khỏi giỏ hàng thất bại, vui lòng thử lại"
       }
     }
   },
