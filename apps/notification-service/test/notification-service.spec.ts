@@ -63,6 +63,7 @@ describe('NotificationService', () => {
         email: 'test@example.com',
         name: 'Test User',
         userName: 'testuser',
+        status: 'ACTIVE',
         role: 'USER',
       },
       token: 'some-jwt-token',

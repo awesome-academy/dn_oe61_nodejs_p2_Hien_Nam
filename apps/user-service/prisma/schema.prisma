@@ -15,18 +15,17 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  name      String    @db.VarChar(50)
-  userName  String    @unique @db.VarChar(50)
-  imageUrl  String?   @db.VarChar(255)
-  email     String?   @unique @db.VarChar(50)
-  isActive  Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-
-  roleId Int
-  role   Role @relation(fields: [roleId], references: [id])
-
+  id            Int            @id @default(autoincrement())
+  name          String         @db.VarChar(50)
+  userName      String         @unique @db.VarChar(50)
+  imageUrl      String?        @db.VarChar(255)
+  email         String?        @unique @db.VarChar(50)
+  isActive      Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime?      @updatedAt
+  status        StatusUser     @default(ACTIVE)
+  roleId        Int
+  role          Role           @relation(fields: [roleId], references: [id])
   profile       UserProfile?
   authProviders AuthProvider[]
 
@@ -59,6 +58,11 @@ model AuthProvider {
   user User @relation(fields: [userId], references: [id])
 
   @@map("auth_providers")
+}
+
+enum StatusUser {
+  ACTIVE
+  INACTIVE
 }
 
 model Role {

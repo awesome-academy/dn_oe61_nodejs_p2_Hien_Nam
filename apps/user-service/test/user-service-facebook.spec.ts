@@ -7,7 +7,7 @@ import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as classValidator from 'class-validator';
-import { AuthProvider, PrismaClient, Provider } from '../generated/prisma';
+import { AuthProvider, PrismaClient, Provider, StatusUser } from '../generated/prisma';
 import { INCLUDE_AUTH_PROVIDER_USER } from '../src/constants/include-auth-user';
 import { UserService } from '../src/user-service.service';
 import { ConfigService } from '@nestjs/config';
@@ -205,6 +205,7 @@ describe('UserService – Facebook login', () => {
       createdAt: new Date(),
       updatedAt: null,
       role: 'USER',
+      status: 'ACTIVE',
       isActive: true,
       authProviders: [],
     } as UserResponse;
@@ -240,6 +241,7 @@ describe('UserService – Facebook login', () => {
       id: 123,
       name: 'John Doe',
       userName: 'john@abcd',
+      status: StatusUser.ACTIVE,
       email: profile.email ?? null,
       imageUrl: '',
       createdAt: new Date(),
@@ -253,6 +255,7 @@ describe('UserService – Facebook login', () => {
       provider: Provider.FACEBOOK,
       providerId: profile.providerId,
       userId: stubUser.id,
+      status: StatusUser.ACTIVE,
       user: { ...stubUser, authProviders: [] },
       password: null,
       createdAt: new Date(),
@@ -297,6 +300,7 @@ describe('UserService – Facebook login', () => {
       updatedAt: null,
       role: 'USER',
       isActive: true,
+      status: 'ACTIVE',
     } as UserResponse;
     jest.spyOn(service, 'getUserByEmail').mockResolvedValueOnce(existing);
     const prismaErr = new PrismaClientKnownRequestError('Fail', {
