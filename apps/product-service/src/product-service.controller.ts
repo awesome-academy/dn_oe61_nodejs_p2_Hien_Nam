@@ -14,6 +14,7 @@ import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.reques
 import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
 import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
+import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import {
@@ -44,11 +45,14 @@ import { Controller, UsePipes } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { Product } from '../generated/prisma';
 import { ProductService } from './product-service.service';
-import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
+
 import { PaginationArgs } from '@app/common/types/graphql/arg-type/pagination.type';
 import { CategoryGroupGraphQL, CategoryType } from '@app/common/types/graphql/caterories.type';
 import { GraphQLCateroryInput } from '@app/common/types/graphql/arg-type/create-category.type';
 import { GraphQLUpdateCateroryInput } from '@app/common/types/graphql/arg-type/update-category.typ';
+import { GetOrderRequest } from '@app/common/dto/product/requests/get-order.request';
+import { FilterGetOrdersRequest } from '@app/common/dto/product/requests/filter-get-orders.request';
+import { GetStatisticByMonthRequest } from '@app/common/dto/product/requests/get-statistic-by-month.request';
 
 @Controller()
 export class ProductServiceController {
@@ -201,7 +205,6 @@ export class ProductServiceController {
   async confirmOrder(@Payload() payLoad: RejectOrderRequest) {
     return this.productService.confirmOrder(payLoad);
   }
-
   @MessagePattern(ProductPattern.GET_ALL_CATERORY)
   async getAllCategories(
     @Payload() payload: PaginationArgs,
@@ -217,5 +220,17 @@ export class ProductServiceController {
   @MessagePattern(ProductPattern.UPDATE_CATEGORY)
   async updateCategory(@Payload() payLoad: GraphQLUpdateCateroryInput) {
     return this.productService.updateCategory(payLoad);
+  }
+  @MessagePattern(ProductPattern.GET_ORDER)
+  async getOrder(@Payload() payLoad: GetOrderRequest) {
+    return this.productService.getOrder(payLoad);
+  }
+  @MessagePattern(ProductPattern.GET_ORDERS)
+  async getOrders(@Payload() filter: FilterGetOrdersRequest) {
+    return this.productService.getOrders(filter);
+  }
+  @MessagePattern(ProductPattern.GET_STATISTIC_BY_MONTH)
+  async getStatisticByMonth(@Payload() filter: GetStatisticByMonthRequest) {
+    return this.productService.getStatisticOrderByMonth(filter);
   }
 }

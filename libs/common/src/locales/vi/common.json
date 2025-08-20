@@ -158,7 +158,7 @@
   },
   "order":{
     "notFound":"Không tìm thấy đơn hàng",
-    "orderPendingPayment":"Đơn hàng đang đợi thanh toán",
+    "orderPendingPayment":"Đơn hàng đang đợi than toán",
     "action":{
       "create":{
         "success":"Tạo đơn hàng thành công",
@@ -167,6 +167,19 @@
       "rejectOrder":{
         "success":"Từ chối đơn hàng thành công",
         "failed":"Từ chối đơn hàng thất bại, vui lòng thử lại"
+      },
+      "getOrder":{
+        "success":"Lấy thông tin đơn hàng thành công",
+        "failed":"Lấy thông tin đơn hàng thất bại"
+      },
+      "confirmOrder":{
+        "success":"Xác nhận đơn hàng thành công",
+        "failed":"Xác nhận đơn hàng thất bại, vui lòng thử lại",
+        "unChanged":"Đơn hàng đã được xác nhận"
+      },
+      "getOrders":{
+        "success":"Lấy thông tin đơn hàng thành công",
+        "failed":"Lấy thông tin đơn hàng thất bại"
       }
     },
     "notification":{
@@ -187,16 +200,11 @@
           "createdAt": "Thời gian tạo",
           "viewOrder": "Xem đơn hàng"
         }
-      },
-      "action":{
-        "createOrder":{
-          "success":"Tạo đơn hàng thành công",
-          "failed":"Tạo đơn hàng thất bại, vui lòng thử lại"
-        }
       }
     }
   },
   "payment":{
+    "balanceNotEnough":"Số dư thanh toán không đủ",
     "action":{
       "retryPayment":{
         "success":"Tạo thông tin thanh toán thành công",
@@ -391,6 +399,10 @@
             "success": "Xóa tài khoản thành công",
             "failed": "Xóa tài khoản thất bại, vui lòng thử lại sau",
             "unChanged": "Không có tài khoản nào được xóa"
+          },
+          "getUsers": {
+            "success": "Lấy danh sách tài khoản thành công",
+            "failed": "Lấy danh sách tài khoản thất bại, vui lòng thử lại sau"
           }
         }
       },
@@ -404,6 +416,7 @@
         "dbSchema": "Lỗi lược đồ cơ sở dữ liệu",
         "unexpectedDbError": "Lỗi cơ sở dữ liệu không mong đợi",
         "unauthorized": "Bạn không có quyền truy cập",
+        "forbidden": "Bạn không có quyền truy cập",
         "validationError": "Lỗi xác thực dữ liệu",
         "createUser": {
           "error": "Tạo người dùng thất bại",
@@ -633,6 +646,36 @@
     "invalidSizeImage":"Kích thước hình ảnh phải nhỏ hơn {maxImageSizeMB} MB",
     "cloudinary": {
       "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
+    }
+  } ,
+  "statistic": {
+    "action": {
+      "statisticOrderMonthly": {
+        "success": "Thống kê đơn hàng hàng tháng thành công",
+        "failed": "Thống kê đơn hàng hàng tháng thất bại, vui lòng thử lại"
+      }
+    }
+  },
+  "notification":{
+    "email":{
+      "statisticOrderMonthly":{
+        "subject": "Thống kê đơn hàng tháng {month}/{year}",
+          "intro": "Xin chào Admin [{adminName}], đây là báo cáo tổng hợp đơn hàng trong tháng {month}:",
+          "labels": {
+            "totalOrders": "Tổng số đơn hàng",
+            "completedOrders": "Đơn hàng đã hoàn thành",
+            "cancelledOrders": "Đơn hàng đã hủy",
+            "refundedOrders": "Đơn hàng đã hoàn tiền",
+            "grossRevenue": "Doanh thu gộp",
+            "netRevenue": "Doanh thu thực",
+            "averageOrderValue": "Giá trị đơn hàng trung bình",
+            "topProducts": "Sản phẩm bán chạy",
+            "topCategories": "Danh mục bán chạy",
+            "topCustomers": "Khách hàng tiêu biểu",
+            "paymentMethods": "Phương thức thanh toán"
+          },
+          "footer": "Đây là email tự động, vui lòng không trả lời."
+      }
     }
   }
 }

@@ -6,10 +6,14 @@ import { AccessTokenPayload } from '@app/common/interfaces/token-payload';
 import { Body, Controller, Headers, Param, ParseIntPipe, Post } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { Public } from '@app/common/decorators/metadata.decorator';
+import { ApiResponseRetryPaymentV1 } from '@app/common/swagger/documents/payment/retry-payment.example';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('payments')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
+  @ApiBearerAuth('access-token')
+  @ApiResponseRetryPaymentV1()
   @Post('/retry/:orderId')
   async retryPayment(
     @CurrentUser() user: AccessTokenPayload,

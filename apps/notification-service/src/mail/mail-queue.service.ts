@@ -1,5 +1,7 @@
 import { MailJobDataDto } from '@app/common/dto/mail.dto';
 import { SendEmailOrderCreatedPayload } from '@app/common/dto/product/payload/send-email-admin-order-created.payload';
+import { SendStatisticOrderMonthly } from '@app/common/dto/product/payload/send-statistic-oder-monthly';
+import { StatisticOrderByMonthResponse } from '@app/common/dto/product/response/statistic-order-by-month.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { QueueName } from '@app/common/enums/queue/queue-name.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
@@ -69,10 +71,35 @@ export class MailQueueService {
         context,
       });
     } catch (error) {
+      this.handleLogErrorSendMail(error as Error, 'sendEmailOrderCreated');
+      throw error;
+    }
+  }
+  async sendStatisticOrderMonthly(payload: SendStatisticOrderMonthly) {
+    try {
+      const instance = plainToInstance(SendStatisticOrderMonthly, payload);
+      await validateOrReject(instance);
+    } catch (error) {
       this.loggerService.error(
-        `[Send email order created errors]`,
-        `Details:: ${(error as Error).stack}`,
+        `[Send statistic order monthly payload invalid]`,
+        `Payload:: ${JSON.stringify(payload)} - Errors detail:: ${JSON.stringify(error)}`,
       );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'Send statistic order monthly payload invalid ',
+      });
+    }
+    try {
+      const { subject, context } = this.buildContentSendStatisticOrder(payload);
+      await this.mailerService.sendMail({
+        to: payload.email,
+        subject,
+        template: 'statistic-order-monthly',
+        context,
+      });
+    } catch (error) {
+      this.handleLogErrorSendMail(error as Error, 'sendStatisticOrderMonthly');
+      throw error;
     }
   }
   private buildContentSendEmailOrderCreated(payload: SendEmailOrderCreatedPayload): {
@@ -104,5 +131,67 @@ export class MailQueueService {
       },
     };
     return { subject, context };
+  }
+  private buildContentSendStatisticOrder(payload: SendStatisticOrderMonthly): {
+    subject: string;
+    context: Record<string, unknown>;
+  } {
+    const data = payload.data;
+    const lang = payload.lang;
+    const subject = this.i18nService.translate(
+      'common.notification.email.statisticOrderMonthly.subject',
+      {
+        lang,
+        args: { month: payload.month, year: payload.year },
+      },
+    );
+    const intro = this.i18nService.translate(
+      'common.notification.email.statisticOrderMonthly.intro',
+      {
+        lang,
+        args: { adminName: payload.name, month: payload.month },
+      },
+    );
+    const labels = this.i18nService.translate(
+      'common.notification.email.statisticOrderMonthly.labels',
+      { lang },
+    );
+    let statistic: Record<string, unknown>;
+    const stat = plainToInstance(StatisticOrderByMonthResponse, data);
+    if (stat instanceof StatisticOrderByMonthResponse) {
+      statistic = {
+        loadDataStatistics: true,
+        totalOrders: stat.totalOrders,
+        completedOrders: stat.completedOrders,
+        cancelledOrders: stat.cancelledOrders,
+        refundedOrders: stat.refunedOrders,
+        grossRevenue: stat.grossRevenue,
+        netRevenue: stat.netRevenue,
+        averageOrderValue: stat.averageOrderValue,
+        topProducts: stat.topProducts,
+        topCategories: stat.topCategories,
+        topCustomers: stat.topCustomers,
+        paymentMethods: stat.paymentMethods,
+      };
+    } else {
+      statistic = {
+        loadDataStatistics: false,
+      };
+    }
+    const context = {
+      intro,
+      labels,
+      statistic,
+    };
+    return { subject, context };
+  }
+  handleLogErrorSendMail(error: Error, jobName: string) {
+    if (error.message.includes('timeout')) {
+      this.loggerService.error(`${jobName} - [Mailer timeout]`, error.message);
+    } else if (error.message.includes('Authentication failed')) {
+      this.loggerService.error(`${jobName} - [Mailer auth error]`, error.message);
+    } else {
+      this.loggerService.error(`${jobName} -[Mailer general error]`, error.message);
+    }
   }
 }

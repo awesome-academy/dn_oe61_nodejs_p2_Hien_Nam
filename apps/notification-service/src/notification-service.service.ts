@@ -1,28 +1,31 @@
-import { PayLoadJWTComplete } from '@app/common/dto/user/sign-token.dto';
-import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { ClientProxy, RpcException } from '@nestjs/microservices';
-import { MailQueueService } from './mail/mail-queue.service';
-import { MailJobDataDto } from '@app/common/dto/mail.dto';
-import { USER_SERVICE } from '@app/common';
+import { PRODUCT_SERVICE, USER_SERVICE } from '@app/common';
+import { SupportedLocalesType } from '@app/common/constant/locales.constant';
 import { JOBNAME, SUBJECT } from '@app/common/constant/mail.constant';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
+import { MailJobDataDto } from '@app/common/dto/mail.dto';
 import { OrderCreatedPayload } from '@app/common/dto/product/payload/order-created.payload';
 import { SendEmailOrderCreatedPayload } from '@app/common/dto/product/payload/send-email-admin-order-created.payload';
-import { AdminInfoResponse } from '@app/common/dto/user/responses/admin-info.response';
-import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
-import { PRODUCT_SERVICE } from '@app/common';
+import { GetStatisticByMonthRequest } from '@app/common/dto/product/requests/get-statistic-by-month.request';
 import { UserProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { ShareUrlProductResponse } from '@app/common/dto/product/response/share-url-product-response';
+import { StatisticOrderByMonthResponse } from '@app/common/dto/product/response/statistic-order-by-month.response';
+import { AdminInfoResponse } from '@app/common/dto/user/responses/admin-info.response';
+import { PayLoadJWTComplete } from '@app/common/dto/user/sign-token.dto';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
 import { UserMsgPattern } from '@app/common/enums/message-patterns/user.pattern';
 import { NotificationEvent } from '@app/common/enums/queue/order-event.enum';
 import { QueueName } from '@app/common/enums/queue/queue-name.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { callMicroservice } from '@app/common/helpers/microservices';
 import { addJobWithRetry } from '@app/common/helpers/queue.helper';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { InjectQueue } from '@nestjs/bullmq';
+import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { Queue } from 'bull';
+import { MailQueueService } from './mail/mail-queue.service';
 
 @Injectable()
 export class NotificationService {
@@ -59,7 +62,6 @@ export class NotificationService {
     await this.sendEmail(jobName, email, subject, 'sendEmailComplete', context);
     return 'common.auth.action.sendEmailComplete.complete';
   }
-
   private async sendEmail(
     jobName: string,
     email: string,
@@ -83,7 +85,6 @@ export class NotificationService {
       throw new RpcException('common.errors.internalServerError');
     }
   }
-
   getShareProduct(product: UserProductDetailResponse): ShareUrlProductResponse {
     if (!product) {
       throw new TypedRpcException({
@@ -103,7 +104,6 @@ export class NotificationService {
 
     return shareUrls;
   }
-
   private generateShareUrls(product: UserProductDetailResponse): ShareUrlProductResponse {
     const frontendUrl = this.configService.get<string>('frontendUrl') || '';
     const facebookAppId = this.configService.get<string>('facebook.appID') || '';
@@ -196,5 +196,42 @@ export class NotificationService {
     } catch (error) {
       this.loggerService.error(`[Add job email errors]`, `Details:: ${(error as Error).stack}`);
     }
+  }
+  async sendStatisticOrderMonthly(lang: SupportedLocalesType, dto: GetStatisticByMonthRequest) {
+    let statisticsData: StatisticOrderByMonthResponse | string =
+      await callMicroservice<StatisticOrderByMonthResponse>(
+        this.productServiceClient.send(ProductPattern.GET_STATISTIC_BY_MONTH, dto),
+        PRODUCT_SERVICE,
+        this.loggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+    if (!statisticsData) {
+      this.loggerService.error('Failed to get statistic data - after retries');
+      statisticsData = 'Failed to get statistic data';
+    }
+    const admins = await this.fetchAllAdmins();
+    if (admins.length === 0) {
+      this.loggerService.error('Failed to get admin data - after retries');
+      this.loggerService.error(
+        `Failed to send statistic order by month ${dto.month}`,
+        `Caused:: Admin is undefined`,
+      );
+      return;
+    }
+    await Promise.allSettled(
+      admins.map((admin) =>
+        addJobWithRetry(this.emailQueue, NotificationEvent.STATISTIC_ORDER_MONTHLY, {
+          email: admin.email,
+          name: admin.name,
+          lang,
+          data: statisticsData,
+          month: dto.month,
+          year: dto.year,
+        }),
+      ),
+    );
   }
 }

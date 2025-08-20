@@ -4,8 +4,14 @@ import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateNested } from 
 import { i18nValidationMessage } from 'nestjs-i18n';
 import { OrderItemRequest } from './order-item.request';
 import { SUPPORTED_LOCALES, SupportedLocalesType } from '@app/common/constant/locales.constant';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class OrderRequest {
+  @ApiProperty({
+    description: 'ID of the user placing the order',
+    example: 1,
+    type: 'integer',
+  })
   @IsNotEmpty({
     message: i18nValidationMessage('common.validation.isNotEmpty', {
       field: 'userId',
@@ -17,6 +23,10 @@ export class OrderRequest {
     }),
   })
   userId: number;
+  @ApiProperty({
+    description: 'Delivery address for the order',
+    example: '123 Main Street, City, State 12345',
+  })
   @IsNotEmpty({
     message: i18nValidationMessage('common.validation.isNotEmpty', {
       field: 'deliveryAddress',
@@ -28,6 +38,10 @@ export class OrderRequest {
     }),
   })
   deliveryAddress: string;
+  @ApiPropertyOptional({
+    description: 'Optional note for the order',
+    example: 'Please deliver after 6 PM',
+  })
   @IsOptional()
   @IsString({
     message: i18nValidationMessage('common.validation.isString', {
@@ -35,6 +49,11 @@ export class OrderRequest {
     }),
   })
   note?: string;
+  @ApiProperty({
+    description: 'Payment method for the order',
+    enum: PaymentMethodEnum,
+    example: PaymentMethodEnum.CREDIT_CARD,
+  })
   @IsEnum(PaymentMethodEnum, {
     message: i18nValidationMessage('common.validation.isEnum', {
       field: 'paymentMethod',
@@ -42,6 +61,12 @@ export class OrderRequest {
     }),
   })
   paymentMethod: PaymentMethodEnum;
+  @ApiPropertyOptional({
+    description: 'Language preference for the order',
+    enum: SUPPORTED_LOCALES,
+    default: 'en',
+    example: 'en',
+  })
   @IsOptional()
   @IsEnum(SUPPORTED_LOCALES, {
     message: i18nValidationMessage('common.validation.isEnum', {
@@ -50,6 +75,11 @@ export class OrderRequest {
     }),
   })
   lang: SupportedLocalesType = 'en';
+  @ApiProperty({
+    description: 'List of items in the order',
+    type: [OrderItemRequest],
+    isArray: true,
+  })
   @IsNotEmpty({
     message: i18nValidationMessage('common.validation.isNotEmpty', {
       field: 'items',

@@ -19,6 +19,7 @@ import { validateOrReject } from 'class-validator';
 import { I18nService } from 'nestjs-i18n';
 import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 jest.mock('class-validator', () => {
   const actual = jest.requireActual<typeof import('class-validator')>('class-validator');
@@ -52,6 +53,11 @@ const mockI18nService = {
 const mockProductProducer = {
   addJobRetryPayment: jest.fn(),
 };
+const mockCacheService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
+} as unknown as CacheService;
 // Type for accessing private method
 interface ProductServiceWithPrivate {
   groupedCategories: (product: ProductWithCategories) => Promise<CategoryResponse[]>;
@@ -142,6 +148,10 @@ describe('ProductService - getById and groupedCategories', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

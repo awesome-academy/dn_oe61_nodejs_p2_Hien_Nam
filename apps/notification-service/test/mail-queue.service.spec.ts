@@ -1,4 +1,7 @@
+import { SUPPORTED_LOCALES } from '@app/common/constant/locales.constant';
 import { MailJobDataDto } from '@app/common/dto/mail.dto';
+import { SendStatisticOrderMonthly } from '@app/common/dto/product/payload/send-statistic-oder-monthly';
+import { StatisticOrderByMonthResponse } from '@app/common/dto/product/response/statistic-order-by-month.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { QueueName } from '@app/common/enums/queue/queue-name.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
@@ -13,9 +16,16 @@ import 'reflect-metadata';
 import { MailQueueService } from '../src/mail/mail-queue.service';
 
 // Mock class-transformer and class-validator
-jest.mock('class-transformer');
-jest.mock('class-validator');
-
+jest.mock('class-validator', () => ({
+  IsEmail: () => () => {},
+  IsNotEmpty: () => () => {},
+  IsNumber: () => () => {},
+  IsEnum: () => () => {},
+  validateOrReject: jest.fn(),
+}));
+jest.mock('class-transformer', () => ({
+  plainToInstance: jest.fn(),
+}));
 // Mock the payload class to avoid decorator issues
 jest.mock('@app/common/dto/product/payload/send-email-admin-order-created.payload', () => ({
   SendEmailOrderCreatedPayload: class MockSendEmailOrderCreatedPayload {
@@ -320,26 +330,27 @@ describe('MailQueueService', () => {
         const mailerError = new Error('SMTP connection failed');
         mockMailerService.sendMail.mockRejectedValue(mailerError);
         const loggerSpy = jest.spyOn(mockLogger, 'error');
-
         // Should not throw - method catches and logs the error
-        await expect(service.sendEmailOrderCreated(validPayload)).resolves.not.toThrow();
+
+        await expect(service.sendEmailOrderCreated(validPayload)).rejects.toThrow(
+          'SMTP connection failed',
+        );
 
         expect(loggerSpy).toHaveBeenCalledWith(
-          '[Send email order created errors]',
-          `Details:: ${mailerError.stack}`,
+          'sendEmailOrderCreated -[Mailer general error]',
+          `SMTP connection failed`,
         );
       });
-
       it('should handle timeout errors from mailer service', async () => {
         const timeoutError = new Error('Request timeout');
         mockMailerService.sendMail.mockRejectedValue(timeoutError);
         const loggerSpy = jest.spyOn(mockLogger, 'error');
-
-        await service.sendEmailOrderCreated(validPayload);
-
+        await expect(service.sendEmailOrderCreated(validPayload)).rejects.toThrow(
+          'Request timeout',
+        );
         expect(loggerSpy).toHaveBeenCalledWith(
-          '[Send email order created errors]',
-          `Details:: ${timeoutError.stack}`,
+          'sendEmailOrderCreated - [Mailer timeout]',
+          `Request timeout`,
         );
       });
 
@@ -347,14 +358,76 @@ describe('MailQueueService', () => {
         const authError = new Error('Authentication failed');
         mockMailerService.sendMail.mockRejectedValue(authError);
         const loggerSpy = jest.spyOn(mockLogger, 'error');
-
-        await service.sendEmailOrderCreated(validPayload);
-
+        await expect(service.sendEmailOrderCreated(validPayload)).rejects.toThrow(
+          'Authentication failed',
+        );
         expect(loggerSpy).toHaveBeenCalledWith(
-          '[Send email order created errors]',
-          `Details:: ${authError.stack}`,
+          'sendEmailOrderCreated - [Mailer auth error]',
+          `Authentication failed`,
         );
       });
+    });
+  });
+  describe('sendStatisticOrderMonthly', () => {
+    const validPayload: SendStatisticOrderMonthly = {
+      email: 'invalid-email',
+      data: 'data' as unknown as StatisticOrderByMonthResponse,
+      lang: SUPPORTED_LOCALES.en,
+      month: 10,
+      year: 2025,
+      name: 'Tran Van B',
+    };
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+    it('should throw TypedRpcException and log error if payload validation fails', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationErrors',
+      };
+      mockValidateOrReject.mockRejectedValue(new TypedRpcException(rpcError));
+      await expect(service.sendStatisticOrderMonthly(validPayload)).rejects.toThrow(
+        TypedRpcException,
+      );
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        `[Send statistic order monthly payload invalid]`,
+        expect.stringContaining('"name":"Tran Van B"'),
+      );
+      expect(mockMailerService.sendMail).not.toHaveBeenCalled();
+    });
+
+    it('should send email successfully when payload is valid', async () => {
+      mockValidateOrReject.mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'buildContentSendStatisticOrder').mockReturnValue({
+        subject: 'Monthly Statistic',
+        context: { totalOrders: 10 },
+      });
+      mockMailerService.sendMail.mockResolvedValue(undefined);
+
+      await service.sendStatisticOrderMonthly(validPayload);
+
+      expect(mockMailerService.sendMail).toHaveBeenCalledWith({
+        to: validPayload.email,
+        subject: 'Monthly Statistic',
+        template: 'statistic-order-monthly',
+        context: { totalOrders: 10 },
+      });
+    });
+    it('should log error and rethrow if mailerService.sendMail fails', async () => {
+      mockValidateOrReject.mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'buildContentSendStatisticOrder').mockReturnValue({
+        subject: 'Monthly Statistic',
+        context: { totalOrders: 10 },
+      });
+      const error = new Error('SendMail failed');
+      mockMailerService.sendMail.mockRejectedValue(error);
+
+      await expect(service.sendStatisticOrderMonthly(validPayload)).rejects.toThrow(error);
+
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        `sendStatisticOrderMonthly -[Mailer general error]`,
+        expect.stringContaining('SendMail failed'),
+      );
     });
   });
 });
