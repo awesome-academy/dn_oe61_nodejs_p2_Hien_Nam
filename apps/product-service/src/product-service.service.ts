@@ -414,9 +414,9 @@ export class ProductService {
         message: 'common.product.error.productNotFound',
       });
     }
-
-    const result = products.items.map(
-      (product) =>
+    const items = products.items as Product[];
+    const result: ProductResponse[] = items.map(
+      (product: Product) =>
         ({
           id: product.id,
           name: product.name,

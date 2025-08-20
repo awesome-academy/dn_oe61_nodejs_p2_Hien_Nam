@@ -9,4 +9,5 @@ export enum UserMsgPattern {
   CREATE_USER = 'user.createUser',
   ADMIN_CREATE_USER = 'admin.user.createUser',
   ADMIN_UPDATE_ROLE = 'admin.user.updateRole',
+  ADMIN_UPDATE_STATUS = 'admin.user.updateStatus',
 }

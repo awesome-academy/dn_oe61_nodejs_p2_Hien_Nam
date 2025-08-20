@@ -73,6 +73,7 @@
   },
   "auth": {
     "invalidCredentials": "Invalid credentials",
+    "inactiveAccount": "Account is inactive",
     "action": {
       "login": {
         "success": "Login successfully"
@@ -133,9 +134,14 @@
         "success": "Create user successfully",
         "error": "Failed to create user. Please try again"
       },
-      "updateRoles": {
-        "success": "Update roles successfully",
-        "failed": "Failed to update roles. Please try again"
+      "updateRoles":{
+        "success":"Update roles successfully",
+        "failed":"Failed to update roles. Please try again"
+      },
+      "updateStatuses":{
+        "success":"Update statuses successfully",
+        "failed":"Failed to update statuses. Please try again",
+        "unchanged":"No user statuses were changed"
       }
     },
     "adminuser": {

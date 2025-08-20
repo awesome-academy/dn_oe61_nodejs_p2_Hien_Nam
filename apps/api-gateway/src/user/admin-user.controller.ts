@@ -1,6 +1,7 @@
 import { AuthRoles } from '@app/common/decorators/auth-role.decorator';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
+import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { Role } from '@app/common/enums/roles/users.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
@@ -49,5 +50,10 @@ export class AdminUserController {
   @Patch('roles')
   async updateRoles(@Body() dto: UserUpdateRoleRequest) {
     return await this.userService.updateRoles(dto);
+  }
+  @AuthRoles(Role.ADMIN)
+  @Patch('status')
+  async updateStatuses(@Body() dto: UserUpdateStatusRequest) {
+    return await this.userService.updateStatuses(dto);
   }
 }

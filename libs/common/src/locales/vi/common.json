@@ -72,6 +72,7 @@
   },
   "auth": {
     "invalidCredentials": "Thông tin người dùng không chính xác",
+    "inactiveAccount": "Tài khoản không hoạt động",
     "action": {
       "login": {
         "success": "Đăng nhập thành công"
@@ -126,11 +127,20 @@
     "phoneNumberExist": "Số điện thoại đã tồn tại",
     "emailExist": "Email đã tồn tại"
   },
-  "adminuser": {
-    "action": {
-      "create": {
-        "success": "Tạo tài khoản thành công",
-        "error": "Tạo tài khoản thất bại, vui lòng thử lại sau"
+  "adminuser":{
+    "action":{
+      "create":{
+        "success":"Tạo tài khoản thành công",
+        "error":"Tạo tài khoản thất bại, vui lòng thử lại sau"
+      },
+      "updateRoles":{
+        "success":"Cập nhật vai trò thành công",
+        "failed":"Cập nhật vai trò thất bại, vui lòng thử lại sau"
+      },
+      "updateStatuses":{
+        "success":"Cập nhật trạng thái thành công",
+        "failed":"Cập nhật trạng thái thất bại, vui lòng thử lại sau",
+        "unchanged":"Không có trạng thái nào được thay đổi"
       }
     }
   },

@@ -14,6 +14,8 @@ import { UploadApiResponse } from 'cloudinary';
 import { CloudinaryService } from 'libs/cloudinary/cloudinary.service';
 import { AdminUserController } from '../src/user/admin-user.controller';
 import { UserService } from '../src/user/user.service';
+import { UserStatus } from '@app/common/enums/user-status.enum';
+import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
 
 function createMockCloudinaryService(): jest.Mocked<CloudinaryService> {
   return {
@@ -26,6 +28,7 @@ function createMockUserService(): jest.Mocked<UserService> {
   return {
     create: jest.fn(),
     updateRoles: jest.fn(),
+    updateStatuses: jest.fn(),
   } as unknown as jest.Mocked<UserService>;
 }
 
@@ -167,6 +170,7 @@ describe('AdminUserController', () => {
           email: 'thaitrung2',
           isActive: false,
           imageUrl: null,
+          status: UserStatus.ACTIVE.toString(),
           role: 'ADMIN',
         },
         {
@@ -176,6 +180,7 @@ describe('AdminUserController', () => {
           email: 'thaivan2',
           isActive: false,
           imageUrl: null,
+          status: UserStatus.ACTIVE.toString(),
           role: 'USER',
         },
       ];
@@ -196,9 +201,21 @@ describe('AdminUserController', () => {
       };
       const error = new BadRequestException('Validation Error');
       const userServiceSpy = jest.spyOn(userService, 'updateRoles').mockRejectedValue(error);
-
       await expect(controller.updateRoles(request)).rejects.toThrow(BadRequestException);
       expect(userServiceSpy).toHaveBeenCalledWith(request);
+    });
+    it('should return unchanged status if there are no updates', async () => {
+      const request: UserUpdateRoleRequest = {
+        users: [
+          { userId: 2, role: Role.ADMIN },
+          { userId: 3, role: Role.USER },
+        ],
+      };
+      const response = buildBaseResponse(StatusKey.UNCHANGED, []);
+      const userServiceSpy = jest.spyOn(userService, 'updateRoles').mockResolvedValue(response);
+      const result = await controller.updateRoles(request);
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+      expect(result).toEqual(response);
     });
     it('should proparte TypedRpcException when create user fails', async () => {
       const request: UserUpdateRoleRequest = {
@@ -289,6 +306,169 @@ describe('AdminUserController', () => {
         .mockRejectedValue(new TypedRpcException(rpcError));
       try {
         await controller.updateRoles(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.NOT_FOUND);
+      }
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+    });
+  });
+  describe('Update statuses', () => {
+    it('should update statuses successfully', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [
+          { userId: 2, status: UserStatus.ACTIVE },
+          { userId: 3, status: UserStatus.INACTIVE },
+        ],
+      };
+      const responseMock: UserSummaryResponse[] = [
+        {
+          id: 2,
+          name: 'Thái Trung',
+          userName: 'trung1',
+          email: 'thaitrung2',
+          isActive: true,
+          imageUrl: null,
+          status: UserStatus.ACTIVE.toString(),
+          role: 'ADMIN',
+        },
+        {
+          id: 3,
+          name: 'Thái Văn',
+          userName: 'van1',
+          email: 'thaivan2',
+          isActive: false,
+          imageUrl: null,
+          status: UserStatus.INACTIVE.toString(),
+          role: 'USER',
+        },
+      ];
+      const response = buildBaseResponse(StatusKey.SUCCESS, responseMock);
+      const userServiceSpy = jest.spyOn(userService, 'updateStatuses').mockResolvedValue(response);
+
+      const result = await controller.updateStatuses(request);
+
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+      expect(result).toEqual(response);
+    });
+    it('should return unchanged status if there are no updates', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [
+          { userId: 2, status: UserStatus.ACTIVE },
+          { userId: 3, status: UserStatus.ACTIVE },
+        ],
+      };
+      const response = buildBaseResponse(StatusKey.UNCHANGED, []);
+      const userServiceSpy = jest.spyOn(userService, 'updateStatuses').mockResolvedValue(response);
+
+      const result = await controller.updateStatuses(request);
+
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+      expect(result).toEqual(response);
+    });
+    it('should propagate BadRequestException when validator errors', async () => {
+      const request = {
+        users: [
+          { userId: 2, status: 13 as unknown as UserStatus },
+          { userId: 3, status: 13 as unknown as UserStatus },
+        ],
+      };
+      const error = new BadRequestException('Validation Error');
+      const userServiceSpy = jest.spyOn(userService, 'updateStatuses').mockRejectedValue(error);
+
+      await expect(controller.updateStatuses(request)).rejects.toThrow(BadRequestException);
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+    });
+    it('should propagate TypedRpcException when update fails', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [
+          { userId: 2, status: UserStatus.ACTIVE },
+          { userId: 3, status: UserStatus.INACTIVE },
+        ],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.user.action.update.error',
+      };
+      const userServiceSpy = jest
+        .spyOn(userService, 'updateStatuses')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await controller.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(
+          HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        );
+      }
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+    });
+    it('should propagate TypedRpcException when service fails', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [
+          { userId: 2, status: UserStatus.ACTIVE },
+          { userId: 3, status: UserStatus.INACTIVE },
+        ],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.rowNotFound',
+      };
+      const userServiceSpy = jest
+        .spyOn(userService, 'updateStatuses')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await controller.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.CONFLICT);
+      }
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+    });
+    it('should propagate TypedRpcException when service fails with logic', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [
+          { userId: 2, status: UserStatus.ACTIVE },
+          { userId: 3, status: UserStatus.INACTIVE },
+        ],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
+      const userServiceSpy = jest
+        .spyOn(userService, 'updateStatuses')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await controller.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(
+          HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        );
+      }
+      expect(userServiceSpy).toHaveBeenCalledWith(request);
+    });
+    it('should propagate TypedRpcException when service fails with some users not found', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [
+          { userId: 2, status: UserStatus.ACTIVE },
+          { userId: 3, status: UserStatus.INACTIVE },
+        ],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.errors.someUserNotExist',
+      };
+      const userServiceSpy = jest
+        .spyOn(userService, 'updateStatuses')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await controller.updateStatuses(request);
       } catch (error) {
         expect(error).toBeInstanceOf(TypedRpcException);
         expect((error as TypedRpcException).getError()).toEqual(rpcError);

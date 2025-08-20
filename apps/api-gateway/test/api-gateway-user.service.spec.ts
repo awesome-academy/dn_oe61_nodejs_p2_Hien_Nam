@@ -16,6 +16,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { validateOrReject } from 'class-validator';
 import { Observable } from 'rxjs';
 import { UserService } from '../src/user/user.service';
+import { UserStatus } from '@app/common/enums/user-status.enum';
+import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
 
 jest.mock('@app/common/helpers/microservices');
 jest.mock('class-validator', () => {
@@ -176,6 +178,7 @@ describe('UserService', () => {
           email: 'thaitrung2',
           isActive: false,
           imageUrl: null,
+          status: UserStatus.ACTIVE.toString(),
           role: 'ADMIN',
         },
         {
@@ -185,6 +188,7 @@ describe('UserService', () => {
           email: 'thaivan2',
           isActive: false,
           imageUrl: null,
+          status: UserStatus.ACTIVE.toString(),
           role: 'USER',
         },
       ];
@@ -213,6 +217,19 @@ describe('UserService', () => {
         expect((error as TypedRpcException).getError()).toEqual(rpcError);
         expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
       }
+    });
+    it('should return status unChanged if there is no change in user roles', async () => {
+      const request: UserUpdateRoleRequest = {
+        users: [{ userId: 1, role: Role.ADMIN }],
+      };
+      const unchangedResponse: BaseResponse<UserSummaryResponse[] | []> = buildBaseResponse(
+        StatusKey.UNCHANGED,
+        [],
+      );
+      (callMicroserviceHelper as jest.Mock).mockResolvedValue(unchangedResponse);
+      const result = await service.updateRoles(request);
+      expect(result.statusKey).toBe(StatusKey.UNCHANGED);
+      expect(result.data).toEqual([]);
     });
     it('should propagate TypedRpcException from microservice when some users not exist', async () => {
       const request: UserUpdateRoleRequest = {
@@ -285,6 +302,161 @@ describe('UserService', () => {
           HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
         );
       }
+    });
+  });
+  describe('updateStatuses', () => {
+    afterEach(() => {
+      (validateOrReject as jest.Mock).mockResolvedValue(undefined);
+    });
+
+    it('should validate dto, send message and return response', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [
+          { userId: 2, status: UserStatus.ACTIVE },
+          { userId: 3, status: UserStatus.INACTIVE },
+        ],
+      };
+      const responseMock: UserSummaryResponse[] = [
+        {
+          id: 2,
+          name: 'Thái Trung',
+          userName: 'trung1',
+          email: 'thaitrung2',
+          isActive: false,
+          imageUrl: null,
+          status: UserStatus.ACTIVE.toString(),
+          role: 'ADMIN',
+        },
+        {
+          id: 3,
+          name: 'Thái Văn',
+          userName: 'van1',
+          email: 'thaivan2',
+          isActive: false,
+          imageUrl: null,
+          status: UserStatus.INACTIVE.toString(),
+          role: 'USER',
+        },
+      ];
+      const microserviceResponse: BaseResponse<UserSummaryResponse[]> = buildBaseResponse(
+        StatusKey.SUCCESS,
+        responseMock,
+      );
+      const clientProxySpy = clientProxy.send.mockReturnValue(
+        {} as unknown as Observable<BaseResponse<UserSummaryResponse[]>>,
+      );
+      (callMicroserviceHelper as jest.Mock).mockResolvedValue(microserviceResponse);
+      const result = await service.updateStatuses(request);
+      expect(validateOrReject).toHaveBeenCalled();
+      expect(clientProxySpy).toHaveBeenCalled();
+      expect(callMicroserviceHelper).toHaveBeenCalled();
+      expect(result).toEqual(microserviceResponse);
+    });
+
+    it('should propagate BadRequestException when validator errors', async () => {
+      const request: UserUpdateStatusRequest = { users: [] };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      };
+      (validateOrReject as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
+      }
+    });
+
+    it('should propagate TypedRpcException from microservice when some users not exist', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [{ userId: 1, status: UserStatus.INACTIVE }],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.user.someUserNotExist',
+      };
+      (callMicroserviceHelper as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.NOT_FOUND);
+      }
+    });
+
+    it('should propagate TypedRpcException from microservice when some prisma client error', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [{ userId: 1, status: UserStatus.INACTIVE }],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.rowNotFound',
+      };
+      (callMicroserviceHelper as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.CONFLICT);
+      }
+    });
+
+    it('should propagate TypedRpcException from microservice when service unavailable', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [{ userId: 1, status: UserStatus.INACTIVE }],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        message: 'common.errors.unavailableService',
+      };
+      (callMicroserviceHelper as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(
+          HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        );
+      }
+    });
+
+    it('should propagate TypedRpcException from microservice when service fail logic', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [{ userId: 1, status: UserStatus.INACTIVE }],
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
+      (callMicroserviceHelper as jest.Mock).mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.updateStatuses(request);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(
+          HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        );
+      }
+    });
+
+    it('should return status unChanged if there is no change in user status', async () => {
+      const request: UserUpdateStatusRequest = {
+        users: [{ userId: 10, status: UserStatus.ACTIVE }],
+      };
+      const unchangedResponse: BaseResponse<UserSummaryResponse[] | []> = buildBaseResponse(
+        StatusKey.UNCHANGED,
+        [],
+      );
+      (callMicroserviceHelper as jest.Mock).mockResolvedValue(unchangedResponse);
+      const result = await service.updateStatuses(request);
+      expect(result.statusKey).toBe(StatusKey.UNCHANGED);
+      expect(result.data).toEqual([]);
     });
   });
 });
