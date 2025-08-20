@@ -715,10 +715,14 @@ describe('ProductService', () => {
     it('should propagate prisma error via handlePrismaError', async () => {
       const prismaErr = new Error('db fail');
       mockPrismaService.client.cart.findUnique.mockRejectedValueOnce(prismaErr);
-      const mappedErr = new TypedRpcException({ code: HTTP_ERROR_CODE.CONFLICT, message: 'msg' });
+      const rpcError = { code: HTTP_ERROR_CODE.CONFLICT, message: 'common.errors.recordNotFound' };
+      const mappedErr = new TypedRpcException(rpcError);
       jest.spyOn(prismaClientError, 'handleServiceError').mockReturnValueOnce(mappedErr as never);
-      const result = await service.deleteSoftCart(dto);
-      expect(result).toBe(mappedErr);
+      try {
+        await service.deleteSoftCart(dto);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
       expect(prismaClientError.handleServiceError).toHaveBeenCalledWith(
         prismaErr,
         'ProductService',
@@ -1133,6 +1137,204 @@ describe('ProductService', () => {
         expect(error).toBeInstanceOf(TypedRpcException);
         expect((error as TypedRpcException).getError().code).toBe(HTTP_ERROR_CODE.CONFLICT);
       }
+    });
+  });
+
+  describe('getCart', () => {
+    const mockGetCartRequest = {
+      userId: 123,
+    };
+
+    const mockCartWithItems = {
+      id: 1,
+      userId: 123,
+      items: [
+        {
+          id: 1,
+          quantity: 3,
+          cartId: 1,
+          productVariantId: 10,
+          productVariant: {
+            id: 10,
+            price: 25000,
+          },
+        },
+        {
+          id: 2,
+          quantity: 2,
+          cartId: 1,
+          productVariantId: 20,
+          productVariant: {
+            id: 20,
+            price: 15000,
+          },
+        },
+      ],
+    };
+
+    beforeEach(() => {
+      mockPrismaService.client.cart = {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        upsert: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+        $transaction: jest.fn() as jest.MockedFunction<
+          (callback: TransactionCallback) => Promise<MockProduct>
+        >,
+      };
+    });
+
+    it('should get cart successfully with items', async () => {
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(mockCartWithItems);
+      const result = await service.getCart(mockGetCartRequest);
+      expect(mockPrismaService.client.cart.findUnique).toHaveBeenCalledWith({
+        where: { userId: mockGetCartRequest.userId },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data?.cartItems).toHaveLength(2);
+      expect(result.data?.totalQuantity).toBe(5);
+      expect(result.data?.totalAmount).toBe(105000);
+    });
+
+    it('should return empty cart when cart not found', async () => {
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(null);
+      const result = await service.getCart(mockGetCartRequest);
+      expect(mockPrismaService.client.cart.findUnique).toHaveBeenCalledWith({
+        where: { userId: mockGetCartRequest.userId },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data?.cartItems).toHaveLength(0);
+      expect(result.data?.totalQuantity).toBe(0);
+      expect(result.data?.totalAmount).toBe(0);
+      expect(result.data?.userId).toBe(123);
+    });
+
+    it('should return empty cart when cart has no items', async () => {
+      const mockCartWithoutItems = {
+        id: 1,
+        userId: 123,
+        items: [],
+      };
+      const mockDto = { ...mockGetCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(
+        mockCartWithoutItems,
+      );
+
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data?.cartItems).toHaveLength(0);
+      expect(result.data?.totalQuantity).toBe(0);
+      expect(result.data?.totalAmount).toBe(0);
+      expect(result.data?.cartId).toBe(1);
+    });
+
+    it('should handle database errors via handlePrismaError', async () => {
+      const prismaError = new Error('Database fail');
+      const rpcError = {
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.databaseError',
+      };
+      const mappedError = new TypedRpcException(rpcError);
+      const mockDto = { ...mockGetCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockRejectedValue(prismaError);
+      jest.spyOn(prismaClientError, 'handleServiceError').mockReturnValue(mappedError as never);
+      try {
+        await service.getCart(mockGetCartRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(prismaClientError.handleServiceError).toHaveBeenCalledWith(
+        prismaError,
+        'ProductService',
+        'getCart',
+        expect.anything(),
+      );
+    });
+
+    it('should handle cart with single item', async () => {
+      const mockCartSingleItem = {
+        id: 1,
+        userId: 123,
+        items: [
+          {
+            id: 1,
+            quantity: 1,
+            cartId: 1,
+            productVariantId: 10,
+            productVariant: {
+              id: 10,
+              price: 50000,
+            },
+          },
+        ],
+      };
+      const mockDto = { ...mockGetCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(mockCartSingleItem);
+
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data?.cartItems).toHaveLength(1);
+      expect(result.data?.totalQuantity).toBe(1);
+      expect(result.data?.totalAmount).toBe(50000);
+      expect(result.data?.cartId).toBe(1);
+    });
+
+    it('should handle cart with multiple quantities of same item', async () => {
+      const mockCartMultipleQuantity = {
+        id: 1,
+        userId: 123,
+        items: [
+          {
+            id: 1,
+            quantity: 10,
+            cartId: 1,
+            productVariantId: 10,
+            productVariant: {
+              id: 10,
+              price: 25000,
+            },
+          },
+        ],
+      };
+      const mockDto = { ...mockGetCartRequest };
+      mockPlainToInstance.mockReturnValue(mockDto);
+      mockValidateOrReject.mockResolvedValue(undefined);
+
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockResolvedValue(
+        mockCartMultipleQuantity,
+      );
+
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data?.cartItems).toHaveLength(1);
+      expect(result.data?.totalQuantity).toBe(10);
+      expect(result.data?.totalAmount).toBe(250000);
     });
   });
 });

@@ -369,7 +369,7 @@ export class UserService {
           authProviders: {
             create: [
               {
-                provider: data.provider,
+                provider: data.provider as Provider,
                 providerId: data.providerId,
                 password: data.password,
               },
