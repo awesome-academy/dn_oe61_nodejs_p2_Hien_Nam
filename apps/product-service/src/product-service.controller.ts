@@ -14,6 +14,7 @@ import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.reques
 import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
 import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
+import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import {
@@ -44,7 +45,9 @@ import { Controller, UsePipes } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { Product } from '../generated/prisma';
 import { ProductService } from './product-service.service';
-import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
+
+import { GetOrderRequest } from '@app/common/dto/product/requests/get-order.request';
+import { FilterGetOrdersRequest } from '@app/common/dto/product/requests/filter-get-orders.request';
 import { PaginationArgs } from '@app/common/types/graphql/arg-type/pagination.type';
 import { CategoryGroupGraphQL, CategoryType } from '@app/common/types/graphql/caterories.type';
 import { GraphQLCateroryInput } from '@app/common/types/graphql/arg-type/create-category.type';
@@ -217,5 +220,13 @@ export class ProductServiceController {
   @MessagePattern(ProductPattern.UPDATE_CATEGORY)
   async updateCategory(@Payload() payLoad: GraphQLUpdateCateroryInput) {
     return this.productService.updateCategory(payLoad);
+  }
+  @MessagePattern(ProductPattern.GET_ORDER)
+  async getOrder(@Payload() payLoad: GetOrderRequest) {
+    return this.productService.getOrder(payLoad);
+  }
+  @MessagePattern(ProductPattern.GET_ORDERS)
+  async getOrders(@Payload() filter: FilterGetOrdersRequest) {
+    return this.productService.getOrders(filter);
   }
 }

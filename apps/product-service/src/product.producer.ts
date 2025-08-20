@@ -58,6 +58,7 @@ export class ProductProducer {
     }
   }
   async clearScheduleHandleExpiredPayment(orderId: number) {
+    this.loggerService.log(`[Clear job handle expired payment (${orderId})]`);
     await this.productQueue.removeJobs(`expired-${orderId}`);
   }
 }

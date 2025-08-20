@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { NOTIFICATION_SERVICE } from '@app/common';
 import { I18nService } from 'nestjs-i18n';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-return
 jest.mock('class-transformer', () => ({
@@ -28,6 +29,7 @@ jest.mock('class-validator', () => ({
 
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
+
 const mockConfigService = {
   get: jest.fn(),
 };
@@ -54,7 +56,11 @@ describe('ProductService - getProductReviews', () => {
   const mockPaginationService = {
     queryWithPagination: jest.fn(),
   };
-
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -77,6 +83,10 @@ describe('ProductService - getProductReviews', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

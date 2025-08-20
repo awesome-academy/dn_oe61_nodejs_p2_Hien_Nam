@@ -1,6 +1,7 @@
 import { PRODUCT_SERVICE } from '@app/common';
-import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
+
 import { SupportedLocalesType } from '@app/common/constant/locales.constant';
+import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
 import { ConfirmOrderRequest } from '@app/common/dto/product/requests/confirm-order.request';
 import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
@@ -41,6 +42,8 @@ import { callMicroservice } from '@app/common/helpers/microservices';
 import { PaymentStatus } from 'apps/product-service/generated/prisma';
 import { firstValueFrom, Observable } from 'rxjs';
 
+import { CacheService } from '@app/common/cache/cache.service';
+
 describe('OrderService', () => {
   let service: OrderService;
   let productClient: ClientProxy;
@@ -58,6 +61,12 @@ describe('OrderService', () => {
     debug: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    getOrSet: jest.fn(),
+  } as unknown as CacheService;
   const mockCallMicroservice = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
 
   beforeEach(async () => {
@@ -71,6 +80,11 @@ describe('OrderService', () => {
         {
           provide: CustomLogger,
           useValue: mockLoggerService,
+        },
+
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
