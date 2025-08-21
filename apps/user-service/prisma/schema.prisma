@@ -27,9 +27,8 @@ model User {
   roleId Int
   role   Role @relation(fields: [roleId], references: [id])
 
-  profile       UserProfile?
+  profile    UserProfile?
   authProviders AuthProvider[]
-
   @@map("users")
 }
 
@@ -48,15 +47,15 @@ model UserProfile {
 }
 
 model AuthProvider {
-  id         Int       @id @default(autoincrement())
-  userId     Int
-  provider   Provider  @default(LOCAL)
-  providerId String?   @unique @db.VarChar(255)
-  password   String?   @db.VarChar(255)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime? @updatedAt
-  user       User      @relation(fields: [userId], references: [id])
+  id Int @id @default(autoincrement())
+  userId Int
+  provider Provider   @default(LOCAL)
+  providerId String?  @unique @db.VarChar(255)
+  password  String?   @db.VarChar(255)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
 
+  user User @relation(fields: [userId], references: [id])
   @@map("auth_providers")
 }
 

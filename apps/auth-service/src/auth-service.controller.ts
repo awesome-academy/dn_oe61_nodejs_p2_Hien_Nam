@@ -5,6 +5,7 @@ import { AuthService } from './auth-service.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TUserPayload } from '@app/common/types/user-payload.type';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
+import { PayLoadJWT } from '@app/common/dto/user/sign-token.dto';
 
 @Controller()
 export class AuthServiceController {
@@ -19,8 +20,15 @@ export class AuthServiceController {
   async validateUser(@Payload() data: { token: string }): Promise<TUserPayload> {
     return await this.authService.validateToken(data.token);
   }
+
   @MessagePattern(AuthMsgPattern.AUTH_LOGIN_FACEBOOK)
   async loginFromFacebook(data: ProfileFacebookUser) {
     return this.authService.loginFromFacebook(data);
+  }
+
+  @MessagePattern(AuthMsgPattern.SIGN_JWT_TOKEN)
+  async signJwtToken(@Payload() data: PayLoadJWT) {
+    const result = await this.authService.signJwtToken(data);
+    return result;
   }
 }

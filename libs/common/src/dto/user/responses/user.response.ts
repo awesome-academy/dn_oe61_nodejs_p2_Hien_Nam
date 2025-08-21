@@ -5,8 +5,9 @@ export class UserResponse {
   name: string;
   userName: string;
   email?: string | null;
+  providerName?: string;
   imageUrl?: string;
-  createdAt: Date;
+  createdAt?: Date;
   updatedAt?: Date | null;
   role: string;
   authProviders?: AuthProvider[];

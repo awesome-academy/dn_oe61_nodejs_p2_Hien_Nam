@@ -1,4 +1,5 @@
-import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request.';
+/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-argument */
+import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { LoginResponse } from '@app/common/dto/auth/responses/login.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusKey } from '@app/common/enums/status-key.enum';
@@ -6,7 +7,7 @@ import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Request, Response } from 'express';
+import { Request } from 'express';
 import { I18nService } from 'nestjs-i18n';
 import { AuthController } from '../src/auth/auth.controller';
 import { AuthService } from '../src/auth/auth.service';
@@ -21,7 +22,7 @@ describe('AuthController', () => {
       providers: [
         {
           provide: AuthService,
-          useValue: { login: jest.fn() },
+          useValue: { login: jest.fn(), twitterCallback: jest.fn() },
         },
         {
           provide: I18nService,
@@ -38,6 +39,11 @@ describe('AuthController', () => {
     authService = module.get<AuthService>(AuthService);
     i18nService = module.get<I18nService>(I18nService);
   });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   describe('login', () => {
     beforeEach(() => {});
 
@@ -156,6 +162,63 @@ describe('AuthController', () => {
         messsage: 'Login successfully',
         payload: loginResult.data,
       });
+    });
+  });
+
+  const profile = {
+    twitterId: '123',
+    userName: 'john_doe',
+    name: 'John Doe',
+  } as const;
+
+  describe('twitterLogin', () => {
+    it('should resolve to undefined', async () => {
+      const result = controller.twitterLogin();
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('twitterCallback', () => {
+    it('should return data from service', async () => {
+      const expected = {
+        accessToken: 'tok',
+        user: { id: 1, name: 'John', role: 'USER' },
+      };
+      (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
+
+      const result = await controller.twitterCallback(profile);
+
+      expect(result).toEqual(expected);
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profile);
+    });
+
+    it('should propagate thrown error', async () => {
+      const err = new Error('boom');
+      (authService.twitterCallback as jest.Mock).mockRejectedValue(err);
+
+      await expect(controller.twitterCallback(profile)).rejects.toThrow(err);
+    });
+
+    it('should handle undefined profile gracefully', async () => {
+      (authService.twitterCallback as jest.Mock).mockResolvedValue({
+        accessToken: null,
+        user: null,
+      });
+
+      const result = await controller.twitterCallback(undefined as any);
+
+      expect(result).toEqual({ accessToken: null, user: null });
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should handle undefined response object', async () => {
+      const expected = { accessToken: 'tok', user: { id: 1, name: 'John' } };
+      (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
+
+      const result = await controller.twitterCallback(profile);
+
+      expect(result).toEqual(expected);
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profile);
     });
   });
 });

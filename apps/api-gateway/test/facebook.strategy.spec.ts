@@ -7,7 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import { ClientProxy } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Profile } from 'passport';
-import { FacebookStrategy } from '../src/auth/stragety/facebook.stragety';
+import { FacebookStrategy } from '../src/auth/strategy/facebook.stragety';
 import { AUTH_SERVICE } from '@app/common/constant/service.constant';
 
 describe('FacebookStrategy', () => {

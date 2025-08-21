@@ -23,6 +23,7 @@ import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
 import { TUserPayload } from '@app/common/types/user-payload.type';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
+import { PayLoadJWT } from '@app/common/dto/user/sign-token.dto';
 
 @Injectable()
 export class AuthService {
@@ -123,6 +124,7 @@ export class AuthService {
       throw error;
     }
   }
+
   buildLoginResponse(accessToken: string, user: UserResponse): LoginResponse {
     return {
       accessToken,
@@ -133,5 +135,26 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  async signJwtToken(data: PayLoadJWT): Promise<string> {
+    if (!data) {
+      throw new RpcException('common.auth.action.signToken.error');
+    }
+
+    const secret = this.configService.get<string>('jwt.secretKey');
+    if (!secret) {
+      throw new RpcException('common.auth.action.signToken.error');
+    }
+
+    try {
+      const accessToken = await this.jwtService.signAsync(data, { secret });
+      if (!accessToken) {
+        throw new RpcException('common.auth.action.signToken.error');
+      }
+      return accessToken;
+    } catch {
+      throw new RpcException('common.auth.action.signToken.error');
+    }
   }
 }
