@@ -9,14 +9,20 @@
   },
   "auth": {
     "invalidCredentials": "Thông tin người dùng không chính xác",
-    "action":{
-      "login":{
-        "success":"Đăng nhập thành công"
+    "action": {
+      "login": {
+        "success": "Đăng nhập thành công"
       }
     }
   },
-  "errors":{
-    "internalServerError":"Lỗi máy chủ",
-    "serviceUnavailable":"Dịch vụ không khả dụng"
+  "errors": {
+    "internalServerError": "Lỗi máy chủ",
+    "serviceUnavailable": "Dịch vụ không khả dụng"
+  },
+  "guard": {
+    "token_missing": "Token không tồn tại",
+    "invalid_or_expired_token": "Token không hợp lệ hoặc đã hết hạn",
+    "forbidden": "Bạn không có quyền truy cập",
+    "unauthorized": "Bạn không có quyền truy cập"
   }
 }

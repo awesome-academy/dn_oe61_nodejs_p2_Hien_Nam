@@ -16,7 +16,8 @@ import { TransformDataInterceptor } from '@app/common/interceptors/transform-dat
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { GlobalExceptionFilter } from '@app/common/filters/global-exceptions.filter';
 import { I18nHttpValidationPipe } from '@app/common/pipes/http-validation-pipe';
-import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
   imports: [
@@ -101,6 +102,10 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
     {
       provide: APP_PIPE,
       useClass: I18nHttpValidationPipe,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
     },
   ],
 })

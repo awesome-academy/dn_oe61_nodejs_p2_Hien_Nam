@@ -8,8 +8,9 @@ import { AuthServiceController } from './auth-service.controller';
 import { AuthService } from './auth-service.service';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { USER_SERVICE } from '@app/common/constant/service.constant';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
