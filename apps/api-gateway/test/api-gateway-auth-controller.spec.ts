@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/require-await, @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-argument */
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { LoginResponse } from '@app/common/dto/auth/responses/login.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
@@ -22,7 +22,7 @@ describe('AuthController', () => {
       providers: [
         {
           provide: AuthService,
-          useValue: { login: jest.fn(), twitterCallback: jest.fn() },
+          useValue: { login: jest.fn(), twitterCallback: jest.fn(), googleCallback: jest.fn() },
         },
         {
           provide: I18nService,
@@ -38,6 +38,10 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController);
     authService = module.get<AuthService>(AuthService);
     i18nService = module.get<I18nService>(I18nService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   afterEach(() => {
@@ -165,14 +169,21 @@ describe('AuthController', () => {
     });
   });
 
-  const profile = {
+  const profileTwitter = {
     twitterId: '123',
     userName: 'john_doe',
     name: 'John Doe',
   } as const;
 
+  const googleProfile = {
+    googleId: 'g123',
+    userName: 'jane_doe',
+    email: 'jane@mail.com',
+    name: 'Jane Doe',
+  } as const;
+
   describe('twitterLogin', () => {
-    it('should resolve to undefined', async () => {
+    it('should resolve to undefined', () => {
       const result = controller.twitterLogin();
       expect(result).toBeUndefined();
     });
@@ -186,17 +197,17 @@ describe('AuthController', () => {
       };
       (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.twitterCallback(profile);
+      const result = await controller.twitterCallback(profileTwitter);
 
       expect(result).toEqual(expected);
-      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profile);
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profileTwitter);
     });
 
     it('should propagate thrown error', async () => {
       const err = new Error('boom');
       (authService.twitterCallback as jest.Mock).mockRejectedValue(err);
 
-      await expect(controller.twitterCallback(profile)).rejects.toThrow(err);
+      await expect(controller.twitterCallback(profileTwitter)).rejects.toThrow(err);
     });
 
     it('should handle undefined profile gracefully', async () => {
@@ -215,10 +226,51 @@ describe('AuthController', () => {
       const expected = { accessToken: 'tok', user: { id: 1, name: 'John' } };
       (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.twitterCallback(profile);
+      const result = await controller.twitterCallback(profileTwitter);
 
       expect(result).toEqual(expected);
-      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profile);
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profileTwitter);
+    });
+  });
+
+  describe('googleAuth', () => {
+    it('should resolve to undefined', async () => {
+      const result = await controller.googleAuth();
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('googleCallback', () => {
+    it('should return data from service', async () => {
+      const expected = {
+        accessToken: 'token-google',
+        user: { id: 2, name: 'Jane', role: 'USER' },
+      };
+      (authService.googleCallback as jest.Mock).mockResolvedValue(expected);
+
+      const result = await controller.googleCallback(googleProfile as any);
+
+      expect(result).toEqual(expected);
+      expect(authService.googleCallback as jest.Mock).toHaveBeenCalledWith(googleProfile);
+    });
+
+    it('should propagate thrown error', async () => {
+      const err = new Error('g-error');
+      (authService.googleCallback as jest.Mock).mockRejectedValue(err);
+
+      await expect(controller.googleCallback(googleProfile as any)).rejects.toThrow(err);
+    });
+
+    it('should handle undefined profile gracefully', async () => {
+      (authService.googleCallback as jest.Mock).mockResolvedValue({
+        accessToken: null,
+        user: null,
+      });
+
+      const result = await controller.googleCallback(undefined as any);
+
+      expect(result).toEqual({ accessToken: null, user: null });
+      expect(authService.googleCallback as jest.Mock).toHaveBeenCalledWith(undefined);
     });
   });
 });

@@ -8,9 +8,10 @@ import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { I18nService } from 'nestjs-i18n';
 import { AuthService } from './auth.service';
-import { Public } from '@app/common/decorators/metadata.decorator';
 import { UserDecorator } from '@app/common';
 import { TwitterProfileDto } from '@app/common/dto/twitter-profile.dto';
+import { Public } from '@app/common/decorators/metadata.decorator';
+import { GoogleProfileDto } from '@app/common/dto/google-profile.dro';
 
 @Controller('/auth')
 export class AuthController {
@@ -58,7 +59,22 @@ export class AuthController {
   @Get('twitter/callback')
   @UseGuards(AuthGuard('twitter'))
   @UseInterceptors(SetAccessTokenInterceptor)
-  async twitterCallback(@UserDecorator() user: TwitterProfileDto): Promise<LoginResponse> {
+  async twitterCallback(
+    @UserDecorator() user: TwitterProfileDto,
+  ): Promise<BaseResponse<LoginResponse>> {
     return await this.authService.twitterCallback(user);
+  }
+
+  @Public()
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {}
+
+  @Public()
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @UseInterceptors(SetAccessTokenInterceptor)
+  async googleCallback(@UserDecorator() user: GoogleProfileDto) {
+    return await this.authService.googleCallback(user);
   }
 }

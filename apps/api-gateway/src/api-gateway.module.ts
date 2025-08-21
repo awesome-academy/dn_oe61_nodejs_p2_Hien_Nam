@@ -21,6 +21,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { FacebookStrategy } from './auth/strategy/facebook.stragety';
 import { PassportModule } from '@nestjs/passport';
 import { TwitterStrategy } from './auth/strategy/twitter.strategy';
+import { GoogleStrategy } from './auth/strategy/google-strategy';
 
 @Module({
   imports: [
@@ -113,6 +114,7 @@ import { TwitterStrategy } from './auth/strategy/twitter.strategy';
     },
     FacebookStrategy,
     TwitterStrategy,
+    GoogleStrategy,
   ],
 })
 export class ApiGatewayModule {}

@@ -1,4 +1,4 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsEmail, IsString, IsOptional } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
 
 export class CreateUserDto {
@@ -16,6 +16,7 @@ export class CreateUserDto {
   })
   name: string;
 
+  @IsOptional()
   @IsString({
     message: i18nValidationMessage('common.validation.isString', {
       field: 'imageUrl',
@@ -23,6 +24,7 @@ export class CreateUserDto {
   })
   imageUrl?: string;
 
+  @IsOptional()
   @IsEmail(
     {},
     {
@@ -33,6 +35,7 @@ export class CreateUserDto {
   )
   email?: string;
 
+  @IsOptional()
   @IsString({
     message: i18nValidationMessage('common.validation.isString', {
       field: 'password',
@@ -40,6 +43,7 @@ export class CreateUserDto {
   })
   password?: string;
 
+  @IsOptional()
   @IsString({
     message: i18nValidationMessage('common.validation.isString', {
       field: 'provider',
@@ -47,6 +51,7 @@ export class CreateUserDto {
   })
   provider?: string;
 
+  @IsOptional()
   @IsString({
     message: i18nValidationMessage('common.validation.isString', {
       field: 'providerId',

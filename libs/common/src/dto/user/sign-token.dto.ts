@@ -8,9 +8,6 @@ export class PayLoadJWT {
   name: string;
 
   @IsString()
-  userName: string;
-
-  @IsString()
   role: string;
 
   @IsString()

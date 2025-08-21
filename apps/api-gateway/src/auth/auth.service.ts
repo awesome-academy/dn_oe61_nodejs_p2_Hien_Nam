@@ -14,6 +14,10 @@ import { UserMsgPattern } from '@app/common/enums/message-patterns/user.pattern'
 import { firstValueFrom } from 'rxjs';
 import { AuthMsgPattern } from '@app/common/enums/message-patterns/auth.pattern';
 import { I18nService } from 'nestjs-i18n';
+import { GoogleProfileDto } from '@app/common/dto/google-profile.dro';
+import { ProviderName } from '@app/common/enums/provider.enum';
+import { buildBaseResponse } from '@app/common/utils/data.util';
+import { StatusKey } from '@app/common/enums/status-key.enum';
 
 @Injectable()
 export class AuthService {
@@ -35,59 +39,88 @@ export class AuthService {
     );
   }
 
-  async twitterCallback(user: TwitterProfileDto): Promise<LoginResponse> {
+  async twitterCallback(user: TwitterProfileDto): Promise<BaseResponse<LoginResponse>> {
     if (!user) {
       throw new BadRequestException(this.i18Service.translate('common.auth.action.twitter.error'));
     }
 
-    let userExists: UserResponse | null = await this.checkUserExists(user);
+    let userExists: UserResponse | null = await this.checkUserExists(user.twitterId);
 
     if (!userExists || Object.keys(userExists).length === 0) {
       const payLoad = {
         userName: user.userName,
         name: user.name,
         providerId: user.twitterId,
+        provider: ProviderName.TWITTER,
       };
       userExists = await firstValueFrom<UserResponse>(
-        this.userClient.send({ cmd: UserMsgPattern.CREATE_USER_TWITTER }, payLoad),
+        this.userClient.send({ cmd: UserMsgPattern.CREATE_USER }, payLoad),
       );
     }
 
     const payLoad = {
       id: userExists?.id,
       name: userExists?.name,
-      userName: userExists?.userName,
       role: userExists?.role,
       email: userExists?.email ?? undefined,
     };
 
-    const accessToken: string = await firstValueFrom(
-      this.userClient.send<string>({ cmd: AuthMsgPattern.SIGN_JWT_TOKEN }, payLoad),
+    const result: LoginResponse = await firstValueFrom(
+      this.authClient.send<LoginResponse>({ cmd: AuthMsgPattern.SIGN_JWT_TOKEN }, payLoad),
     );
 
-    if (!accessToken) {
+    if (!result) {
       throw new BadRequestException(
         this.i18Service.translate('common.auth.action.signToken.error'),
       );
     }
 
-    return {
-      accessToken,
-      user: {
-        id: userExists.id,
-        email: userExists.email ?? undefined,
-        name: userExists.name,
-        role: userExists.role,
-      },
-    };
+    return buildBaseResponse(StatusKey.SUCCESS, result);
   }
 
-  private async checkUserExists(user: TwitterProfileDto): Promise<UserResponse | null> {
+  private async checkUserExists(providerId: string): Promise<UserResponse | null> {
     return await firstValueFrom(
-      this.userClient.send<UserResponse>(
-        { cmd: UserMsgPattern.CHECK_USERE_EXISTS },
-        user.twitterId,
-      ),
+      this.userClient.send<UserResponse>({ cmd: UserMsgPattern.CHECK_USERE_EXISTS }, providerId),
     );
+  }
+
+  async googleCallback(user: GoogleProfileDto): Promise<BaseResponse<LoginResponse>> {
+    if (!user) {
+      throw new BadRequestException(this.i18Service.translate('common.auth.action.twitter.error'));
+    }
+
+    let userExists = await this.checkUserExists(user.googleId);
+
+    if (!userExists || Object.keys(userExists).length === 0) {
+      const payLoad = {
+        name: user.name,
+        userName: user.userName,
+        email: user.email,
+        providerId: user.googleId,
+        provider: ProviderName.GOOGLE,
+      };
+      userExists = await firstValueFrom<UserResponse>(
+        this.userClient.send({ cmd: UserMsgPattern.CREATE_USER }, payLoad),
+      );
+    }
+
+    const payLoad = {
+      id: userExists?.id,
+      name: userExists?.name,
+      role: userExists?.role,
+      email: userExists?.email ?? undefined,
+    };
+
+    const result: LoginResponse = await firstValueFrom(
+      this.authClient.send({ cmd: AuthMsgPattern.SIGN_JWT_TOKEN }, payLoad),
+    );
+
+    if (!result) {
+      throw new BadRequestException(
+        this.i18Service.translate('common.auth.action.signToken.error'),
+      );
+    }
+
+    return buildBaseResponse(StatusKey.SUCCESS, result);
   }
 }

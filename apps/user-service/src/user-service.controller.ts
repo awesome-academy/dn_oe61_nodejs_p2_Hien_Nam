@@ -22,12 +22,12 @@ export class UserServiceController {
   }
 
   @MessagePattern({ cmd: UserMsgPattern.CHECK_USERE_EXISTS })
-  async checkUserExists(@Payload() twitterId: string) {
-    const result = await this.userService.checkUserExists(twitterId);
+  async checkUserExists(@Payload() providerId: string) {
+    const result = await this.userService.checkUserExists(providerId);
     return result;
   }
 
-  @MessagePattern({ cmd: UserMsgPattern.CREATE_USER_TWITTER })
+  @MessagePattern({ cmd: UserMsgPattern.CREATE_USER })
   async createUser(@Payload() data: CreateUserDto) {
     const result = await this.userService.createUser(data);
     return result;

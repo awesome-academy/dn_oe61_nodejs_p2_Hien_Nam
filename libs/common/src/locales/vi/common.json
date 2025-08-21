@@ -18,6 +18,14 @@
       },
       "facebookCallback": {
         "success": "Đăng nhập thành công"
+      },
+      "twitter": {
+        "invalidConfig": "Cấu hình không hợp lệ",
+        "error": "Lỗi khi xác thực user"
+      },
+      "google": {
+        "invalidConfig": "Cấu hình không hợp lệ",
+        "error": "Lỗi khi xác thực user"
       }
     }
   },
