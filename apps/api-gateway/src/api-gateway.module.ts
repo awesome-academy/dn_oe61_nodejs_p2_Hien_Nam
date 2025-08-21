@@ -1,10 +1,17 @@
-import { AUTH_SERVICE, USER_SERVICE } from '@app/common/constant/service.constant';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientsModule, Transport } from '@nestjs/microservices';
 import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
 import * as path from 'path';
 import configuration from '../configuration';
+import { AuthService } from './auth/auth.service';
+import { AuthController } from './auth/auth.controller';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import {
+  AUTH_SERVICE,
+  USER_SERVICE,
+  PRODUCT_SERVICE,
+  NOTIFICATION_SERVICE,
+} from '@app/common/constant/service.constant';
 
 @Module({
   imports: [
@@ -37,7 +44,18 @@ import configuration from '../configuration';
         inject: [ConfigService],
       },
       {
-        name: AUTH_SERVICE,
+        name: PRODUCT_SERVICE,
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.REDIS,
+          options: {
+            host: configService.get<string>('REDIS_HOST'),
+            port: configService.get<number>('REDIS_PORT'),
+          },
+        }),
+        inject: [ConfigService],
+      },
+      {
+        name: NOTIFICATION_SERVICE,
         useFactory: (configService: ConfigService) => ({
           transport: Transport.REDIS,
           options: {
@@ -63,7 +81,7 @@ import configuration from '../configuration';
       ],
     }),
   ],
-  controllers: [],
-  providers: [],
+  controllers: [AuthController],
+  providers: [AuthService],
 })
 export class ApiGatewayModule {}
