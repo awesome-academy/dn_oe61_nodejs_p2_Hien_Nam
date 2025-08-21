@@ -4,11 +4,25 @@ import { UserMsgPattern } from '@app/common/enums/message-patterns/user.pattern'
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UserService } from './user-service.service';
+import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
+
 @Controller()
 export class UserServiceController {
   constructor(private readonly userService: UserService) {}
   @MessagePattern(UserMsgPattern.USER_GET_BY_EMAIL)
   async findUserByEmail(@Payload() dto: UserByEmailRequest): Promise<UserResponse | null> {
     return this.userService.getUserByEmail(dto);
+  }
+
+  @MessagePattern({ cmd: UserMsgPattern.CHECK_USERE_EXISTS })
+  async checkUserExists(@Payload() twitterId: string) {
+    const result = await this.userService.checkUserExists(twitterId);
+    return result;
+  }
+
+  @MessagePattern({ cmd: UserMsgPattern.CREATE_USER_TWITTER })
+  async createUser(@Payload() data: CreateUserDto) {
+    const result = await this.userService.createUser(data);
+    return result;
   }
 }

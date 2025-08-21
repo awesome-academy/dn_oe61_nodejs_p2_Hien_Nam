@@ -21,6 +21,7 @@ import { ConfigService } from '@nestjs/config';
 import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
 import { TUserPayload } from '@app/common/types/user-payload.type';
+import { PayLoadJWT } from '@app/common/dto/user/sign-token.dto';
 
 @Injectable()
 export class AuthService {
@@ -114,6 +115,27 @@ export class AuthService {
         throw new RpcException('common.guard.invalid_or_expired_token');
       }
       throw error;
+    }
+  }
+
+  async signJwtToken(data: PayLoadJWT): Promise<string> {
+    if (!data) {
+      throw new RpcException('common.auth.action.signToken.error');
+    }
+
+    const secret = this.configService.get<string>('jwt.secretKey');
+    if (!secret) {
+      throw new RpcException('common.auth.action.signToken.error');
+    }
+
+    try {
+      const accessToken = await this.jwtService.signAsync(data, { secret });
+      if (!accessToken) {
+        throw new RpcException('common.auth.action.signToken.error');
+      }
+      return accessToken;
+    } catch {
+      throw new RpcException('common.auth.action.signToken.error');
     }
   }
 }

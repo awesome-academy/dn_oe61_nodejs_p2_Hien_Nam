@@ -1,6 +1,6 @@
 export class LoginSummaryResponse {
   id: number;
-  email: string;
+  email?: string;
   name: string;
   imageUrl?: string;
   role: string;

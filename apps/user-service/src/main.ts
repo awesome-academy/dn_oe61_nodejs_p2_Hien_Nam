@@ -1,16 +1,21 @@
 import { NestFactory } from '@nestjs/core';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { UserServiceModule } from './user-service.module';
+import { ConfigService } from '@nestjs/config';
+import { Transport } from '@nestjs/microservices';
 
 async function bootstrap() {
-  const app = await NestFactory.createMicroservice<MicroserviceOptions>(UserServiceModule, {
+  const app = await NestFactory.create(UserServiceModule);
+  const configService = app.get(ConfigService);
+
+  app.connectMicroservice({
     transport: Transport.REDIS,
     options: {
-      host: 'localhost',
-      port: 6379,
+      host: configService.get<string>('redis.host'),
+      port: configService.get<number>('redis.port'),
     },
   });
-  await app.listen();
+
+  await app.startAllMicroservices();
 }
 bootstrap().catch((err) => {
   console.error(err);

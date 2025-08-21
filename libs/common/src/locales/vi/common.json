@@ -23,6 +23,24 @@
     "token_missing": "Token không tồn tại",
     "invalid_or_expired_token": "Token không hợp lệ hoặc đã hết hạn",
     "forbidden": "Bạn không có quyền truy cập",
-    "unauthorized": "Bạn không có quyền truy cập"
+    "unauthorized": "Bạn không có quyền truy cập",
+    "createUser": {
+      "roleNotFound": "Role không tồn tại",
+      "exists": "User đã tồn tại",
+      "missingFields": "Thiếu thông tin người dùng"
+    },
+    "signToken": {
+      "error": "Lỗi khi tạo token"
+    },
+    "checkUserExists": {
+      "error": "Lỗi khi kiểm tra user"
+    },
+    "twitter": {
+      "invalidConfig": "Cấu hình không hợp lệ",
+      "error": "Lỗi khi xác thực user"
+    },
+    "login": {
+      "success": "Đăng nhập thành công"
+    }
   }
 }
