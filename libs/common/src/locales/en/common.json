@@ -1,10 +1,10 @@
 {
-  "auth":{
-    "actions":{
-      "login":{
-        "success":"Login successfully",
-        "failed":"Login failed"
-      }
-    }
+  "validation": {
+    "error": "Validation error",
+    "isString": "{field} must be a string",
+    "isEmail": "{field} must be a valid email",
+    "isNotEmpty": "{field} should not be empty",
+    "minLength": "{field} must be at least {min} characters",
+    "maxLength": "{field} must be at most {max} characters"
   }
 }

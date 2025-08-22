@@ -12,6 +12,11 @@ import {
   PRODUCT_SERVICE,
   NOTIFICATION_SERVICE,
 } from '@app/common/constant/service.constant';
+import { TransformDataInterceptor } from '@app/common/interceptors/transform-data.interceptor';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { GlobalExceptionFilter } from '@app/common/filters/global-exceptions.filter';
+import { I18nHttpValidationPipe } from '@app/common/pipes/http-validation-pipe';
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -82,6 +87,21 @@ import {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
+  providers: [
+    AuthService,
+    CustomLogger,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformDataInterceptor,
+    },
+    {
+      provide: APP_PIPE,
+      useClass: I18nHttpValidationPipe,
+    },
+  ],
 })
 export class ApiGatewayModule {}

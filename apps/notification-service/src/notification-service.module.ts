@@ -1,12 +1,11 @@
+import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
-import { NotificationServiceController } from './notification-service.controller';
-import { NotificationServiceService } from './notification-service.service';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as path from 'path';
 import configuration from '../configuration';
-import { BullModule } from '@nestjs/bull';
-import { ConfigService } from '@nestjs/config';
 import { MailQueueModule } from './mail/mail-queue.module';
+import { APP_PIPE } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -16,9 +15,8 @@ import { MailQueueModule } from './mail/mail-queue.module';
       load: [configuration],
     }),
     BullModule.forRootAsync({
-      imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        redis: {
+        connection: {
           host: configService.get<string>('REDIS_HOST'),
           port: configService.get<number>('REDIS_PORT'),
         },
@@ -27,7 +25,11 @@ import { MailQueueModule } from './mail/mail-queue.module';
     }),
     MailQueueModule,
   ],
-  controllers: [NotificationServiceController],
-  providers: [NotificationServiceService],
+  providers: [
+    {
+      provide: APP_PIPE,
+      useClass: I18nRpcValidationPipe,
+    },
+  ],
 })
 export class NotificationServiceModule {}

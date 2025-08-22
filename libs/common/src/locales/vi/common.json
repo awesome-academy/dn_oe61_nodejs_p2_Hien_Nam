@@ -1,11 +1,10 @@
 {
-  "auth":{
-    "actions":{
-      "login":{
-        "success":"Ðăng nhập thành công",
-        "failed":"Ðăng nhập thất bại"
-      }
-    }
+  "validation": {
+    "error": "Kiểu dữ liệu không hợp lệ",
+    "isString": "{field} phải là chuỗi",
+    "isEmail": "{field} phải là email hợp lệ",
+    "isNotEmpty": "{field} không được để trống",
+    "minLength": "{field} phải có ít nhất {min} ký tự",
+    "maxLength": "{field} phải có nhiều nhất {max} ký tự"
   }
 }
-
