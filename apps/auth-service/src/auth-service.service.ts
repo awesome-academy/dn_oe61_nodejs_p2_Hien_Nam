@@ -13,18 +13,24 @@ import { AccessTokenPayload } from '@app/common/interfaces/token-payload';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { buildBaseResponse } from '@app/common/utils/data.util';
 import { Inject, Injectable } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
 import { ClientProxy } from '@nestjs/microservices';
 import { Provider } from 'apps/user-service/generated/prisma';
 import * as bcrypt from 'bcrypt';
 import { validateOrReject } from 'class-validator';
+import { ConfigService } from '@nestjs/config';
+import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
+import { RpcException } from '@nestjs/microservices';
+import { TUserPayload } from '@app/common/types/user-payload.type';
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     @Inject(USER_SERVICE) private readonly userClient: ClientProxy,
     private readonly loggerService: CustomLogger,
+    private readonly configService: ConfigService,
   ) {}
+
   async login(dto: LoginRequestDto): Promise<BaseResponse<LoginResponse>> {
     await validateOrReject(dto);
     const getUserByEmailRequestDto: UserByEmailRequest = {
@@ -73,9 +79,11 @@ export class AuthService {
     };
     return buildBaseResponse(StatusKey.SUCCESS, payload);
   }
+
   async comparePassword(password: string, hashedPassword: string): Promise<boolean> {
     return await bcrypt.compare(password, hashedPassword);
   }
+
   async generateAccessToken(user: UserResponse): Promise<string> {
     const payload: AccessTokenPayload = {
       id: user.id,
@@ -93,6 +101,19 @@ export class AuthService {
         code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
         message: 'common.errors.internalServerError',
       });
+    }
+  }
+
+  async validateToken(token: string): Promise<TUserPayload> {
+    try {
+      return await this.jwtService.verifyAsync<TUserPayload>(token, {
+        secret: this.configService.get<string>('jwt.secretKey'),
+      });
+    } catch (error) {
+      if (error instanceof TokenExpiredError || error instanceof JsonWebTokenError) {
+        throw new RpcException('common.guard.invalid_or_expired_token');
+      }
+      throw error;
     }
   }
 }

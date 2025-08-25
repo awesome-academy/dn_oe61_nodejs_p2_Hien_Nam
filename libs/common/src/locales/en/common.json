@@ -9,15 +9,20 @@
   },
   "auth": {
     "invalidCredentials": "Invalid credentials",
-    "action":{
-      "login":{
-        "success":"Login successfully"
+    "action": {
+      "login": {
+        "success": "Login successfully"
       }
     }
   },
-  "errors":{
-    "internalServerError":"Internal server error",
-    "serviceUnavailable":"Service unavailable"
+  "errors": {
+    "internalServerError": "Internal server error",
+    "serviceUnavailable": "Service unavailable"
+  },
+  "guard": {
+    "token_missing": "Token missing",
+    "invalid_or_expired_token": "Invalid or expired token",
+    "forbidden": "Forbidden",
+    "unauthorized": "Unauthorized"
   }
-
 }
