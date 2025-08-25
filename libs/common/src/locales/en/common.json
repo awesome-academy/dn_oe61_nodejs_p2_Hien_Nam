@@ -7,6 +7,10 @@
     "minLength": "{field} must be at least {min} characters",
     "maxLength": "{field} must be at most {max} characters"
   },
+  "errors":{
+    "internalServerError":"Internal server error",
+    "serviceUnavailable":"Service unavailable"
+  },
   "auth": {
     "invalidCredentials": "Invalid credentials",
     "action": {
@@ -15,14 +19,28 @@
       }
     }
   },
-  "errors": {
-    "internalServerError": "Internal server error",
-    "serviceUnavailable": "Service unavailable"
-  },
   "guard": {
     "token_missing": "Token missing",
     "invalid_or_expired_token": "Invalid or expired token",
     "forbidden": "Forbidden",
-    "unauthorized": "Unauthorized"
+    "unauthorized": "Unauthorized",
+      "createUser": {
+        "roleNotFound": "Role not found",
+        "exists": "User already exists",
+        "missingFields": "Missing user information"
+      },
+      "signToken": {
+        "error": "Error when creating token"
+      },
+      "checkUserExists": {
+        "error": "Error when checking user"
+      },
+      "twitter": {
+        "invalidConfig": "Invalid configuration",
+        "error": "Error when authenticating user"
+      },
+      "login":{
+        "success":"Login successfully"
+      }
+    }
   }
-}

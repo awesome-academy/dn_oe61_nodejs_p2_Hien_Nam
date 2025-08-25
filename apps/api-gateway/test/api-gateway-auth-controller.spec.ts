@@ -5,7 +5,8 @@ import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Response } from 'express';
+
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-argument */
 import { I18nService } from 'nestjs-i18n';
 import { AuthController } from '../src/auth/auth.controller';
 import { AuthService } from '../src/auth/auth.service';
@@ -20,7 +21,7 @@ describe('AuthController', () => {
       providers: [
         {
           provide: AuthService,
-          useValue: { login: jest.fn() },
+          useValue: { login: jest.fn(), twitterCallback: jest.fn() },
         },
         {
           provide: I18nService,
@@ -35,6 +36,10 @@ describe('AuthController', () => {
 
     controller = module.get<AuthController>(AuthController);
     authService = module.get<AuthService>(AuthService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('login', () => {
@@ -120,6 +125,63 @@ describe('AuthController', () => {
         expect((err as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.UNAUTHORIZED);
       }
       expect(authServiceLoginSpy).toHaveBeenCalledWith(dto);
+    });
+  });
+
+  const profile = {
+    twitterId: '123',
+    userName: 'john_doe',
+    name: 'John Doe',
+  } as const;
+
+  describe('twitterLogin', () => {
+    it('should resolve to undefined', async () => {
+      const result = controller.twitterLogin();
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('twitterCallback', () => {
+    it('should return data from service', async () => {
+      const expected = {
+        accessToken: 'tok',
+        user: { id: 1, name: 'John', role: 'USER' },
+      };
+      (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
+
+      const result = await controller.twitterCallback(profile);
+
+      expect(result).toEqual(expected);
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profile);
+    });
+
+    it('should propagate thrown error', async () => {
+      const err = new Error('boom');
+      (authService.twitterCallback as jest.Mock).mockRejectedValue(err);
+
+      await expect(controller.twitterCallback(profile)).rejects.toThrow(err);
+    });
+
+    it('should handle undefined profile gracefully', async () => {
+      (authService.twitterCallback as jest.Mock).mockResolvedValue({
+        accessToken: null,
+        user: null,
+      });
+
+      const result = await controller.twitterCallback(undefined as any);
+
+      expect(result).toEqual({ accessToken: null, user: null });
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should handle undefined response object', async () => {
+      const expected = { accessToken: 'tok', user: { id: 1, name: 'John' } };
+      (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
+
+      const result = await controller.twitterCallback(profile);
+
+      expect(result).toEqual(expected);
+      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profile);
     });
   });
 });

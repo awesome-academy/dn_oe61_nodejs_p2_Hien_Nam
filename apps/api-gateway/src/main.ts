@@ -4,16 +4,35 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
 import { ApiGatewayModule } from './api-gateway.module';
 import * as cookieParser from 'cookie-parser';
+import * as session from 'express-session';
+import * as passport from 'passport';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
   const configService = app.get(ConfigService);
   app.use(cookieParser());
+
+  app.use(
+    session({
+      secret: configService.get<string>('SESSION_SECRET') || '',
+      resave: false,
+      saveUninitialized: false,
+      cookie: { maxAge: 24 * 60 * 60 * 1000 },
+    }),
+  );
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  passport.serializeUser((user, done) => {
+    done(null, user);
+  });
+
   const port = configService.get<number>('app.port');
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api-docs', app, document);
   app.use(cookieParser());
   await app.listen(port ?? 3000);
+  console.log(`API Gateway listening on port ${port ?? 3000}`);
 }
 bootstrap().catch((err) => {
   console.error(err);

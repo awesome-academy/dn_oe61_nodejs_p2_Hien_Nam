@@ -4,6 +4,7 @@ import { Controller } from '@nestjs/common';
 import { AuthService } from './auth-service.service';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { TUserPayload } from '@app/common/types/user-payload.type';
+import { PayLoadJWT } from '@app/common/dto/user/sign-token.dto';
 
 @Controller()
 export class AuthServiceController {
@@ -17,5 +18,11 @@ export class AuthServiceController {
   @MessagePattern({ cmd: AuthMsgPattern.VALIDATE_USER })
   async validateUser(@Payload() data: { token: string }): Promise<TUserPayload> {
     return await this.authService.validateToken(data.token);
+  }
+
+  @MessagePattern({ cmd: AuthMsgPattern.SIGN_JWT_TOKEN })
+  async signJwtToken(@Payload() data: PayLoadJWT) {
+    const result = await this.authService.signJwtToken(data);
+    return result;
   }
 }

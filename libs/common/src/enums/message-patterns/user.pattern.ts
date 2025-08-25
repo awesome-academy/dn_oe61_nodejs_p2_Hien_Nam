@@ -1,3 +1,5 @@
 export enum UserMsgPattern {
   USER_GET_BY_EMAIL = 'user.getByEmail',
+  CHECK_USERE_EXISTS = 'CHECK_USERE_EXISTS',
+  CREATE_USER_TWITTER = 'CREATE_USER_TWITTER',
 }
