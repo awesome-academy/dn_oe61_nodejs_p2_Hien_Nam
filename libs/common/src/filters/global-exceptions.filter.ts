@@ -60,6 +60,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = this.i18nService.translate(exception.message);
       detail = exception.details;
     } else if (exception instanceof Error) {
+      console.log('Error:: ', exception.stack);
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = this.i18nService.translate('common.errors.internalServerError');
     }

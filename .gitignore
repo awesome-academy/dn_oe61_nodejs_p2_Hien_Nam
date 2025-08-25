@@ -29,3 +29,5 @@ TestResults.xml
 # Prisma
 **/generated/prisma
 **/generated/prisma/migrations
+# Coverage
+coverage

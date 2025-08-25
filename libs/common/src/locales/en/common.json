@@ -6,5 +6,18 @@
     "isNotEmpty": "{field} should not be empty",
     "minLength": "{field} must be at least {min} characters",
     "maxLength": "{field} must be at most {max} characters"
+  },
+  "auth": {
+    "invalidCredentials": "Invalid credentials",
+    "action":{
+      "login":{
+        "success":"Login successfully"
+      }
+    }
+  },
+  "errors":{
+    "internalServerError":"Internal server error",
+    "serviceUnavailable":"Service unavailable"
   }
+
 }
