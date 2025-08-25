@@ -1,6 +1,7 @@
 import { USER_SERVICE } from '@app/common/constant/service.constant';
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { LoginResponse } from '@app/common/dto/auth/responses/login.response';
+import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
@@ -32,7 +33,7 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginRequestDto): Promise<BaseResponse<LoginResponse>> {
-    await validateOrReject(dto);
+    await validateOrReject(Object.assign(new LoginRequestDto(), dto));
     const getUserByEmailRequestDto: UserByEmailRequest = {
       email: dto.email,
     };
@@ -53,7 +54,7 @@ export class AuthService {
         code: HTTP_ERROR_CODE.UNAUTHORIZED,
         message: 'common.auth.invalidCredentials',
       });
-    const passwordLocal = userByEmail.authProviders.find(
+    const passwordLocal = userByEmail.authProviders?.find(
       (p) => p.provider === Provider.LOCAL,
     )?.password;
     if (!passwordLocal)
@@ -68,22 +69,28 @@ export class AuthService {
         message: 'common.auth.invalidCredentials',
       });
     const accessToken = await this.generateAccessToken(userByEmail);
-    const payload: LoginResponse = {
-      accessToken,
-      user: {
-        id: userByEmail.id,
-        email: userByEmail.email ?? '',
-        name: userByEmail.name,
-        role: userByEmail.role,
+    const payload: LoginResponse = this.buildLoginResponse(accessToken, userByEmail);
+    return buildBaseResponse(StatusKey.SUCCESS, payload);
+  }
+  async loginFromFacebook(dto: ProfileFacebookUser): Promise<BaseResponse<LoginResponse>> {
+    await validateOrReject(Object.assign(new ProfileFacebookUser(), dto));
+    const userDetail = await callMicroservice<UserResponse>(
+      this.userClient.send(UserMsgPattern.FIND_OR_CREATE_USER_FROM_FACEBOOK, dto),
+      USER_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: 3000,
+        retries: 2,
       },
-    };
+    );
+    const accessToken = await this.generateAccessToken(userDetail);
+    const payload: LoginResponse = this.buildLoginResponse(accessToken, userDetail);
     return buildBaseResponse(StatusKey.SUCCESS, payload);
   }
 
   async comparePassword(password: string, hashedPassword: string): Promise<boolean> {
     return await bcrypt.compare(password, hashedPassword);
   }
-
   async generateAccessToken(user: UserResponse): Promise<string> {
     const payload: AccessTokenPayload = {
       id: user.id,
@@ -103,7 +110,6 @@ export class AuthService {
       });
     }
   }
-
   async validateToken(token: string): Promise<TUserPayload> {
     try {
       return await this.jwtService.verifyAsync<TUserPayload>(token, {
@@ -115,5 +121,16 @@ export class AuthService {
       }
       throw error;
     }
+  }
+  buildLoginResponse(accessToken: string, user: UserResponse): LoginResponse {
+    return {
+      accessToken,
+      user: {
+        id: user.id,
+        email: user.email ?? '',
+        name: user.name,
+        role: user.role,
+      },
+    };
   }
 }

@@ -4,6 +4,7 @@ export interface RpcError {
   code: HTTP_ERROR_CODE;
   message: string;
   details?:
+    | string
     | Record<string, unknown>
     | Record<string, unknown>[]
     | Record<string, unknown[]>
