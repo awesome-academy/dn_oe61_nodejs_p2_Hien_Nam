@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { I18nService } from 'nestjs-i18n';
 import { UNKNOWN_ERROR_CODE } from '../constant/error-code.constant';
 import { HTTP_EXCEPTION_CODE, UNKNOWN_MESSAGE } from '../constant/error-message.constant';
+import { HTTP_ERROR_NAME } from '../enums/errors/http-error-name';
 import { ValidationErrorResponse } from '../interfaces/validation-error';
 import { CustomLogger } from '../logger/custom-logger.service';
 import { formatValidationErrors, isRpcError } from '../utils/error.util';
@@ -60,7 +61,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message = this.i18nService.translate(exception.message);
       detail = exception.details;
     } else if (exception instanceof Error) {
-      console.log('Error:: ', exception.stack);
+      code = HTTP_ERROR_NAME.INTERNAL_SERVER_ERROR;
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = this.i18nService.translate('common.errors.internalServerError');
     }

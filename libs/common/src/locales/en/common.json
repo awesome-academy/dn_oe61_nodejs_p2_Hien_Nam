@@ -12,17 +12,29 @@
     "action": {
       "login": {
         "success": "Login successfully"
+      },
+      "facebook": {
+        "success": "Redirect to login facebook successfully"
+      },
+      "facebookCallback": {
+        "success": "Login successfully"
       }
     }
-  },
-  "errors": {
-    "internalServerError": "Internal server error",
-    "serviceUnavailable": "Service unavailable"
   },
   "guard": {
     "token_missing": "Token missing",
     "invalid_or_expired_token": "Invalid or expired token",
     "forbidden": "Forbidden",
     "unauthorized": "Unauthorized"
+  },
+  "errors":{
+    "internalServerError":"Internal server error",
+    "serviceUnavailable":"Service unavailable",
+    "uniqueConstraint":"Unique constraint violation",
+    "foreignKeyConstraint":"Foreign key constraint violation",
+    "recordNotFound":"Record not found",
+    "invalidInput":"Invalid input",
+    "dbSchema":"Database schema error",
+    "unexpectedDbError":"Unexpected database error"
   }
 }

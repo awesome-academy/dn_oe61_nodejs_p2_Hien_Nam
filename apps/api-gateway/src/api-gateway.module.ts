@@ -18,6 +18,7 @@ import { GlobalExceptionFilter } from '@app/common/filters/global-exceptions.fil
 import { I18nHttpValidationPipe } from '@app/common/pipes/http-validation-pipe';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { FacebookStrategy } from './auth/stragety/facebook.stragety';
 
 @Module({
   imports: [
@@ -107,6 +108,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
+    FacebookStrategy,
   ],
 })
 export class ApiGatewayModule {}

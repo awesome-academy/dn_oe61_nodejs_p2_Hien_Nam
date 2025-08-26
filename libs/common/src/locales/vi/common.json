@@ -12,17 +12,29 @@
     "action": {
       "login": {
         "success": "Đăng nhập thành công"
+      },
+      "facebook": {
+        "success": "Chuyển hướng đến trang đăng nhập thành công"
+      },
+      "facebookCallback": {
+        "success": "Đăng nhập thành công"
       }
     }
-  },
-  "errors": {
-    "internalServerError": "Lỗi máy chủ",
-    "serviceUnavailable": "Dịch vụ không khả dụng"
   },
   "guard": {
     "token_missing": "Token không tồn tại",
     "invalid_or_expired_token": "Token không hợp lệ hoặc đã hết hạn",
     "forbidden": "Bạn không có quyền truy cập",
     "unauthorized": "Bạn không có quyền truy cập"
+  },
+  "errors":{
+    "internalServerError":"Lỗi máy chủ",
+    "serviceUnavailable":"Dịch vụ không khả dụng",
+    "uniqueConstraint":"Vi phạm ràng buộc duy nhất",
+    "foreignKeyConstraint":"Vi phạm ràng buộc khóa ngoại",
+    "recordNotFound":"Mã số không tìm thấy",
+    "invalidInput":"Dữ liệu không hợp lệ",
+    "dbSchema":"Lỗi lược đồ cơ sở dữ liệu",
+    "unexpectedDbError":"Lỗi cơ sở dữ liệu không mong đợi"
   }
 }
