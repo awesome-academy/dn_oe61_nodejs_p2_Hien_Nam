@@ -14,7 +14,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     const clientID = configService.get<string>('google.appID');
     const clientSecret = configService.get<string>('google.appSecret');
     const callbackURL = configService.get<string>('google.callbackUrl');
-    console.log(clientID);
 
     if (!clientID || !clientSecret || !callbackURL) {
       throw new InternalServerErrorException(

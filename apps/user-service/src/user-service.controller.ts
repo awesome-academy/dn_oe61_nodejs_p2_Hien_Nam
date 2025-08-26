@@ -21,15 +21,26 @@ export class UserServiceController {
     return this.userService.findOrCreateUserFromFacebook(dto);
   }
 
-  @MessagePattern({ cmd: UserMsgPattern.CHECK_USERE_EXISTS })
+  @MessagePattern({ cmd: UserMsgPattern.CHECK_USER_EXISTS })
   async checkUserExists(@Payload() providerId: string) {
     const result = await this.userService.checkUserExists(providerId);
     return result;
   }
 
-  @MessagePattern({ cmd: UserMsgPattern.CREATE_USER })
-  async createUser(@Payload() data: CreateUserDto) {
-    const result = await this.userService.createUser(data);
+  @MessagePattern({ cmd: UserMsgPattern.CREATE_OAUTH_USER })
+  async createUser(@Payload() data: CreateUserDto): Promise<UserResponse | null> {
+    const result = await this.userService.validateOAuthUserCreation(data);
     return result;
+  }
+
+  @MessagePattern(UserMsgPattern.REGISTER_USER)
+  async register(@Payload() data: CreateUserDto): Promise<UserResponse | null> {
+    const result = await this.userService.createUserWithPassword(data);
+    return result;
+  }
+
+  @MessagePattern(UserMsgPattern.CHANGE_IS_ACTIVE)
+  async changeIsActive(@Payload() user: UserResponse): Promise<UserResponse | null> {
+    return await this.userService.changeIsActive(user);
   }
 }

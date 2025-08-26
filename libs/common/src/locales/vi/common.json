@@ -23,9 +23,33 @@
         "invalidConfig": "Cấu hình không hợp lệ",
         "error": "Lỗi khi xác thực user"
       },
+      "twitterCallback": {
+        "success": "Đăng nhập thành công"
+      },
       "google": {
         "invalidConfig": "Cấu hình không hợp lệ",
         "error": "Lỗi khi xác thực user"
+      },
+      "googleCallback": {
+        "success": "Đăng nhập thành công"
+      },
+      "registerUser": {
+        "success": "Đăng ký thành công"
+      },
+      "logout": {
+        "error": "Thiếu cấu hình cookie",
+        "success": "Đăng xuất thành công"
+      },
+      "signToken": {
+        "error": "Lỗi khi tạo token",
+        "success": "Tạo token thành công"
+      },
+      "signJwtTokenUserCreate": {
+        "error": "Lỗi khi tạo token",
+        "success": "Tạo token thành công"
+      },
+      "sendEmailComplete": {
+        "complete": "Đăng ký thành công"
       }
     }
   },
@@ -35,17 +59,19 @@
     "forbidden": "Bạn không có quyền truy cập",
     "unauthorized": "Bạn không có quyền truy cập"
   },
-  "errors":{
-    "internalServerError":"Lỗi máy chủ",
-    "serviceUnavailable":"Dịch vụ không khả dụng",
-    "uniqueConstraint":"Vi phạm ràng buộc duy nhất",
-    "foreignKeyConstraint":"Vi phạm ràng buộc khóa ngoại",
-    "recordNotFound":"Mã số không tìm thấy",
-    "invalidInput":"Dữ liệu không hợp lệ",
-    "dbSchema":"Lỗi lược đồ cơ sở dữ liệu",
-    "unexpectedDbError":"Lỗi cơ sở dữ liệu không mong đợi",
+  "errors": {
+    "internalServerError": "Lỗi máy chủ",
+    "serviceUnavailable": "Dịch vụ không khả dụng",
+    "uniqueConstraint": "Vi phạm ràng buộc duy nhất",
+    "foreignKeyConstraint": "Vi phạm ràng buộc khóa ngoại",
+    "recordNotFound": "Mã số không tìm thấy",
+    "invalidInput": "Dữ liệu không hợp lệ",
+    "dbSchema": "Lỗi lược đồ cơ sở dữ liệu",
+    "unexpectedDbError": "Lỗi cơ sở dữ liệu không mong đợi",
     "unauthorized": "Bạn không có quyền truy cập",
+    "validationError": "Lỗi xác thực dữ liệu",
     "createUser": {
+      "error": "Tạo người dùng thất bại",
       "roleNotFound": "Role không tồn tại",
       "exists": "User đã tồn tại",
       "missingFields": "Thiếu thông tin người dùng"
@@ -62,6 +88,19 @@
     },
     "login": {
       "success": "Đăng nhập thành công"
+    },
+    "registerUser": {
+      "userExists": "Người dùng đã tồn tại",
+      "error": "Đăng ký người dùng không thành công",
+      "notToken": "Không tìm thấy token",
+      "userNotFound": "Yêu cầu nhập thông tin"
+    },
+    "changeIsActive": {
+      "invalidPayload": "Dữ liệu không hợp lệ",
+      "alreadyActive": "Tài khoản đã được kích hoạt"
+    },
+    "sendEmailComplete": {
+      "dataNotFound": "Dữ liệu không hợp lệ"
     }
   }
 }

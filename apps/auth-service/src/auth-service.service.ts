@@ -113,6 +113,10 @@ export class AuthService {
     }
   }
   async validateToken(token: string): Promise<TUserPayload> {
+    if (!token) {
+      throw new RpcException('common.errors.registerUser.notToken');
+    }
+
     try {
       return await this.jwtService.verifyAsync<TUserPayload>(token, {
         secret: this.configService.get<string>('jwt.secretKey'),
@@ -160,6 +164,31 @@ export class AuthService {
       return payload;
     } catch {
       throw new RpcException('common.auth.action.signToken.error');
+    }
+  }
+
+  async signJwtTokenUserCreate(data: PayLoadJWT): Promise<string> {
+    if (!data) {
+      throw new RpcException('common.auth.action.signJwtTokenUserCreate.error');
+    }
+
+    const secretValue = this.configService.get<string | number>('jwt.secretKey');
+    const secret =
+      secretValue !== undefined && secretValue !== null ? String(secretValue) : undefined;
+
+    if (!secret) {
+      throw new RpcException('common.auth.action.signJwtTokenUserCreate.error');
+    }
+
+    try {
+      const accessToken = await this.jwtService.signAsync(data, { secret });
+      if (!accessToken) {
+        throw new RpcException('common.auth.action.signJwtTokenUserCreate.error');
+      }
+
+      return accessToken;
+    } catch {
+      throw new RpcException('common.auth.action.signJwtTokenUserCreate.error');
     }
   }
 }

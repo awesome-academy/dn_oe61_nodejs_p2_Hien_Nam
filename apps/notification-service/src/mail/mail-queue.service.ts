@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
-import { Queue } from 'bull';
+import { Queue } from 'bullmq';
 import { MailJobDataDto } from '@app/common/dto/mail.dto';
 
 @Injectable()

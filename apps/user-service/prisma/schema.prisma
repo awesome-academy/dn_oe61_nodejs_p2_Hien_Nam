@@ -21,6 +21,7 @@ model User {
   userName  String    @db.VarChar(50)
   imageUrl  String?   @db.VarChar(255)
   email     String?   @unique @db.VarChar(50)
+  isActive  Boolean   @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
 

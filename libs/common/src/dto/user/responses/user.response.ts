@@ -6,6 +6,7 @@ export class UserResponse {
   userName?: string;
   email?: string | null;
   providerName?: string;
+  isActive?: boolean;
   imageUrl?: string;
   createdAt?: Date;
   updatedAt?: Date | null;

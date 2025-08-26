@@ -5,6 +5,7 @@ CREATE TABLE `users` (
     `userName` VARCHAR(50) NOT NULL,
     `imageUrl` VARCHAR(255) NULL,
     `email` VARCHAR(50) NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
     `roleId` INTEGER NOT NULL,

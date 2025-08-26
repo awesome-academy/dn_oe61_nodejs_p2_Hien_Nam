@@ -18,6 +18,29 @@
       },
       "facebookCallback": {
         "success": "Login successfully"
+      },
+      "twitter": {
+        "invalidConfig": "Invalid configuration",
+        "error": "Error when authenticating user"
+      },
+      "google": {
+        "invalidConfig": "Invalid configuration",
+        "error": "Error when authenticating user"
+      },
+      "registerUser": {
+        "success": "Register successfully"
+      },
+      "logout": {
+        "error": "Missing cookie configuration",
+        "success": "Logout successfully"
+      },
+      "signToken": {
+        "error": "Error when creating token",
+        "success": "Create token successfully"
+      },
+      "signJwtTokenUserCreate": {
+        "error": "Error when creating token",
+        "success": "Create token successfully"
       }
     }
   },
@@ -27,33 +50,47 @@
     "forbidden": "Forbidden",
     "unauthorized": "Unauthorized"
   },
-  "errors":{
-    "internalServerError":"Internal server error",
-    "serviceUnavailable":"Service unavailable",
-    "uniqueConstraint":"Unique constraint violation",
-    "foreignKeyConstraint":"Foreign key constraint violation",
-    "recordNotFound":"Record not found",
-    "invalidInput":"Invalid input",
-    "dbSchema":"Database schema error",
-    "unexpectedDbError":"Unexpected database error",
+  "errors": {
+    "internalServerError": "Internal server error",
+    "serviceUnavailable": "Service unavailable",
+    "uniqueConstraint": "Unique constraint violation",
+    "foreignKeyConstraint": "Foreign key constraint violation",
+    "recordNotFound": "Record not found",
+    "invalidInput": "Invalid input",
+    "dbSchema": "Database schema error",
+    "unexpectedDbError": "Unexpected database error",
     "unauthorized": "Unauthorized",
-      "createUser": {
-        "roleNotFound": "Role not found",
-        "exists": "User already exists",
-        "missingFields": "Missing user information"
-      },
-      "signToken": {
-        "error": "Error when creating token"
-      },
-      "checkUserExists": {
-        "error": "Error when checking user"
-      },
-      "twitter": {
-        "invalidConfig": "Invalid configuration",
-        "error": "Error when authenticating user"
-      },
-      "login":{
-        "success":"Login successfully"
-      }
+    "validationError": "Validation error",
+    "createUser": {
+      "error": "Create user failed",
+      "roleNotFound": "Role not found",
+      "exists": "User already exists",
+      "missingFields": "Missing user information"
+    },
+    "signToken": {
+      "error": "Error when creating token"
+    },
+    "checkUserExists": {
+      "error": "Error when checking user"
+    },
+    "twitter": {
+      "invalidConfig": "Invalid configuration",
+      "error": "Error when authenticating user"
+    },
+    "login": {
+      "success": "Login successfully"
+    },
+    "registerUser": {
+      "userExists": "User already exists",
+      "error": "Register user not success",
+      "notToken": "Not found token"
+    },
+    "changeIsActive": {
+      "invalidPayload": "Invalid payload",
+      "alreadyActive": "Account is already active"
+    },
+    "sendEmailComplete": {
+      "dataNotFound": "Data is required"
     }
   }
+}

@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsOptional } from 'class-validator';
+import { IsEmail, IsString, IsOptional, IsBoolean } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
 
 export class CreateUserDto {
@@ -58,4 +58,12 @@ export class CreateUserDto {
     }),
   })
   providerId?: string;
+
+  @IsOptional()
+  @IsBoolean({
+    message: i18nValidationMessage('common.validation.isBoolean', {
+      field: 'isActive',
+    }),
+  })
+  isActive?: boolean;
 }

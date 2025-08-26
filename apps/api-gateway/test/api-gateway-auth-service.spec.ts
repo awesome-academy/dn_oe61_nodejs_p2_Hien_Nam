@@ -1,5 +1,8 @@
-import { AUTH_SERVICE } from '@app/common/constant/service.constant';
+import { AUTH_SERVICE, NOTIFICATION_SERVICE } from '@app/common/constant/service.constant';
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
+import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
+import { UserResponse } from '@app/common/dto/user/responses/user.response';
+import { StatusKey } from '@app/common/enums/status-key.enum';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import * as micro from '@app/common/helpers/microservices';
@@ -9,6 +12,7 @@ import { AuthService } from '../src/auth/auth.service';
 import { of } from 'rxjs';
 import { USER_SERVICE } from '@app/common/constant/service.constant';
 import { I18nService } from 'nestjs-i18n';
+import { ConfigService } from '@nestjs/config';
 import { TwitterProfileDto } from '@app/common/dto/twitter-profile.dto';
 import { GoogleProfileDto } from '@app/common/dto/google-profile.dro';
 import { BadRequestException } from '@nestjs/common';
@@ -19,13 +23,16 @@ afterEach(() => {
 describe('ApiGateway AuthService', () => {
   let service: AuthService;
   const userClientMock: { send: jest.Mock } = { send: jest.fn() };
+  const authClientMock: { send: jest.Mock } = { send: jest.fn() };
+  const notificationClientMock: { send: jest.Mock } = { send: jest.fn() };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         {
           provide: AUTH_SERVICE,
-          useValue: { send: jest.fn() },
+          useValue: authClientMock,
         },
         {
           provide: CustomLogger,
@@ -38,6 +45,14 @@ describe('ApiGateway AuthService', () => {
         {
           provide: I18nService,
           useValue: { translate: jest.fn().mockReturnValue('Translated msg') },
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: notificationClientMock,
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('test-value') },
         },
       ],
     }).compile();
@@ -120,9 +135,8 @@ describe('ApiGateway AuthService', () => {
         },
       };
 
-      userClientMock.send
-        .mockReturnValueOnce(of(existingUser))
-        .mockReturnValueOnce(of(loginResponse));
+      userClientMock.send.mockReturnValueOnce(of(existingUser)); // checkUserExists
+      authClientMock.send.mockReturnValueOnce(of(loginResponse)); // signJwtToken
 
       const result = await service.twitterCallback(baseProfile);
 
@@ -130,7 +144,8 @@ describe('ApiGateway AuthService', () => {
         statusKey: 'success',
         data: loginResponse,
       });
-      expect(userClientMock.send).toHaveBeenCalledTimes(2);
+      expect(userClientMock.send).toHaveBeenCalledTimes(1);
+      expect(authClientMock.send).toHaveBeenCalledTimes(1);
     });
 
     it('should create user when not exists and return token', async () => {
@@ -154,9 +169,9 @@ describe('ApiGateway AuthService', () => {
       };
 
       userClientMock.send
-        .mockReturnValueOnce(of(null))
-        .mockReturnValueOnce(of(createdUser))
-        .mockReturnValueOnce(of(loginResponse));
+        .mockReturnValueOnce(of(null)) // checkUserExists
+        .mockReturnValueOnce(of(createdUser)); // createOauthUser
+      authClientMock.send.mockReturnValueOnce(of(loginResponse)); // signJwtToken
 
       const profile = { ...baseProfile, twitterId: 'tw2', name: 'Bob', userName: 'bobby' };
 
@@ -164,7 +179,8 @@ describe('ApiGateway AuthService', () => {
 
       expect(result.data?.accessToken).toBe(token);
       expect(result.data?.user.id).toBe(createdUser.id);
-      expect(userClientMock.send).toHaveBeenCalledTimes(3);
+      expect(userClientMock.send).toHaveBeenCalledTimes(2);
+      expect(authClientMock.send).toHaveBeenCalledTimes(1);
     });
 
     it('should throw BadRequestException when token signing fails', async () => {
@@ -177,7 +193,8 @@ describe('ApiGateway AuthService', () => {
         providerName: 'twitter',
       };
 
-      userClientMock.send.mockReturnValueOnce(of(existingUser)).mockReturnValueOnce(of(null));
+      userClientMock.send.mockReturnValueOnce(of(existingUser)); // checkUserExists
+      authClientMock.send.mockReturnValueOnce(of(null)); // signJwtToken
 
       await expect(service.twitterCallback(baseProfile)).rejects.toThrow(BadRequestException);
     });
@@ -217,9 +234,8 @@ describe('ApiGateway AuthService', () => {
         },
       };
 
-      userClientMock.send
-        .mockReturnValueOnce(of(existingUser))
-        .mockReturnValueOnce(of(loginResponse));
+      userClientMock.send.mockReturnValueOnce(of(existingUser));
+      authClientMock.send.mockReturnValueOnce(of(loginResponse));
 
       const result = await service.googleCallback(baseProfile);
 
@@ -227,7 +243,8 @@ describe('ApiGateway AuthService', () => {
         statusKey: 'success',
         data: loginResponse,
       });
-      expect(userClientMock.send).toHaveBeenCalledTimes(2);
+      expect(userClientMock.send).toHaveBeenCalledTimes(1);
+      expect(authClientMock.send).toHaveBeenCalledTimes(1);
     });
 
     it('should create user when not exists and return token', async () => {
@@ -250,10 +267,8 @@ describe('ApiGateway AuthService', () => {
         },
       };
 
-      userClientMock.send
-        .mockReturnValueOnce(of(null))
-        .mockReturnValueOnce(of(createdUser))
-        .mockReturnValueOnce(of(loginResponse));
+      userClientMock.send.mockReturnValueOnce(of(null)).mockReturnValueOnce(of(createdUser));
+      authClientMock.send.mockReturnValueOnce(of(loginResponse));
 
       const profile = {
         ...baseProfile,
@@ -267,7 +282,8 @@ describe('ApiGateway AuthService', () => {
 
       expect(result.data?.accessToken).toBe(token);
       expect(result.data?.user.id).toBe(createdUser.id);
-      expect(userClientMock.send).toHaveBeenCalledTimes(3);
+      expect(userClientMock.send).toHaveBeenCalledTimes(2);
+      expect(authClientMock.send).toHaveBeenCalledTimes(1);
     });
 
     it('should throw BadRequestException when token signing fails', async () => {
@@ -280,9 +296,144 @@ describe('ApiGateway AuthService', () => {
         providerName: 'google',
       };
 
-      userClientMock.send.mockReturnValueOnce(of(existingUser)).mockReturnValueOnce(of(null));
+      userClientMock.send.mockReturnValueOnce(of(existingUser));
+      authClientMock.send.mockReturnValueOnce(of(null));
 
       await expect(service.googleCallback(baseProfile)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('register', () => {
+    let userInput: CreateUserDto;
+    let existingUser: UserResponse;
+
+    beforeEach(() => {
+      userInput = {
+        email: 'test@example.com',
+        password: 'password123',
+        name: 'Test User',
+        userName: 'testuser',
+      };
+
+      existingUser = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        userName: 'testuser',
+        role: 'user',
+      };
+    });
+
+    it('should register a new user if email does not exist', async () => {
+      const newUser: UserResponse = { ...existingUser, id: 2 };
+      const callMicroserviceSpy = jest
+        .spyOn(micro, 'callMicroservice')
+        .mockResolvedValueOnce(null) // USER_GET_BY_EMAIL
+        .mockResolvedValueOnce(newUser) // REGISTER_USER
+        .mockResolvedValueOnce('activation-token') // SIGN_JWT_TOKEN_USER_CREATE
+        .mockResolvedValueOnce(undefined); // SEND_EMAIL_COMPLETE
+
+      const result = await service.register(userInput);
+
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toEqual(newUser);
+      expect(callMicroserviceSpy).toHaveBeenCalledTimes(4);
+    });
+
+    it('should throw BadRequestException if user already exists', async () => {
+      const callMicroserviceSpy = jest
+        .spyOn(micro, 'callMicroservice')
+        .mockResolvedValueOnce(existingUser); // USER_GET_BY_EMAIL returns user
+
+      await expect(service.register(userInput)).rejects.toThrow(BadRequestException);
+      expect(callMicroserviceSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw BadRequestException if register returns null', async () => {
+      const callMicroserviceSpy = jest
+        .spyOn(micro, 'callMicroservice')
+        .mockResolvedValueOnce(null) // USER_GET_BY_EMAIL
+        .mockResolvedValueOnce(null); // REGISTER_USER returns null
+
+      await expect(service.register(userInput)).rejects.toThrow(BadRequestException);
+      expect(callMicroserviceSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw BadRequestException if token generation returns null', async () => {
+      const newUser: UserResponse = { ...existingUser, id: 2 };
+      const callMicroserviceSpy = jest
+        .spyOn(micro, 'callMicroservice')
+        .mockResolvedValueOnce(null) // USER_GET_BY_EMAIL
+        .mockResolvedValueOnce(newUser) // REGISTER_USER
+        .mockResolvedValueOnce(null); // SIGN_JWT_TOKEN_USER_CREATE returns null
+
+      await expect(service.register(userInput)).rejects.toThrow(BadRequestException);
+      expect(callMicroserviceSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it('should throw BadRequestException if userInput is null or empty', async () => {
+      await expect(service.register(null as unknown as CreateUserDto)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.register({} as CreateUserDto)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('completeRegister', () => {
+    it('should complete registration successfully', async () => {
+      const token = 'valid-token';
+      const userPayload = { id: 1, email: 'test@example.com' };
+      const activatedUser: UserResponse = {
+        id: 1,
+        email: 'test@example.com',
+        name: 'Test User',
+        userName: 'testuser',
+        role: 'user',
+      };
+
+      const callMicroserviceSpy = jest
+        .spyOn(micro, 'callMicroservice')
+        .mockResolvedValueOnce(userPayload) // VALIDATE_USER
+        .mockResolvedValueOnce(activatedUser); // CHANGE_IS_ACTIVE
+
+      const result = await service.completeRegister(token);
+
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toEqual(activatedUser);
+      expect(callMicroserviceSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw BadRequestException if token is null or empty', async () => {
+      await expect(service.completeRegister(null as unknown as string)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.completeRegister('')).rejects.toThrow(BadRequestException);
+      await expect(service.completeRegister(123 as unknown as string)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if token validation fails', async () => {
+      const token = 'invalid-token';
+      const callMicroserviceSpy = jest.spyOn(micro, 'callMicroservice').mockResolvedValueOnce(null);
+
+      await expect(service.completeRegister(token)).rejects.toThrow(BadRequestException);
+      expect(callMicroserviceSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('logout', () => {
+    it('should clear cookie and return success', () => {
+      const mockRes = {
+        clearCookie: jest.fn(),
+        cookie: jest.fn(),
+      };
+
+      const result = service.logout(mockRes);
+
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('token');
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toBe('');
     });
   });
 });

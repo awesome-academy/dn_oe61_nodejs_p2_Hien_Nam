@@ -1,5 +1,5 @@
 import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import { Job } from 'bullmq';
 import { MailerService } from '@nestjs-modules/mailer';
 import { Logger } from '@nestjs/common';
 import { MailJobDataDto } from '@app/common/dto/mail.dto';

@@ -1,28 +1,43 @@
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/unbound-method */
+import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { LoginResponse } from '@app/common/dto/auth/responses/login.response';
+import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { BadRequestException } from '@nestjs/common';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Request } from 'express';
 import { I18nService } from 'nestjs-i18n';
+import { CookieResponse } from '@app/common/interfaces/request-cookie.interface';
 import { AuthController } from '../src/auth/auth.controller';
 import { AuthService } from '../src/auth/auth.service';
+import { TwitterProfileDto } from '@app/common/dto/twitter-profile.dto';
+import { GoogleProfileDto } from '@app/common/dto/google-profile.dro';
 
 describe('AuthController', () => {
   let controller: AuthController;
   let authService: AuthService;
   let i18nService: I18nService;
+  let moduleRef: TestingModule;
+
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       controllers: [AuthController],
       providers: [
         {
           provide: AuthService,
-          useValue: { login: jest.fn(), twitterCallback: jest.fn(), googleCallback: jest.fn() },
+          useValue: {
+            login: jest.fn(),
+            twitterCallback: jest.fn(),
+            googleCallback: jest.fn(),
+            register: jest.fn(),
+            completeRegister: jest.fn(),
+            logout: jest.fn(),
+          },
         },
         {
           provide: I18nService,
@@ -35,9 +50,9 @@ describe('AuthController', () => {
       ],
     }).compile();
 
-    controller = module.get<AuthController>(AuthController);
-    authService = module.get<AuthService>(AuthService);
-    i18nService = module.get<I18nService>(I18nService);
+    controller = moduleRef.get<AuthController>(AuthController);
+    authService = moduleRef.get<AuthService>(AuthService);
+    i18nService = moduleRef.get<I18nService>(I18nService);
   });
 
   afterEach(() => {
@@ -140,7 +155,7 @@ describe('AuthController', () => {
       const result = controller.facebookCallback(requestMock);
       expect(result).toEqual({
         success: true,
-        messsage: 'Login successfully',
+        message: 'Login successfully',
         payload: loginResult.data,
       });
     });
@@ -163,7 +178,7 @@ describe('AuthController', () => {
       const result = controller.facebookCallback(requestMock);
       expect(result).toEqual({
         success: true,
-        messsage: 'Login successfully',
+        message: 'Login successfully',
         payload: loginResult.data,
       });
     });
@@ -216,7 +231,7 @@ describe('AuthController', () => {
         user: null,
       });
 
-      const result = await controller.twitterCallback(undefined as any);
+      const result = await controller.twitterCallback(undefined as unknown as TwitterProfileDto);
 
       expect(result).toEqual({ accessToken: null, user: null });
       expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(undefined);
@@ -248,7 +263,7 @@ describe('AuthController', () => {
       };
       (authService.googleCallback as jest.Mock).mockResolvedValue(expected);
 
-      const result = await controller.googleCallback(googleProfile as any);
+      const result = await controller.googleCallback(googleProfile);
 
       expect(result).toEqual(expected);
       expect(authService.googleCallback as jest.Mock).toHaveBeenCalledWith(googleProfile);
@@ -258,7 +273,7 @@ describe('AuthController', () => {
       const err = new Error('g-error');
       (authService.googleCallback as jest.Mock).mockRejectedValue(err);
 
-      await expect(controller.googleCallback(googleProfile as any)).rejects.toThrow(err);
+      await expect(controller.googleCallback(googleProfile)).rejects.toThrow(err);
     });
 
     it('should handle undefined profile gracefully', async () => {
@@ -267,10 +282,104 @@ describe('AuthController', () => {
         user: null,
       });
 
-      const result = await controller.googleCallback(undefined as any);
+      const result = await controller.googleCallback(undefined as unknown as GoogleProfileDto);
 
       expect(result).toEqual({ accessToken: null, user: null });
       expect(authService.googleCallback as jest.Mock).toHaveBeenCalledWith(undefined);
+    });
+  });
+
+  describe('logout', () => {
+    it('should clear cookie and return success', () => {
+      const mockRes: CookieResponse = {
+        clearCookie: jest.fn(),
+        cookie: jest.fn(),
+      };
+      const expected = { success: true } as unknown as BaseResponse<string>;
+      (authService.logout as jest.Mock).mockReturnValue(expected);
+
+      const result = controller.logout(mockRes);
+
+      expect(authService.logout as jest.Mock).toHaveBeenCalledWith(mockRes);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('showCompletePage', () => {
+    it('should return frontend url with /activate suffix', () => {
+      const cfg = moduleRef.get<ConfigService>(ConfigService);
+      (cfg.get as jest.Mock).mockReturnValueOnce('https://frontend.com');
+      const result = controller.showCompletePage();
+      expect(result).toEqual({ url: 'https://frontend.com/activate' });
+    });
+  });
+
+  describe('completeRegister', () => {
+    it('should call service with token and return response', async () => {
+      const token = 'activation-token';
+      const expected: BaseResponse<UserResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: { id: 1, email: 'a@mail.com', name: 'A', userName: 'a', role: 'user' },
+      } as const;
+      (authService.completeRegister as jest.Mock).mockResolvedValue(expected);
+
+      const result = await controller.completeRegister(token);
+
+      expect(authService.completeRegister as jest.Mock).toHaveBeenCalledWith(token);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('registerUser', () => {
+    let userInput: CreateUserDto;
+    let userResponse: BaseResponse<UserResponse>;
+
+    beforeEach(() => {
+      userInput = {
+        email: 'test@example.com',
+        password: 'password123',
+        name: 'Test User',
+        userName: 'testuser',
+      };
+
+      userResponse = {
+        statusKey: StatusKey.SUCCESS,
+        data: {
+          id: 1,
+          email: 'test@example.com',
+          name: 'Test User',
+          userName: 'testuser',
+          role: 'user',
+        } as UserResponse,
+      };
+    });
+
+    it('should register a user successfully and return the correct response structure', async () => {
+      const authServiceRegisterSpy = jest
+        .spyOn(authService, 'register')
+        .mockResolvedValue(userResponse);
+
+      const result = await controller.registerUser(userInput);
+
+      expect(authServiceRegisterSpy).toHaveBeenCalledWith(userInput);
+      expect(result).toHaveProperty('statusKey', StatusKey.SUCCESS);
+      expect(result).toHaveProperty('data');
+      expect(result.data).toEqual(userResponse.data);
+      expect(result.data).toHaveProperty('id');
+      expect(result.data).toHaveProperty('email', userInput.email);
+      expect(result.data).toHaveProperty('name', userInput.name);
+      expect(result.data).toHaveProperty('userName', userInput.userName);
+    });
+
+    it('should throw BadRequestException if user already exists', async () => {
+      const errorMessage = 'User already exists';
+      const authServiceRegisterSpy = jest
+        .spyOn(authService, 'register')
+        .mockRejectedValue(new BadRequestException(errorMessage));
+
+      await expect(controller.registerUser(userInput)).rejects.toThrow(BadRequestException);
+      await expect(controller.registerUser(userInput)).rejects.toThrow(errorMessage);
+      expect(authServiceRegisterSpy).toHaveBeenCalledWith(userInput);
     });
   });
 });

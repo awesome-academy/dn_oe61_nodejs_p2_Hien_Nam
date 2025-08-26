@@ -1,4 +1,5 @@
 import { IsInt, IsString } from 'class-validator';
+import { UserResponse } from './responses/user.response';
 
 export class PayLoadJWT {
   @IsInt()
@@ -15,4 +16,12 @@ export class PayLoadJWT {
 
   @IsString()
   providerName: string;
+}
+
+export class PayLoadJWTComplete {
+  @IsString()
+  token: string;
+
+  @IsString()
+  user: UserResponse;
 }
