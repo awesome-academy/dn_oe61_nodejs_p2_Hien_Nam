@@ -5,13 +5,14 @@ import { RoleEnum } from '@app/common/enums/role.enum';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { handlePrismaError } from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { validateOrReject } from 'class-validator';
 import { randomUUID } from 'crypto';
 import { AuthProvider, Prisma, PrismaClient, Provider, Role, User } from '../generated/prisma';
 import { INCLUDE_AUTH_PROVIDER_USER } from './constants/include-auth-user';
 import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { RpcException } from '@nestjs/microservices';
+import { plainToInstance } from 'class-transformer';
 
 @Injectable()
 export class UserService {
@@ -157,13 +158,13 @@ export class UserService {
     return userName;
   }
 
-  async checkUserExists(twitterId: string): Promise<UserResponse | null> {
-    if (!twitterId) {
+  async checkUserExists(providerId: string): Promise<UserResponse | null> {
+    if (!providerId) {
       throw new RpcException('common.auth.action.checkUserExists.error');
     }
 
     const authProvider = await this.prismaService.client.authProvider.findFirst({
-      where: { providerId: twitterId },
+      where: { providerId: providerId },
       include: {
         user: {
           include: {
@@ -190,7 +191,7 @@ export class UserService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt ?? undefined,
       role: user.role?.name,
-      authProviders: user.authProviders || [],
+      authProviders: user.authProviders || undefined,
     };
 
     return formatData;
@@ -208,14 +209,8 @@ export class UserService {
   }
 
   async createUser(data: CreateUserDto) {
-    await validateOrReject(data);
-    const hasMissingField = Object.values(data).some(
-      (value) => value === null || value === undefined || value === '',
-    );
-
-    if (hasMissingField) {
-      throw new BadRequestException('common.auth.action.createUser.missingFields');
-    }
+    const dto = plainToInstance(CreateUserDto, data);
+    await validateOrReject(dto);
 
     const existingUser = await this.checkUserExists(data.providerId as string);
     if (existingUser) {
@@ -232,13 +227,14 @@ export class UserService {
         data: {
           name: data.name,
           userName: data.userName,
+          email: data.email,
           role: {
             connect: { id: role.id },
           },
           authProviders: {
             create: [
               {
-                provider: 'TWITTER',
+                provider: data.provider,
                 providerId: data.providerId,
                 password: null,
               },

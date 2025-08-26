@@ -13,4 +13,9 @@ export default () => ({
     appID: process.env.FACEBOOK_APP_ID,
     appSecret: process.env.FACEBOOK_APP_SECRET,
   },
+  google: {
+    appID: process.env.GOOGLE_CLIENT_ID,
+    appSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackUrl: process.env.GOOGLE_CALLBACK_URL,
+  },
 });

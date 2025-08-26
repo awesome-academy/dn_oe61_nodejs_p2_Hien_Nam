@@ -10,7 +10,6 @@ import { UserServiceController } from './user-service.controller';
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
 import { APP_PIPE } from '@nestjs/core';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { UserService } from './user-service.service';
 
 @Module({
   imports: [

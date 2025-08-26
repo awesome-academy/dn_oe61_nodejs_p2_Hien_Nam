@@ -6,11 +6,11 @@ import * as micro from '@app/common/helpers/microservices';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from '../src/auth/auth.service';
-
 import { of } from 'rxjs';
 import { USER_SERVICE } from '@app/common/constant/service.constant';
 import { I18nService } from 'nestjs-i18n';
 import { TwitterProfileDto } from '@app/common/dto/twitter-profile.dto';
+import { GoogleProfileDto } from '@app/common/dto/google-profile.dro';
 import { BadRequestException } from '@nestjs/common';
 
 afterEach(() => {
@@ -110,12 +110,7 @@ describe('ApiGateway AuthService', () => {
         providerName: 'twitter',
       };
       const token = 'token123';
-
-      userClientMock.send.mockReturnValueOnce(of(existingUser)).mockReturnValueOnce(of(token));
-
-      const result = await service.twitterCallback(baseProfile);
-
-      expect(result).toEqual({
+      const loginResponse = {
         accessToken: token,
         user: {
           id: existingUser.id,
@@ -123,6 +118,17 @@ describe('ApiGateway AuthService', () => {
           name: existingUser.name,
           role: existingUser.role,
         },
+      };
+
+      userClientMock.send
+        .mockReturnValueOnce(of(existingUser))
+        .mockReturnValueOnce(of(loginResponse));
+
+      const result = await service.twitterCallback(baseProfile);
+
+      expect(result).toEqual({
+        statusKey: 'success',
+        data: loginResponse,
       });
       expect(userClientMock.send).toHaveBeenCalledTimes(2);
     });
@@ -137,18 +143,27 @@ describe('ApiGateway AuthService', () => {
         providerName: 'twitter',
       };
       const token = 'token456';
+      const loginResponse = {
+        accessToken: token,
+        user: {
+          id: createdUser.id,
+          email: createdUser.email,
+          name: createdUser.name,
+          role: createdUser.role,
+        },
+      };
 
       userClientMock.send
         .mockReturnValueOnce(of(null))
         .mockReturnValueOnce(of(createdUser))
-        .mockReturnValueOnce(of(token));
+        .mockReturnValueOnce(of(loginResponse));
 
       const profile = { ...baseProfile, twitterId: 'tw2', name: 'Bob', userName: 'bobby' };
 
       const result = await service.twitterCallback(profile);
 
-      expect(result.accessToken).toBe(token);
-      expect(result.user.id).toBe(createdUser.id);
+      expect(result.data?.accessToken).toBe(token);
+      expect(result.data?.user.id).toBe(createdUser.id);
       expect(userClientMock.send).toHaveBeenCalledTimes(3);
     });
 
@@ -165,6 +180,109 @@ describe('ApiGateway AuthService', () => {
       userClientMock.send.mockReturnValueOnce(of(existingUser)).mockReturnValueOnce(of(null));
 
       await expect(service.twitterCallback(baseProfile)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('googleCallback', () => {
+    const baseProfile: GoogleProfileDto = {
+      googleId: 'g1',
+      email: 'g@mail.com',
+      name: 'Gina',
+      userName: 'gina',
+    };
+
+    it('should throw BadRequestException when user is null', async () => {
+      await expect(service.googleCallback(null as unknown as GoogleProfileDto)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should return response when user exists', async () => {
+      const existingUser = {
+        id: 11,
+        email: 'g@mail.com',
+        name: 'Gina',
+        role: 'USER',
+        userName: 'gina',
+        providerName: 'google',
+      };
+      const token = 'g-token';
+      const loginResponse = {
+        accessToken: token,
+        user: {
+          id: existingUser.id,
+          email: existingUser.email,
+          name: existingUser.name,
+          role: existingUser.role,
+        },
+      };
+
+      userClientMock.send
+        .mockReturnValueOnce(of(existingUser))
+        .mockReturnValueOnce(of(loginResponse));
+
+      const result = await service.googleCallback(baseProfile);
+
+      expect(result).toEqual({
+        statusKey: 'success',
+        data: loginResponse,
+      });
+      expect(userClientMock.send).toHaveBeenCalledTimes(2);
+    });
+
+    it('should create user when not exists and return token', async () => {
+      const createdUser = {
+        id: 12,
+        email: 'b@mail.com',
+        name: 'Bob',
+        role: 'USER',
+        userName: 'bob',
+        providerName: 'google',
+      };
+      const token = 'g-token2';
+      const loginResponse = {
+        accessToken: token,
+        user: {
+          id: createdUser.id,
+          email: createdUser.email,
+          name: createdUser.name,
+          role: createdUser.role,
+        },
+      };
+
+      userClientMock.send
+        .mockReturnValueOnce(of(null))
+        .mockReturnValueOnce(of(createdUser))
+        .mockReturnValueOnce(of(loginResponse));
+
+      const profile = {
+        ...baseProfile,
+        googleId: 'g2',
+        email: 'b@mail.com',
+        name: 'Bob',
+        userName: 'bob',
+      };
+
+      const result = await service.googleCallback(profile);
+
+      expect(result.data?.accessToken).toBe(token);
+      expect(result.data?.user.id).toBe(createdUser.id);
+      expect(userClientMock.send).toHaveBeenCalledTimes(3);
+    });
+
+    it('should throw BadRequestException when token signing fails', async () => {
+      const existingUser = {
+        id: 13,
+        email: 'c@mail.com',
+        name: 'Cat',
+        role: 'USER',
+        userName: 'cat',
+        providerName: 'google',
+      };
+
+      userClientMock.send.mockReturnValueOnce(of(existingUser)).mockReturnValueOnce(of(null));
+
+      await expect(service.googleCallback(baseProfile)).rejects.toThrow(BadRequestException);
     });
   });
 });

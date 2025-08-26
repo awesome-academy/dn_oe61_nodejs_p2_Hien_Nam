@@ -106,9 +106,9 @@ describe('UserService', () => {
   });
 
   describe('checkUserExists', () => {
-    const twitterId = '123';
+    const providerId = '123';
 
-    it('should throw RpcException if twitterId is empty', async () => {
+    it('should throw RpcException if providerId is empty', async () => {
       await expect(service.checkUserExists('')).rejects.toThrow(RpcException);
     });
 
@@ -123,7 +123,7 @@ describe('UserService', () => {
           role: { name: 'USER' },
         },
       });
-      const result = await service.checkUserExists(twitterId);
+      const result = await service.checkUserExists(providerId);
       expect(result).toEqual(
         expect.objectContaining({
           id: 5,
@@ -135,10 +135,33 @@ describe('UserService', () => {
       );
     });
 
+    it('should handle user with no role gracefully', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.authProvider.findFirst as jest.Mock).mockResolvedValue({
+        provider: 'GOOGLE',
+        user: {
+          id: 10,
+          name: 'Alice',
+          userName: 'alice01',
+          role: null,
+          authProviders: [],
+        },
+      });
+
+      const result = await service.checkUserExists(providerId);
+      expect(result).toEqual(
+        expect.objectContaining({
+          id: 10,
+          role: undefined,
+          providerName: 'GOOGLE',
+        }),
+      );
+    });
+
     it('should return undefined fields when user not found', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
       (_prismaMock.client.authProvider.findFirst as jest.Mock).mockResolvedValue(null);
-      const result = await service.checkUserExists(twitterId);
+      const result = await service.checkUserExists(providerId);
       expect(result).toBeNull();
     });
   });

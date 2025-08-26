@@ -3,7 +3,7 @@ import { AuthProvider } from 'apps/user-service/generated/prisma';
 export class UserResponse {
   id: number;
   name: string;
-  userName: string;
+  userName?: string;
   email?: string | null;
   providerName?: string;
   imageUrl?: string;

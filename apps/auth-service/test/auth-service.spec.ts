@@ -35,6 +35,10 @@ describe('AuthService', () => {
           useValue: { get: jest.fn().mockReturnValue('secret') },
         },
         {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('secret') },
+        },
+        {
           provide: CustomLogger,
           useValue: { error: jest.fn(), log: jest.fn() },
         },
@@ -194,7 +198,6 @@ describe('AuthService', () => {
     const data: PayLoadJWT = {
       id: 1,
       name: 'John',
-      userName: 'john',
       role: 'USER',
       providerName: 'LOCAL',
       email: 'john@example.com',
@@ -212,7 +215,15 @@ describe('AuthService', () => {
 
       const result = await service.signJwtToken(data);
 
-      expect(result).toBe(token);
+      expect(result).toEqual({
+        accessToken: token,
+        user: {
+          id: data.id,
+          email: data.email,
+          name: data.name,
+          role: data.role,
+        },
+      });
       expect(service['jwtService'].signAsync).toHaveBeenCalledWith(data, {
         secret: expect.any(String),
       });

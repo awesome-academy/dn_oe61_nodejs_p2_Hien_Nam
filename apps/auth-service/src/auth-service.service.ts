@@ -137,12 +137,15 @@ export class AuthService {
     };
   }
 
-  async signJwtToken(data: PayLoadJWT): Promise<string> {
+  async signJwtToken(data: PayLoadJWT): Promise<LoginResponse> {
     if (!data) {
       throw new RpcException('common.auth.action.signToken.error');
     }
 
-    const secret = this.configService.get<string>('jwt.secretKey');
+    const secretValue = this.configService.get<string | number>('jwt.secretKey');
+    const secret =
+      secretValue !== undefined && secretValue !== null ? String(secretValue) : undefined;
+
     if (!secret) {
       throw new RpcException('common.auth.action.signToken.error');
     }
@@ -152,7 +155,9 @@ export class AuthService {
       if (!accessToken) {
         throw new RpcException('common.auth.action.signToken.error');
       }
-      return accessToken;
+
+      const payload: LoginResponse = this.buildLoginResponse(accessToken, data);
+      return payload;
     } catch {
       throw new RpcException('common.auth.action.signToken.error');
     }

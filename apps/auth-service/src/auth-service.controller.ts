@@ -26,7 +26,7 @@ export class AuthServiceController {
     return this.authService.loginFromFacebook(data);
   }
 
-  @MessagePattern(AuthMsgPattern.SIGN_JWT_TOKEN)
+  @MessagePattern({ cmd: AuthMsgPattern.SIGN_JWT_TOKEN })
   async signJwtToken(@Payload() data: PayLoadJWT) {
     const result = await this.authService.signJwtToken(data);
     return result;
