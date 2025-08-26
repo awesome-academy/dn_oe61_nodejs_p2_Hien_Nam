@@ -9,6 +9,8 @@ import { Request } from 'express';
 import { I18nService } from 'nestjs-i18n';
 import { AuthService } from './auth.service';
 import { Public } from '@app/common/decorators/metadata.decorator';
+import { UserDecorator } from '@app/common';
+import { TwitterProfileDto } from '@app/common/dto/twitter-profile.dto';
 
 @Controller('/auth')
 export class AuthController {
@@ -17,6 +19,7 @@ export class AuthController {
     private readonly i18nService: I18nService,
     private readonly configService: ConfigService,
   ) {}
+
   @Public()
   @Post('/login')
   @UseInterceptors(SetAccessTokenInterceptor)
@@ -42,5 +45,20 @@ export class AuthController {
       messsage: this.i18nService.translate('common.auth.action.login.success'),
       payload: loginResult.data,
     };
+  }
+
+  @Public()
+  @Get('twitter')
+  @UseGuards(AuthGuard('twitter'))
+  twitterLogin() {
+    return;
+  }
+
+  @Public()
+  @Get('twitter/callback')
+  @UseGuards(AuthGuard('twitter'))
+  @UseInterceptors(SetAccessTokenInterceptor)
+  async twitterCallback(@UserDecorator() user: TwitterProfileDto): Promise<LoginResponse> {
+    return await this.authService.twitterCallback(user);
   }
 }

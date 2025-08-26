@@ -35,6 +35,25 @@
     "recordNotFound":"Record not found",
     "invalidInput":"Invalid input",
     "dbSchema":"Database schema error",
-    "unexpectedDbError":"Unexpected database error"
+    "unexpectedDbError":"Unexpected database error",
+    "unauthorized": "Unauthorized",
+      "createUser": {
+        "roleNotFound": "Role not found",
+        "exists": "User already exists",
+        "missingFields": "Missing user information"
+      },
+      "signToken": {
+        "error": "Error when creating token"
+      },
+      "checkUserExists": {
+        "error": "Error when checking user"
+      },
+      "twitter": {
+        "invalidConfig": "Invalid configuration",
+        "error": "Error when authenticating user"
+      },
+      "login":{
+        "success":"Login successfully"
+      }
+    }
   }
-}

@@ -1,4 +1,5 @@
 import { USER_SERVICE } from '@app/common/constant/service.constant';
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment */
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
@@ -6,12 +7,14 @@ import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import * as micro from '@app/common/helpers/microservices';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { RpcException } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import * as classValidator from 'class-validator';
 import { AuthProvider, Provider } from '../../user-service/generated/prisma';
 import { AuthService } from '../src/auth-service.service';
-import { ConfigService } from '@nestjs/config';
+import { PayLoadJWT } from '@app/common/dto/user/sign-token.dto';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -26,6 +29,10 @@ describe('AuthService', () => {
         {
           provide: USER_SERVICE,
           useValue: { send: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('secret') },
         },
         {
           provide: CustomLogger,
@@ -180,6 +187,54 @@ describe('AuthService', () => {
       jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(false as never);
       const result = await service.comparePassword('plain', 'hashed');
       expect(result).toBe(false);
+    });
+  });
+
+  describe('signJwtToken', () => {
+    const data: PayLoadJWT = {
+      id: 1,
+      name: 'John',
+      userName: 'john',
+      role: 'USER',
+      providerName: 'LOCAL',
+      email: 'john@example.com',
+    };
+
+    it('should throw RpcException when data is null', async () => {
+      await expect(service.signJwtToken(null as unknown as PayLoadJWT)).rejects.toThrow(
+        RpcException,
+      );
+    });
+
+    it('should sign token successfully', async () => {
+      const token = 'new-token';
+      jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue(token);
+
+      const result = await service.signJwtToken(data);
+
+      expect(result).toBe(token);
+      expect(service['jwtService'].signAsync).toHaveBeenCalledWith(data, {
+        secret: expect.any(String),
+      });
+    });
+
+    it('should throw RpcException when signAsync returns null', async () => {
+      jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue(null as unknown as string);
+
+      await expect(service.signJwtToken(data)).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when signAsync throws error', async () => {
+      jest.spyOn(service['jwtService'], 'signAsync').mockRejectedValue(new Error('jwt error'));
+
+      await expect(service.signJwtToken(data)).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when jwt.secretKey is missing', async () => {
+      jest.spyOn(service['configService'], 'get').mockReturnValue(undefined);
+      jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue('token-without-secret');
+
+      await expect(service.signJwtToken(data)).rejects.toThrow(RpcException);
     });
   });
 });

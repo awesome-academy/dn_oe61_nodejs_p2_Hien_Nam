@@ -5,6 +5,8 @@ import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UserService } from './user-service.service';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
+import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
+
 @Controller()
 export class UserServiceController {
   constructor(private readonly userService: UserService) {}
@@ -17,5 +19,17 @@ export class UserServiceController {
     @Payload() dto: ProfileFacebookUser,
   ): Promise<UserResponse | null> {
     return this.userService.findOrCreateUserFromFacebook(dto);
+  }
+
+  @MessagePattern({ cmd: UserMsgPattern.CHECK_USERE_EXISTS })
+  async checkUserExists(@Payload() twitterId: string) {
+    const result = await this.userService.checkUserExists(twitterId);
+    return result;
+  }
+
+  @MessagePattern({ cmd: UserMsgPattern.CREATE_USER_TWITTER })
+  async createUser(@Payload() data: CreateUserDto) {
+    const result = await this.userService.createUser(data);
+    return result;
   }
 }

@@ -1,5 +1,6 @@
-import { PrismaModule } from '@app/prisma';
 import { Module } from '@nestjs/common';
+import { UserService } from './user-service.service';
+import { PrismaModule } from '@app/prisma';
 import { ConfigModule } from '@nestjs/config';
 import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
 import * as path from 'path';
@@ -45,6 +46,7 @@ import { UserService } from './user-service.service';
       useClass: I18nRpcValidationPipe,
     },
     CustomLogger,
+    UserService,
   ],
   exports: [],
 })

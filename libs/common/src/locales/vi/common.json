@@ -35,6 +35,25 @@
     "recordNotFound":"Mã số không tìm thấy",
     "invalidInput":"Dữ liệu không hợp lệ",
     "dbSchema":"Lỗi lược đồ cơ sở dữ liệu",
-    "unexpectedDbError":"Lỗi cơ sở dữ liệu không mong đợi"
+    "unexpectedDbError":"Lỗi cơ sở dữ liệu không mong đợi",
+    "unauthorized": "Bạn không có quyền truy cập",
+    "createUser": {
+      "roleNotFound": "Role không tồn tại",
+      "exists": "User đã tồn tại",
+      "missingFields": "Thiếu thông tin người dùng"
+    },
+    "signToken": {
+      "error": "Lỗi khi tạo token"
+    },
+    "checkUserExists": {
+      "error": "Lỗi khi kiểm tra user"
+    },
+    "twitter": {
+      "invalidConfig": "Cấu hình không hợp lệ",
+      "error": "Lỗi khi xác thực user"
+    },
+    "login": {
+      "success": "Đăng nhập thành công"
+    }
   }
 }
