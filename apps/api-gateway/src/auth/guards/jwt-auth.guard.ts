@@ -8,12 +8,14 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ClientProxy } from '@nestjs/microservices';
-import { firstValueFrom } from 'rxjs';
 import { IS_PUBLIC_KEY } from '@app/common/decorators/metadata.decorator';
 import { AuthMsgPattern } from '@app/common';
 import { TRequestWithUser } from '@app/common/types/request-with-user.type';
 import { TUserPayload } from '@app/common/types/user-payload.type';
 import { I18nService } from 'nestjs-i18n';
+import { callMicroservice } from '@app/common/helpers/microservices';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -21,6 +23,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     @Inject(AUTH_SERVICE) private authService: ClientProxy,
     private readonly i18nService: I18nService,
+    private readonly loggerService: CustomLogger,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -39,11 +42,14 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const user = await firstValueFrom(
-        this.authService.send<TUserPayload>(
-          { cmd: AuthMsgPattern.VALIDATE_USER },
-          { token: token },
-        ),
+      const user = await callMicroservice<TUserPayload>(
+        this.authService.send(AuthMsgPattern.VALIDATE_USER, { token: token }),
+        AUTH_SERVICE,
+        this.loggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
       );
 
       if (!user) {

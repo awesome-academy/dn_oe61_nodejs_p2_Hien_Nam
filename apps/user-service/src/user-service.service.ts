@@ -5,7 +5,7 @@ import { RoleEnum } from '@app/common/enums/role.enum';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { handlePrismaError } from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { validateOrReject } from 'class-validator';
 import { randomUUID } from 'crypto';
 import { AuthProvider, Prisma, PrismaClient, Provider, Role, User } from '../generated/prisma';
@@ -13,6 +13,9 @@ import { INCLUDE_AUTH_PROVIDER_USER } from './constants/include-auth-user';
 import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { RpcException } from '@nestjs/microservices';
 import { plainToInstance } from 'class-transformer';
+import * as bcrypt from 'bcrypt';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 
 @Injectable()
 export class UserService {
@@ -160,7 +163,10 @@ export class UserService {
 
   async checkUserExists(providerId: string): Promise<UserResponse | null> {
     if (!providerId) {
-      throw new RpcException('common.auth.action.checkUserExists.error');
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.auth.action.checkUserExists.error',
+      });
     }
 
     const authProvider = await this.prismaService.client.authProvider.findFirst({
@@ -204,39 +210,50 @@ export class UserService {
       });
       return role;
     } catch {
-      throw new RpcException('common.errors.internalServerError');
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
     }
   }
 
-  async createUser(data: CreateUserDto) {
+  async validateOAuthUserCreation(data: CreateUserDto): Promise<UserResponse | null> {
     const dto = plainToInstance(CreateUserDto, data);
     await validateOrReject(dto);
 
     const existingUser = await this.checkUserExists(data.providerId as string);
     if (existingUser) {
-      throw new ConflictException('common.auth.action.createUser.exists');
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.createUser.exists',
+      });
     }
 
     const role = await this.getRole();
     if (!role) {
-      throw new RpcException('common.auth.action.createUser.roleNotFound');
+      throw new RpcException('common.errors.createUser.roleNotFound');
     }
 
+    return await this.createUser(data, role.id);
+  }
+
+  async createUser(data: CreateUserDto, role: number): Promise<UserResponse | null> {
     try {
       const dataUser = await this.prismaService.client.user.create({
         data: {
           name: data.name,
           userName: data.userName,
           email: data.email,
+          isActive: data.isActive ?? false,
           role: {
-            connect: { id: role.id },
+            connect: { id: role },
           },
           authProviders: {
             create: [
               {
                 provider: data.provider,
                 providerId: data.providerId,
-                password: null,
+                password: data.password,
               },
             ],
           },
@@ -251,18 +268,114 @@ export class UserService {
         },
       });
 
-      const result = {
-        id: dataUser?.id,
-        name: dataUser?.name,
-        userName: dataUser?.userName,
-        role: dataUser?.role?.name,
-        email: dataUser?.email ?? undefined,
-        providerName: dataUser?.authProviders,
+      const result: UserResponse = {
+        id: dataUser.id,
+        name: dataUser.name,
+        userName: dataUser.userName,
+        role: (dataUser.role as { name: string }).name,
+        email: dataUser.email ?? undefined,
+        providerName: data.provider,
       };
 
       return result;
-    } catch {
-      throw new RpcException('common.errors.internalServerError');
+    } catch (error) {
+      this.loggerService.error(
+        'Create User',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async createUserWithPassword(data: CreateUserDto): Promise<UserResponse | null> {
+    const dto = plainToInstance(CreateUserDto, data);
+    await validateOrReject(dto);
+
+    if (dto.password) {
+      dto.password = await bcrypt.hash(dto.password, 10);
+    }
+
+    const role = await this.getRole();
+    if (!role) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.createUser.roleNotFound',
+      });
+    }
+
+    const result = await this.createUser(dto, role.id);
+    if (!result) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.createUser.error',
+      });
+    }
+
+    const dataUser: UserResponse = {
+      id: result.id,
+      name: result.name,
+      userName: result.userName,
+      email: result.email ?? undefined,
+      role: result.role,
+    };
+
+    return dataUser;
+  }
+
+  private async checkUserIsActive(user: UserResponse) {
+    return await this.prismaService.client.user.findFirst({
+      where: { email: user.email, isActive: false },
+      include: { role: true, authProviders: true },
+    });
+  }
+
+  async changeIsActive(user: UserResponse): Promise<UserResponse | null> {
+    if (!user || !user.email) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.changeIsActive.invalidPayload',
+      });
+    }
+
+    const existingUser = await this.checkUserIsActive(user);
+    if (!existingUser) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.changeIsActive.alreadyActive',
+      });
+    }
+
+    try {
+      const updated = await this.prismaService.client.user.update({
+        where: { id: existingUser.id },
+        data: { isActive: true },
+        include: { role: true, authProviders: true },
+      });
+
+      const result: UserResponse = {
+        id: updated.id,
+        name: updated.name,
+        userName: updated.userName,
+        email: updated.email ?? undefined,
+        role: updated.role.name,
+        authProviders: updated.authProviders,
+      };
+
+      return result;
+    } catch (error) {
+      this.loggerService.error(
+        'ChangeIsActive',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
     }
   }
 }

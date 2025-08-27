@@ -1,5 +1,5 @@
 import { USER_SERVICE } from '@app/common/constant/service.constant';
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/unbound-method */
 import { LoginRequestDto } from '@app/common/dto/auth/requests/login.request';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
@@ -225,7 +225,7 @@ describe('AuthService', () => {
         },
       });
       expect(service['jwtService'].signAsync).toHaveBeenCalledWith(data, {
-        secret: expect.any(String),
+        secret: '3600',
       });
     });
 
@@ -246,6 +246,51 @@ describe('AuthService', () => {
       jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue('token-without-secret');
 
       await expect(service.signJwtToken(data)).rejects.toThrow(RpcException);
+    });
+  });
+
+  describe('signJwtTokenUserCreate', () => {
+    const data: PayLoadJWT = {
+      id: 2,
+      name: 'Jane',
+      role: 'USER',
+      providerName: 'LOCAL',
+      email: 'jane@example.com',
+    };
+
+    it('should throw RpcException when data is null', async () => {
+      await expect(service.signJwtTokenUserCreate(null as unknown as PayLoadJWT)).rejects.toThrow(
+        RpcException,
+      );
+    });
+
+    it('should sign token successfully', async () => {
+      const token = 'create-user-token';
+      jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue(token);
+
+      const result = await service.signJwtTokenUserCreate(data);
+
+      expect(result).toBe(token);
+      expect(service['jwtService'].signAsync).toHaveBeenCalledWith(data, { secret: '3600' });
+    });
+
+    it('should throw RpcException when signAsync returns null', async () => {
+      jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue(null as unknown as string);
+
+      await expect(service.signJwtTokenUserCreate(data)).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when signAsync throws error', async () => {
+      jest.spyOn(service['jwtService'], 'signAsync').mockRejectedValue(new Error('jwt error'));
+
+      await expect(service.signJwtTokenUserCreate(data)).rejects.toThrow(RpcException);
+    });
+
+    it('should throw RpcException when jwt.secretKey is missing', async () => {
+      jest.spyOn(service['configService'], 'get').mockReturnValue(undefined);
+      jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue('token-without-secret');
+
+      await expect(service.signJwtTokenUserCreate(data)).rejects.toThrow(RpcException);
     });
   });
 });

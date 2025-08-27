@@ -16,7 +16,7 @@ export class AuthServiceController {
     return this.authService.login(data);
   }
 
-  @MessagePattern({ cmd: AuthMsgPattern.VALIDATE_USER })
+  @MessagePattern(AuthMsgPattern.VALIDATE_USER)
   async validateUser(@Payload() data: { token: string }): Promise<TUserPayload> {
     return await this.authService.validateToken(data.token);
   }
@@ -29,6 +29,12 @@ export class AuthServiceController {
   @MessagePattern({ cmd: AuthMsgPattern.SIGN_JWT_TOKEN })
   async signJwtToken(@Payload() data: PayLoadJWT) {
     const result = await this.authService.signJwtToken(data);
+    return result;
+  }
+
+  @MessagePattern(AuthMsgPattern.SIGN_JWT_TOKEN_USER_CREATE)
+  async signJwtTokenUserCreate(@Payload() data: PayLoadJWT) {
+    const result = await this.authService.signJwtTokenUserCreate(data);
     return result;
   }
 }

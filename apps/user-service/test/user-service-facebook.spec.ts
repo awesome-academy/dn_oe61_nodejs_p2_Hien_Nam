@@ -163,6 +163,7 @@ describe('UserService – Facebook login', () => {
       createdAt: new Date(),
       updatedAt: null,
       role: 'USER',
+      isActive: true,
       authProviders: [{ id: 1, provider: Provider.LOCAL, password: 'hash' }],
     } as UserResponse;
     jest.spyOn(service, 'getUserByEmail').mockResolvedValueOnce(existingUser);
@@ -199,6 +200,7 @@ describe('UserService – Facebook login', () => {
       createdAt: new Date(),
       updatedAt: null,
       role: 'USER',
+      isActive: true,
       authProviders: [],
     } as UserResponse;
     jest.spyOn(service, 'getUserByEmail').mockResolvedValueOnce(existingUser);
@@ -239,6 +241,7 @@ describe('UserService – Facebook login', () => {
       updatedAt: null,
       roleId: 1,
       role: { name: 'USER' },
+      isActive: true,
     };
     const stubProvider = {
       id: 10,
@@ -288,6 +291,7 @@ describe('UserService – Facebook login', () => {
       createdAt: new Date(),
       updatedAt: null,
       role: 'USER',
+      isActive: true,
     } as UserResponse;
     jest.spyOn(service, 'getUserByEmail').mockResolvedValueOnce(existing);
     const prismaErr = new PrismaClientKnownRequestError('Fail', {
@@ -312,6 +316,7 @@ describe('UserService – Facebook login', () => {
       createdAt: new Date(),
       updatedAt: null,
       role: 'USER',
+      isActive: true,
       authProviders: [{ id: 3, provider: Provider.FACEBOOK }],
     } as UserResponse;
     const createSpy = jest.spyOn(prisma.client.authProvider, 'create');

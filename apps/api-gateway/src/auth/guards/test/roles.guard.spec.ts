@@ -1,15 +1,12 @@
-import { JwtAuthGuard } from '../jwt-auth.guard';
-import { UnauthorizedException, ExecutionContext } from '@nestjs/common';
+import { RolesGuard } from '../roles.guard';
+import { Role } from '@app/common/enums/roles/users.enum';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { Reflector } from '@nestjs/core';
-import { of, throwError } from 'rxjs';
-import { AUTH_SERVICE } from '@app/common/constant/service.constant';
 import { I18nService } from 'nestjs-i18n';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ClientProxy } from '@nestjs/microservices';
 import { TUserPayload } from '@app/common/types/user-payload.type';
 import { TestRequestJWT } from './guard.interface';
-
-const mockedUser: TUserPayload = { id: 1, email: 'demo@example.com' } as TUserPayload;
 
 function createExecutionContext(request: TestRequestJWT): ExecutionContext {
   return {
@@ -26,23 +23,16 @@ function createExecutionContext(request: TestRequestJWT): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-describe('JwtAuthGuard', () => {
-  let guard: JwtAuthGuard;
+describe('RolesGuard', () => {
+  let guard: RolesGuard;
   let reflector: Reflector;
-  let clientProxy: jest.Mocked<ClientProxy>;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  let i18n: I18nService;
 
   beforeEach(async () => {
-    clientProxy = {
-      send: jest.fn(),
-    } as unknown as jest.Mocked<ClientProxy>;
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        JwtAuthGuard,
+        RolesGuard,
+        CustomLogger,
         Reflector,
-        { provide: AUTH_SERVICE, useValue: clientProxy },
         {
           provide: I18nService,
           useValue: { translate: jest.fn().mockImplementation((key: string) => key) },
@@ -50,112 +40,45 @@ describe('JwtAuthGuard', () => {
       ],
     }).compile();
 
-    guard = module.get(JwtAuthGuard);
+    guard = module.get(RolesGuard);
     reflector = module.get(Reflector);
-    i18n = module.get(I18nService);
   });
 
   describe('canActivate', () => {
-    it('should allow public route', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
-      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of({}));
-      const ctx = createExecutionContext({});
-      await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).not.toHaveBeenCalled();
-    });
-
-    it('should validate token from Authorization header', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
-      const ctx = createExecutionContext({ headers: { authorization: 'Bearer abc' } });
-
-      await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith({ cmd: 'validate_user' }, { token: 'abc' });
-    });
-
-    it('should validate token from token header', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
-      const ctx = createExecutionContext({ headers: { token: 'xyz' } });
-      await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'xyz' });
-    });
-
-    it('should validate token from cookie', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
-      const ctx = createExecutionContext({ cookies: { token: 'cookieToken' }, headers: {} });
-      await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'cookieToken' });
-    });
-
-    it('should prioritize Authorization header over other sources', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
-      const request: TestRequestJWT = {
-        headers: { authorization: 'Bearer primary', token: 'secondary' },
-        cookies: { token: 'cookie' },
-      };
-      const ctx = createExecutionContext(request);
-
-      await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'primary' });
-      expect(request.user).toEqual(mockedUser);
-    });
-
-    it('should fallback to token header when Authorization is non-Bearer', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
+    it('should allow when no roles required', () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
       const ctx = createExecutionContext({
-        headers: { authorization: 'Basic abc', token: 'fallback' },
+        user: { id: 1, role: Role.ADMIN, name: 'test', userName: 'test' } as TUserPayload,
       });
-
-      await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'fallback' });
+      expect(guard.canActivate(ctx)).toBe(true);
     });
 
-    it('should throw when Bearer token is empty', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const ctx = createExecutionContext({ headers: { authorization: 'Bearer ' } });
-
-      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    it('should allow when user has required role', () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.ADMIN]);
+      const ctx = createExecutionContext({
+        user: { id: 1, role: Role.ADMIN, name: 'test', userName: 'test' } as TUserPayload,
+      });
+      expect(guard.canActivate(ctx)).toBe(true);
     });
 
-    it('should throw if token header is not a string', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const ctx = createExecutionContext({ headers: { token: 12345 } });
-
-      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    it('should throw when user missing or without role', () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.USER]);
+      const ctx = createExecutionContext({});
+      expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
     });
 
-    it('should throw if cookie token is not a string', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const ctx = createExecutionContext({ cookies: { token: 123 }, headers: {} });
-
-      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    it('should throw when role not authorized', () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.USER]);
+      const ctx = createExecutionContext({
+        user: { id: 1, role: Role.ADMIN, name: 'test', userName: 'test' } as TUserPayload,
+      });
+      expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
     });
 
-    it('should throw if token missing', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      const ctx = createExecutionContext({ headers: {} });
-
-      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('should throw if auth service returns null', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      clientProxy.send.mockReturnValue(of(null));
-      const ctx = createExecutionContext({ headers: { authorization: 'Bearer invalid' } });
-
-      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
-    });
-
-    it('should throw if auth service errors', async () => {
-      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
-      clientProxy.send.mockReturnValue(throwError(() => new Error('boom')));
-      const ctx = createExecutionContext({ headers: { authorization: 'Bearer err' } });
-
-      await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
+    it('should allow public route', () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(true);
+      const ctx = createExecutionContext({});
+      expect(guard.canActivate(ctx)).toBe(true);
     });
   });
 });

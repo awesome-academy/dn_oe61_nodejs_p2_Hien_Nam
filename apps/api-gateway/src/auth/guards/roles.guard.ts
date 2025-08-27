@@ -12,12 +12,12 @@ export class RolesGuard implements CanActivate {
     private readonly i18Service: I18nService,
   ) {}
   canActivate(context: ExecutionContext): boolean {
-    const roles: Role[] | undefined = this.reflector.getAllAndOverride<Role[]>(ROLE_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const roles: Role[] | boolean | undefined = this.reflector.getAllAndOverride<Role[] | boolean>(
+      ROLE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    if (!roles || roles.length === 0) {
+    if (roles === true || !roles || roles.length === 0) {
       return true;
     }
 

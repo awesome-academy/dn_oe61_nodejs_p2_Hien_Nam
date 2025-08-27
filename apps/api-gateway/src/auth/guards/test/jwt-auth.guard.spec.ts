@@ -1,4 +1,5 @@
 import { JwtAuthGuard } from '../jwt-auth.guard';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { UnauthorizedException, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { of, throwError } from 'rxjs';
@@ -40,6 +41,7 @@ describe('JwtAuthGuard', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
+        CustomLogger,
         JwtAuthGuard,
         Reflector,
         { provide: AUTH_SERVICE, useValue: clientProxy },
@@ -69,7 +71,7 @@ describe('JwtAuthGuard', () => {
       const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of(mockedUser));
       const ctx = createExecutionContext({ headers: { authorization: 'Bearer abc' } });
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith({ cmd: 'validate_user' }, { token: 'abc' });
+      expect(sendSpy).toHaveBeenCalledWith('validate_user', { token: 'abc' });
     });
 
     it('should validate token from token header', async () => {
@@ -78,7 +80,7 @@ describe('JwtAuthGuard', () => {
       const ctx = createExecutionContext({ headers: { token: 'xyz' } });
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'xyz' });
+      expect(sendSpy).toHaveBeenCalledWith('validate_user', { token: 'xyz' });
     });
 
     it('should validate token from cookie', async () => {
@@ -87,7 +89,7 @@ describe('JwtAuthGuard', () => {
       const ctx = createExecutionContext({ cookies: { token: 'cookieToken' }, headers: {} });
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'cookieToken' });
+      expect(sendSpy).toHaveBeenCalledWith('validate_user', { token: 'cookieToken' });
     });
 
     it('should prioritize Authorization header over other sources', async () => {
@@ -100,7 +102,7 @@ describe('JwtAuthGuard', () => {
       const ctx = createExecutionContext(request);
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'primary' });
+      expect(sendSpy).toHaveBeenCalledWith('validate_user', { token: 'primary' });
       expect(request.user).toEqual(mockedUser);
     });
 
@@ -112,7 +114,7 @@ describe('JwtAuthGuard', () => {
       });
 
       await expect(guard.canActivate(ctx)).resolves.toBe(true);
-      expect(sendSpy).toHaveBeenCalledWith(expect.anything(), { token: 'fallback' });
+      expect(sendSpy).toHaveBeenCalledWith('validate_user', { token: 'fallback' });
     });
 
     it('should throw when Bearer token is empty', async () => {
