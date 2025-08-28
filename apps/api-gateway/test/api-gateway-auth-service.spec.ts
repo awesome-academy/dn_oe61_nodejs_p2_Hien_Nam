@@ -198,6 +198,39 @@ describe('ApiGateway AuthService', () => {
 
       await expect(service.twitterCallback(baseProfile)).rejects.toThrow(BadRequestException);
     });
+    it('should handle user without email', async () => {
+      const existingUser = {
+        id: 1,
+        name: 'John',
+        role: 'USER',
+        userName: 'johnny',
+        providerName: 'twitter',
+      };
+      const token = 'token123';
+      const loginResponse = {
+        accessToken: token,
+        user: {
+          id: existingUser.id,
+          name: existingUser.name,
+          role: existingUser.role,
+        },
+      };
+
+      userClientMock.send.mockReturnValueOnce(of(existingUser)); // checkUserExists
+      authClientMock.send.mockReturnValueOnce(of(loginResponse)); // signJwtToken
+
+      await service.twitterCallback(baseProfile);
+
+      expect(authClientMock.send).toHaveBeenCalledWith(
+        { cmd: 'sign_jwt_token' },
+        {
+          id: existingUser.id,
+          name: existingUser.name,
+          role: existingUser.role,
+          email: undefined,
+        },
+      );
+    });
   });
 
   describe('googleCallback', () => {
@@ -300,6 +333,40 @@ describe('ApiGateway AuthService', () => {
       authClientMock.send.mockReturnValueOnce(of(null));
 
       await expect(service.googleCallback(baseProfile)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should handle user without email', async () => {
+      const existingUser = {
+        id: 11,
+        name: 'Gina',
+        role: 'USER',
+        userName: 'gina',
+        providerName: 'google',
+      };
+      const token = 'g-token';
+      const loginResponse = {
+        accessToken: token,
+        user: {
+          id: existingUser.id,
+          name: existingUser.name,
+          role: existingUser.role,
+        },
+      };
+
+      userClientMock.send.mockReturnValueOnce(of(existingUser));
+      authClientMock.send.mockReturnValueOnce(of(loginResponse));
+
+      await service.googleCallback(baseProfile);
+
+      expect(authClientMock.send).toHaveBeenCalledWith(
+        { cmd: 'sign_jwt_token' },
+        {
+          id: existingUser.id,
+          name: existingUser.name,
+          role: existingUser.role,
+          email: undefined,
+        },
+      );
     });
   });
 

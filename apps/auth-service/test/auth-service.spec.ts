@@ -6,7 +6,7 @@ import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import * as micro from '@app/common/helpers/microservices';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JsonWebTokenError, TokenExpiredError } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RpcException } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -24,7 +24,10 @@ describe('AuthService', () => {
         AuthService,
         {
           provide: JwtService,
-          useValue: { signAsync: jest.fn().mockResolvedValue('fake-jwt-token') },
+          useValue: {
+            signAsync: jest.fn().mockResolvedValue('fake-jwt-token'),
+            verifyAsync: jest.fn(),
+          },
         },
         {
           provide: USER_SERVICE,
@@ -72,6 +75,26 @@ describe('AuthService', () => {
     const result = await service.login(dto);
     expect(result.data?.accessToken).toBe('fake-jwt-token');
     expect(result.data?.user.email).toBe('test@example.com');
+  });
+  it('should handle login for a user without an email', async () => {
+    const userWithoutEmail: UserResponse = {
+      id: 1,
+      name: 'Test User',
+      userName: 'testuser',
+      email: null,
+      imageUrl: undefined,
+      createdAt: new Date(),
+      updatedAt: null,
+      role: 'USER',
+      authProviders: [
+        { id: 1, provider: Provider.LOCAL, password: 'hashed-password' } as AuthProvider,
+      ],
+    };
+    jest.spyOn(micro, 'callMicroservice').mockResolvedValue(userWithoutEmail);
+    jest.spyOn(service, 'comparePassword').mockResolvedValue(true);
+    const result = await service.login({ email: 'test@example.com', password: '123456' });
+    expect(result.data?.accessToken).toBe('fake-jwt-token');
+    expect(result.data?.user.email).toBe('');
   });
   it('should throw unauthorized if user not found', async () => {
     const dto: LoginRequestDto = { email: 'notfound@example.com', password: '123456' };
@@ -291,6 +314,47 @@ describe('AuthService', () => {
       jest.spyOn(service['jwtService'], 'signAsync').mockResolvedValue('token-without-secret');
 
       await expect(service.signJwtTokenUserCreate(data)).rejects.toThrow(RpcException);
+    });
+  });
+
+  describe('validateToken', () => {
+    let jwtService: jest.Mocked<JwtService>;
+
+    beforeEach(() => {
+      jwtService = service['jwtService'] as jest.Mocked<JwtService>;
+    });
+
+    it('should throw RpcException if token is not provided', async () => {
+      await expect(service.validateToken(null as unknown as string)).rejects.toThrow(
+        new RpcException('common.errors.registerUser.notToken'),
+      );
+    });
+
+    it('should throw RpcException if token is expired', async () => {
+      jwtService.verifyAsync.mockRejectedValue(new TokenExpiredError('expired', new Date()));
+      await expect(service.validateToken('expired-token')).rejects.toThrow(
+        new RpcException('common.guard.invalid_or_expired_token'),
+      );
+    });
+
+    it('should throw RpcException if token is invalid', async () => {
+      jwtService.verifyAsync.mockRejectedValue(new JsonWebTokenError('invalid'));
+      await expect(service.validateToken('invalid-token')).rejects.toThrow(
+        new RpcException('common.guard.invalid_or_expired_token'),
+      );
+    });
+
+    it('should re-throw other errors', async () => {
+      const error = new Error('Some other error');
+      jwtService.verifyAsync.mockRejectedValue(error);
+      await expect(service.validateToken('any-token')).rejects.toThrow(error);
+    });
+
+    it('should return payload if token is valid', async () => {
+      const payload = { id: 1, email: 'test@example.com', role: 'USER' };
+      jwtService.verifyAsync.mockResolvedValue(payload);
+      const result = await service.validateToken('valid-token');
+      expect(result).toEqual(payload);
     });
   });
 });
