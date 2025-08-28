@@ -7,7 +7,30 @@
     "minLength": "{field} phải có ít nhất {min} ký tự",
     "maxLength": "{field} phải có nhiều nhất {max} ký tự",
     "isDate":"{field} phải là ngày hợp lệ",
-    "phoneInvalidType": "{field} phải là số điện thoại hợp lệ"
+    "phoneInvalidType": "{field} phải là số điện thoại hợp lệ",
+    "isNumber": "{field} phải là số",
+    "isInt": "{field} phải là số nguyên",
+    "isDateString": "{field} phải là chuỗi ngày ISO hợp lệ",
+    "isUrl": "{field} phải là URL hợp lệ"
+  },
+  "product": {
+    "invalidCredentials": "Thông tin sản phẩm không chính xác",
+    "action": {
+      "create": {
+        "success": "Tạo mới sản phẩm thành công"
+      }
+    },
+    "error": {
+      "productExists": "Sản phẩm đã tồn tại",
+      "filesExists": "Chưa nhận được files",
+      "failed": "Tạo mới thất bại"
+    }
+  },
+  "file": {
+    "validation": {
+      "unsupportedType": "Loại file không được hỗ trợ. Chỉ cho phép JPG, JPEG, PNG, WEBP. Nhận được: {fileType}",
+      "sizeExceeded": "Kích thước file quá lớn. Tối đa cho phép: 300MB. Nhận được: {fileSize}MB"
+    }
   },
   "auth": {
     "invalidCredentials": "Thông tin người dùng không chính xác",
@@ -117,6 +140,9 @@
       "dataNotFound": "Dữ liệu không hợp lệ"
     },
     "invalidTypeImage":"Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
-    "invalidSizeImage":"Kích thước hình ảnh phải nhỏ hơn 2MB"
+    "invalidSizeImage":"Kích thước hình ảnh phải nhỏ hơn 2MB",
+    "cloudinary": {
+      "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
+    }
   }
 }

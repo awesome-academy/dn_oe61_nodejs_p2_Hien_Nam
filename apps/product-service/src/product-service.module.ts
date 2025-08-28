@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ProductServiceController } from './product-service.controller';
-import { ProductServiceService } from './product-service.service';
+import { ProductService } from './product-service.service';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '@app/prisma';
 import * as path from 'path';
 import configuration from '../configuration';
 import { PrismaClient } from '../generated/prisma';
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
+import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
 
 @Module({
   imports: [
@@ -19,10 +20,24 @@ import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
       isGlobal: true,
       client: PrismaClient,
     }),
+    I18nModule.forRoot({
+      fallbackLanguage: 'en',
+      loaderOptions: {
+        path: path.join(process.cwd(), 'libs/common/src/locales/'),
+        watch: true,
+      },
+      loader: I18nJsonLoader,
+      resolvers: [
+        {
+          use: AcceptLanguageResolver,
+          options: ['x-custom-lang'],
+        },
+      ],
+    }),
   ],
   controllers: [ProductServiceController],
   providers: [
-    ProductServiceService,
+    ProductService,
     {
       provide: 'APP_PIPE',
       useClass: I18nRpcValidationPipe,

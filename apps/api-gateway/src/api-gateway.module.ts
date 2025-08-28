@@ -27,6 +27,8 @@ import { AdminUserController } from './user/admin-user.controller';
 import { UserService } from './user/user.service';
 import { BullModule } from '@nestjs/bullmq';
 import { QueueName } from '@app/common/enums/queue/queue-name.enum';
+import { ProductController } from './product/product.controller';
+import { ProductService } from './product/product.service';
 
 @Module({
   imports: [
@@ -101,9 +103,10 @@ import { QueueName } from '@app/common/enums/queue/queue-name.enum';
     PassportModule.register({ session: true }),
     CloudinaryModule,
   ],
-  controllers: [AuthController, AdminUserController],
+  controllers: [AuthController, AdminUserController, ProductController],
   providers: [
     AuthService,
+    ProductService,
     CustomLogger,
     UserService,
     {

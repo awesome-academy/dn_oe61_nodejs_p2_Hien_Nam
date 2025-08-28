@@ -33,7 +33,6 @@ CREATE TABLE `product_images` (
     `deletedAt` DATETIME(3) NULL,
     `productId` INTEGER NOT NULL,
 
-    UNIQUE INDEX `product_images_productId_key`(`productId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -48,8 +47,6 @@ CREATE TABLE `product_variants` (
     `productId` INTEGER NOT NULL,
     `sizeId` INTEGER NOT NULL,
 
-    UNIQUE INDEX `product_variants_productId_key`(`productId`),
-    UNIQUE INDEX `product_variants_sizeId_key`(`sizeId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
