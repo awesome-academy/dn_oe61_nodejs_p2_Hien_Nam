@@ -6,7 +6,7 @@
     "isNotEmpty": "{field} không được để trống",
     "minLength": "{field} phải có ít nhất {min} ký tự",
     "maxLength": "{field} phải có nhiều nhất {max} ký tự",
-    "isDate":"{field} phải là ngày hợp lệ",
+    "isDate": "{field} phải là ngày hợp lệ",
     "phoneInvalidType": "{field} phải là số điện thoại hợp lệ",
     "isNumber": "{field} phải là số",
     "isInt": "{field} phải là số nguyên",
@@ -17,13 +17,51 @@
     "invalidCredentials": "Thông tin sản phẩm không chính xác",
     "action": {
       "create": {
-        "success": "Tạo mới sản phẩm thành công"
+        "success": "Tạo mới sản phẩm thành công",
+        "failed": "Tạo mới thất bại"
+      },
+      "update": {
+        "success": "Cập nhật sản phẩm thành công",
+        "failed": "Cập nhật thất bại"
+      },
+      "delete": {
+        "success": "Xóa sản phẩm thành công",
+        "failed": "Xóa thất bại"
+      },
+      "getById": {
+        "success": "Lấy sản phẩm thành công",
+        "failed": "Lấy sản phẩm thất bại"
+      },
+      "getAll": {
+        "success": "Lấy danh sách sản phẩm thành công",
+        "failed": "Lấy danh sách sản phẩm thất bại"
+      },
+      "createProductCategory": {
+        "success": "Tạo liên kết danh mục sản phẩm thành công",
+        "failed": "Tạo liên kết danh mục sản phẩm thất bại"
+      },
+      "updateProductCategory": {
+        "success": "Cập nhật liên kết danh mục sản phẩm thành công",
+        "failed": "Cập nhật liên kết danh mục sản phẩm thất bại"
+      },
+      "deleteProductCategory": {
+        "success": "Xóa liên kết danh mục sản phẩm thành công",
+        "failed": "Xóa liên kết danh mục sản phẩm thất bại"
       }
     },
-    "error": {
-      "productExists": "Sản phẩm đã tồn tại",
-      "filesExists": "Chưa nhận được files",
-      "failed": "Tạo mới thất bại"
+    "productCategory": {
+      "error": {
+        "productExists": "Sản phẩm đã tồn tại",
+        "filesExists": "Chưa nhận được files",
+        "failed": "Tạo mới thất bại",
+        "productNotFound": "Sản phẩm chưa tồn tại",
+        "skuIdExists": "SkuId đã tồn tại",
+        "productInOrder": "Sản phẩm đã tồn tại trong đơn hàng",
+        "relationshipExists": "Liên kết danh mục sản phẩm đã tồn tại",
+        "relationshipNotFound": "Không tìm thấy liên kết danh mục sản phẩm",
+        "categoryNotFound": "Không tìm thấy danh mục",
+        "invalidCategoryData": "Dữ liệu danh mục sản phẩm không hợp lệ"
+      }
     }
   },
   "file": {
@@ -84,32 +122,27 @@
     "forbidden": "Bạn không có quyền truy cập",
     "unauthorized": "Bạn không có quyền truy cập"
   },
-  "user":{
-    "phoneNumberExist":"Số điện thoại đã tồn tại",
-    "emailExist":"Email đã tồn tại",
-    "someUserNotExist":"Một số người dùng không tồn tại. UserIds: [{missingIds}]"
+  "user": {
+    "phoneNumberExist": "Số điện thoại đã tồn tại",
+    "emailExist": "Email đã tồn tại"
   },
-  "adminuser":{
-    "action":{
-      "create":{
-        "success":"Tạo tài khoản thành công",
-        "error":"Tạo tài khoản thất bại, vui lòng thử lại sau"
-      },
-      "updateRoles":{
-        "success":"Cập nhật vai trò thành công",
-        "failed":"Cập nhật vai trò thất bại, vui lòng thử lại sau"
+  "adminuser": {
+    "action": {
+      "create": {
+        "success": "Tạo tài khoản thành công",
+        "error": "Tạo tài khoản thất bại, vui lòng thử lại sau"
       }
     }
   },
-  "errors":{
-    "internalServerError":"Lỗi máy chủ",
-    "serviceUnavailable":"Dịch vụ không khả dụng",
-    "uniqueConstraint":"Vi phạm ràng buộc duy nhất",
-    "foreignKeyConstraint":"Vi phạm ràng buộc khóa ngoại",
-    "recordNotFound":"Mã số không tìm thấy",
-    "invalidInput":"Dữ liệu không hợp lệ",
-    "dbSchema":"Lỗi lược đồ cơ sở dữ liệu",
-    "unexpectedDbError":"Lỗi cơ sở dữ liệu không mong đợi",
+  "errors": {
+    "internalServerError": "Lỗi máy chủ",
+    "serviceUnavailable": "Dịch vụ không khả dụng",
+    "uniqueConstraint": "Vi phạm ràng buộc duy nhất",
+    "foreignKeyConstraint": "Vi phạm ràng buộc khóa ngoại",
+    "recordNotFound": "Mã số không tìm thấy",
+    "invalidInput": "Dữ liệu không hợp lệ",
+    "dbSchema": "Lỗi lược đồ cơ sở dữ liệu",
+    "unexpectedDbError": "Lỗi cơ sở dữ liệu không mong đợi",
     "unauthorized": "Bạn không có quyền truy cập",
     "validationError": "Lỗi xác thực dữ liệu",
     "createUser": {
@@ -144,8 +177,8 @@
     "sendEmailComplete": {
       "dataNotFound": "Dữ liệu không hợp lệ"
     },
-    "invalidTypeImage":"Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
-    "invalidSizeImage":"Kích thước hình ảnh phải nhỏ hơn {maxImageSizeMB} MB",
+    "invalidTypeImage": "Chỉ chấp nhận định dạng hình ảnh là |jpg|jpeg|png|gif|",
+    "invalidSizeImage": "Kích thước hình ảnh phải nhỏ hơn 2MB",
     "cloudinary": {
       "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
     }

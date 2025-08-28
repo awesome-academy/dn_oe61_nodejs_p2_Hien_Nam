@@ -35,8 +35,9 @@ model Product {
   status      ProductStatus @default(IN_STOCK)
   basePrice   Decimal
   quantity    Int
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime?     @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime?           @updatedAt
+  deletedAt   DateTime?
 
   images     ProductImage[]
   variants   ProductVariant[]

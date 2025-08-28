@@ -42,6 +42,7 @@
     "@types/passport-twitter": "^1.0.40",
     "@types/swagger-schema-official": "^2.0.25",
     "bcrypt": "^6.0.0",
+    "bull-board": "^1.7.2",
     "bullmq": "^5.58.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
@@ -125,7 +126,7 @@
       "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1",
       "^apps/(.*)$": "<rootDir>/apps/$1",
       "^@app/prisma(|/.*)$": "<rootDir>/libs/prisma/src/$1",
-      "^libs/(.*)$": "<rootDir>/libs/$1" 
+      "^libs/(.*)$": "<rootDir>/libs/$1"
     }
   }
 }

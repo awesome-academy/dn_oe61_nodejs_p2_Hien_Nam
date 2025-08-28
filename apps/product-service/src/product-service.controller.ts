@@ -4,6 +4,16 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
+import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
+import { Product } from '../generated/prisma';
+import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { PaginationDto } from '@app/common/dto/pagination.dto';
+import { PaginationResult } from '@app/common/interfaces/pagination';
+import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
+import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
+import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
+import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
+import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
 
 @Controller()
 export class ProductServiceController {
@@ -17,5 +27,48 @@ export class ProductServiceController {
   @MessagePattern(ProductPattern.CREATE_PRODUCT)
   async createProduct(@Payload() payLoad: CreateProductDto): Promise<ProductResponse | null> {
     return await this.productService.createProduct(payLoad);
+  }
+
+  @MessagePattern(ProductPattern.UPDATE_PRODUCT)
+  async updateProduct(
+    @Payload() payLoad: { payLoad: UpdateProductDto; skuIdParam: string },
+  ): Promise<Product | null> {
+    return await this.productService.updateProduct(payLoad.payLoad, payLoad.skuIdParam);
+  }
+
+  @MessagePattern(ProductPattern.DELETE_PRODUCT)
+  async deleteProduct(@Payload() skuId: DeleteProductDto): Promise<Product | null> {
+    return await this.productService.deleteProduct(skuId);
+  }
+
+  @MessagePattern(ProductPattern.GET_BY_ID)
+  async getById(@Payload() skuId: DeleteProductDto): Promise<ProductDetailResponse | null> {
+    return await this.productService.getById(skuId);
+  }
+
+  @MessagePattern(ProductPattern.GET_ALL)
+  async getAll(@Payload() payLoad: PaginationDto): Promise<PaginationResult<ProductResponse>> {
+    return await this.productService.getAll(payLoad);
+  }
+
+  @MessagePattern(ProductPattern.CREATE_PRODUCT_CATEGORY)
+  async createProductCategory(
+    @Payload() payLoad: CreateProductCategoryDto,
+  ): Promise<ProductCategoryResponse> {
+    return await this.productService.createProductCategory(payLoad);
+  }
+
+  @MessagePattern(ProductPattern.UPDATE_PRODUCT_CATEGORY)
+  async updateProductCategory(
+    @Payload() payLoad: UpdateProductCategoryDto,
+  ): Promise<ProductCategoryResponse> {
+    return await this.productService.updateProductCategory(payLoad);
+  }
+
+  @MessagePattern(ProductPattern.DELETE_PRODUCT_CATEGORY)
+  async deleteProductCategory(
+    @Payload() payLoad: DeleteProductCategoryDto,
+  ): Promise<ProductCategoryResponse> {
+    return await this.productService.deleteProductCategory(payLoad);
   }
 }

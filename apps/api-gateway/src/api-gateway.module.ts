@@ -27,11 +27,13 @@ import { AdminUserController } from './user/admin-user.controller';
 import { UserService } from './user/user.service';
 import { BullModule } from '@nestjs/bullmq';
 import { QueueName } from '@app/common/enums/queue/queue-name.enum';
-import { ProductController } from './product/product.controller';
-import { ProductService } from './product/product.service';
+import { ProductController } from './product/admin/product.controller';
+import { ProductService } from './product/admin/product.service';
+import { CloudinaryConsoleModule } from '@app/common/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
+    CloudinaryConsoleModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: path.resolve(process.cwd(), 'apps/api-gateway/.env'),
