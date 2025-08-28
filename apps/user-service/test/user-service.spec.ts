@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment */
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
+import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
@@ -33,7 +34,7 @@ describe('UserService', () => {
                 update: jest.fn(),
               },
               role: { findUnique: jest.fn() },
-              authProvider: { findFirst: jest.fn() },
+              authProvider: { findFirst: jest.fn(), findUnique: jest.fn() },
             },
           },
         },
@@ -89,6 +90,44 @@ describe('UserService', () => {
     const result = (await service.getUserByEmail(dto)) as UserResponse;
     expect(result.email).toBe('test@example.com');
     expect(result.role).toBe('USER');
+  });
+
+  it('should handle user with no auth providers', async () => {
+    const dto: UserByEmailRequest = { email: 'test@example.com' };
+    const userRecord = {
+      id: 1,
+      name: 'Test User',
+      userName: 'testuser',
+      email: 'test@example.com',
+      imageUrl: null,
+      createdAt: new Date(),
+      updatedAt: null,
+      role: { name: 'USER' },
+      authProviders: [],
+    };
+    const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+    (_prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce(userRecord);
+    const result = await service.getUserByEmail(dto);
+    expect(result?.providerName).toBeUndefined();
+  });
+
+  it('should handle null imageUrl correctly', async () => {
+    const dto: UserByEmailRequest = { email: 'test@example.com' };
+    const userRecord = {
+      id: 1,
+      name: 'Test User',
+      userName: 'testuser',
+      email: 'test@example.com',
+      imageUrl: null,
+      createdAt: new Date(),
+      updatedAt: null,
+      role: { name: 'USER' },
+      authProviders: [],
+    };
+    const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+    (_prismaMock.client.user.findUnique as jest.Mock).mockResolvedValueOnce(userRecord);
+    const result = await service.getUserByEmail(dto);
+    expect(result?.imageUrl).toBe('');
   });
   it('should return empty string if email is null', async () => {
     const dto: UserByEmailRequest = { email: 'abc@gmail.com' };
@@ -180,6 +219,12 @@ describe('UserService', () => {
       (_prismaMock.client.role.findUnique as jest.Mock).mockResolvedValue({ id: 1, name: 'USER' });
       const role = await service.getRole();
       expect(role?.name).toBe('USER');
+    });
+
+    it('should throw TypedRpcException when prisma fails', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.role.findUnique as jest.Mock).mockRejectedValue(new Error('DB Error'));
+      await expect(service.getRole()).rejects.toThrow(TypedRpcException);
     });
   });
 
@@ -304,6 +349,29 @@ describe('UserService', () => {
       expect(createUserSpy).toHaveBeenCalled();
       expect(result).toEqual(createdUser);
     });
+
+    it('should handle undefined email correctly', async () => {
+      jest.spyOn(service, 'getRole').mockResolvedValue({
+        id: 1,
+        name: 'USER',
+        createdAt: new Date(),
+        updatedAt: null,
+      } as unknown as Role);
+      const createdUser: UserResponse = {
+        id: 1,
+        name: dto.name,
+        userName: dto.userName,
+        role: 'USER',
+        email: undefined,
+      };
+      jest.spyOn(service, 'createUser').mockResolvedValue(createdUser);
+
+      const result = await service.createUserWithPassword(
+        dto as unknown as Parameters<UserService['createUserWithPassword']>[0],
+      );
+
+      expect(result?.email).toBeUndefined();
+    });
   });
 
   describe('createUser', () => {
@@ -375,6 +443,26 @@ describe('UserService', () => {
       await expect(service.createUser(createDto, roleId)).rejects.toThrow(
         new RpcException('common.errors.internalServerError'),
       );
+    });
+
+    it('should handle non-Error exception during user creation', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.create as jest.Mock).mockRejectedValue('DB Error String');
+      await expect(service.createUser(createDto, roleId)).rejects.toThrow(RpcException);
+    });
+
+    it('should handle null email when creating user', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      const dbUser = {
+        ...createDto,
+        id: 11,
+        email: null,
+        role: { name: 'USER' },
+        authProviders: [{ provider: 'LOCAL' }],
+      };
+      (_prismaMock.client.user.create as jest.Mock).mockResolvedValue(dbUser);
+      const result = await service.createUser(createDto, roleId);
+      expect(result?.email).toBe(undefined);
     });
   });
 
@@ -490,6 +578,71 @@ describe('UserService', () => {
       (prismaMock.client.user.update as jest.Mock).mockRejectedValueOnce(new Error('fail'));
 
       await expect(service.changeIsActive(inactiveUser)).rejects.toThrow(TypedRpcException);
+    });
+
+    it('should handle non-Error exception during user update', async () => {
+      const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValueOnce({ id: 1 });
+      (prismaMock.client.user.update as jest.Mock).mockRejectedValueOnce('Update failed');
+      await expect(service.changeIsActive(inactiveUser)).rejects.toThrow(TypedRpcException);
+    });
+
+    it('should handle null email when updating user', async () => {
+      const prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      const dbUser = {
+        id: inactiveUser.id,
+        name: inactiveUser.name,
+        userName: inactiveUser.userName,
+        email: null,
+        role: { name: 'USER' },
+        authProviders: [],
+      };
+      (prismaMock.client.user.findFirst as jest.Mock).mockResolvedValueOnce({ ...dbUser });
+      (prismaMock.client.user.update as jest.Mock).mockResolvedValueOnce({
+        ...dbUser,
+        isActive: true,
+      });
+
+      const result = await service.changeIsActive(inactiveUser);
+
+      expect(result?.email).toBe(undefined);
+    });
+  });
+
+  describe('findOrCreateUserFromFacebook', () => {
+    const profile: ProfileFacebookUser = {
+      providerId: 'fb-123',
+      firstName: 'John',
+      lastName: 'Doe',
+      email: 'john.doe@facebook.com',
+    };
+
+    it('should return a mapped user with empty imageUrl if it is null', async () => {
+      const authProviderRecord = {
+        providerId: 'fb-123',
+        provider: Provider.FACEBOOK,
+        user: {
+          id: 1,
+          name: 'John Doe',
+          userName: 'johndoe',
+          email: 'john.doe@facebook.com',
+          imageUrl: null,
+          createdAt: new Date(),
+          updatedAt: null,
+          role: { name: 'USER' },
+          authProviders: [],
+        },
+      };
+
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.authProvider.findUnique as jest.Mock).mockResolvedValue(
+        authProviderRecord,
+      );
+
+      const result = await service.findOrCreateUserFromFacebook(profile);
+
+      expect(result.imageUrl).toBe('');
+      expect(result.email).toBe(profile.email);
     });
   });
 });

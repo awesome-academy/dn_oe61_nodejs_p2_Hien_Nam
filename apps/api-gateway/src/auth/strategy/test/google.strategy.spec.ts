@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/unbound-method */
-import { UnauthorizedException } from '@nestjs/common';
+import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { I18nService } from 'nestjs-i18n';
 import { GoogleStrategy } from '../google-strategy';
@@ -17,6 +17,16 @@ describe('GoogleStrategy', () => {
     i18nService = rawI18n as unknown as jest.Mocked<I18nService>;
 
     strategy = new GoogleStrategy(configService, i18nService);
+  });
+
+  describe('constructor', () => {
+    it('should throw InternalServerErrorException if config is missing', () => {
+      configService.get.mockReturnValue(null);
+      expect(() => new GoogleStrategy(configService, i18nService)).toThrow(
+        InternalServerErrorException,
+      );
+      expect(i18nService.translate).toHaveBeenCalledWith('common.auth.action.google.invalidConfig');
+    });
   });
 
   describe('validate()', () => {
