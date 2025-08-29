@@ -58,6 +58,7 @@ describe('AuthService - loginFromFacebook', () => {
       createdAt: new Date(),
       updatedAt: null,
       role: 'USER',
+      status: 'ACTIVE',
       authProviders: [],
     };
 
@@ -87,6 +88,7 @@ describe('AuthService - loginFromFacebook', () => {
       createdAt: new Date(),
       updatedAt: null,
       role: 'USER',
+      status: 'ACTIVE',
       authProviders: [],
     };
 

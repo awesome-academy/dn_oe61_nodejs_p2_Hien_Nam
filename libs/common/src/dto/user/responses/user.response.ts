@@ -11,5 +11,6 @@ export class UserResponse {
   createdAt?: Date;
   updatedAt?: Date | null;
   role: string;
+  status: string;
   authProviders?: AuthProvider[];
 }
