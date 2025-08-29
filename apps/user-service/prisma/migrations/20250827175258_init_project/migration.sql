@@ -10,6 +10,7 @@ CREATE TABLE `users` (
     `updatedAt` DATETIME(3) NULL,
     `roleId` INTEGER NOT NULL,
 
+    UNIQUE INDEX `users_userName_key`(`userName`),
     UNIQUE INDEX `users_email_key`(`email`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -24,6 +25,7 @@ CREATE TABLE `user_profiles` (
     `updatedAt` DATETIME(3) NULL,
     `userId` INTEGER NOT NULL,
 
+    UNIQUE INDEX `user_profiles_phoneNumber_key`(`phoneNumber`),
     UNIQUE INDEX `user_profiles_userId_key`(`userId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -38,6 +40,7 @@ CREATE TABLE `auth_providers` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
 
+    UNIQUE INDEX `auth_providers_provider_key`(`provider`),
     UNIQUE INDEX `auth_providers_providerId_key`(`providerId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

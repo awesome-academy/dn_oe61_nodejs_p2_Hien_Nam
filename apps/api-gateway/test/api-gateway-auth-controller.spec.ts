@@ -10,7 +10,7 @@ import { BadRequestException } from '@nestjs/common';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { I18nService } from 'nestjs-i18n';
 import { CookieResponse } from '@app/common/interfaces/request-cookie.interface';
 import { AuthController } from '../src/auth/auth.controller';
@@ -62,7 +62,6 @@ describe('AuthController', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
-
   describe('login', () => {
     beforeEach(() => {});
 
@@ -210,12 +209,14 @@ describe('AuthController', () => {
         accessToken: 'tok',
         user: { id: 1, name: 'John', role: 'USER' },
       };
-      (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
+      const twitterCallbackSpy = (authService.twitterCallback as jest.Mock).mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.twitterCallback(profileTwitter);
 
       expect(result).toEqual(expected);
-      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profileTwitter);
+      expect(twitterCallbackSpy).toHaveBeenCalledWith(profileTwitter);
     });
 
     it('should propagate thrown error', async () => {
@@ -226,25 +227,25 @@ describe('AuthController', () => {
     });
 
     it('should handle undefined profile gracefully', async () => {
-      (authService.twitterCallback as jest.Mock).mockResolvedValue({
+      const twitterCallbackSpy = (authService.twitterCallback as jest.Mock).mockResolvedValue({
         accessToken: null,
         user: null,
       });
-
       const result = await controller.twitterCallback(undefined as unknown as TwitterProfileDto);
-
       expect(result).toEqual({ accessToken: null, user: null });
-      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(undefined);
+      expect(twitterCallbackSpy).toHaveBeenCalledWith(undefined);
     });
 
     it('should handle undefined response object', async () => {
       const expected = { accessToken: 'tok', user: { id: 1, name: 'John' } };
-      (authService.twitterCallback as jest.Mock).mockResolvedValue(expected);
+      const twitterCallbackSpy = (authService.twitterCallback as jest.Mock).mockResolvedValue(
+        expected,
+      );
 
       const result = await controller.twitterCallback(profileTwitter);
 
       expect(result).toEqual(expected);
-      expect(authService.twitterCallback as jest.Mock).toHaveBeenCalledWith(profileTwitter);
+      expect(twitterCallbackSpy).toHaveBeenCalledWith(profileTwitter);
     });
   });
 
@@ -261,23 +262,25 @@ describe('AuthController', () => {
         accessToken: 'token-google',
         user: { id: 2, name: 'Jane', role: 'USER' },
       };
-      (authService.googleCallback as jest.Mock).mockResolvedValue(expected);
+      const googleCallbackSpy = (authService.googleCallback as jest.Mock).mockResolvedValue(
+        expected,
+      );
 
-      const result = await controller.googleCallback(googleProfile);
-
+      const result = await controller.googleCallback(googleProfile as unknown as GoogleProfileDto);
       expect(result).toEqual(expected);
-      expect(authService.googleCallback as jest.Mock).toHaveBeenCalledWith(googleProfile);
+      expect(googleCallbackSpy).toHaveBeenCalledWith(googleProfile);
     });
 
     it('should propagate thrown error', async () => {
       const err = new Error('g-error');
       (authService.googleCallback as jest.Mock).mockRejectedValue(err);
-
-      await expect(controller.googleCallback(googleProfile)).rejects.toThrow(err);
+      await expect(
+        controller.googleCallback(googleProfile as unknown as GoogleProfileDto),
+      ).rejects.toThrow(err);
     });
 
     it('should handle undefined profile gracefully', async () => {
-      (authService.googleCallback as jest.Mock).mockResolvedValue({
+      const googleCallbackSpy = (authService.googleCallback as jest.Mock).mockResolvedValue({
         accessToken: null,
         user: null,
       });
@@ -285,7 +288,7 @@ describe('AuthController', () => {
       const result = await controller.googleCallback(undefined as unknown as GoogleProfileDto);
 
       expect(result).toEqual({ accessToken: null, user: null });
-      expect(authService.googleCallback as jest.Mock).toHaveBeenCalledWith(undefined);
+      expect(googleCallbackSpy).toHaveBeenCalledWith(undefined);
     });
   });
 

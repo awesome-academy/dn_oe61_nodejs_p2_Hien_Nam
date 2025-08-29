@@ -20,7 +20,6 @@ export class AuthServiceController {
   async validateUser(@Payload() data: { token: string }): Promise<TUserPayload> {
     return await this.authService.validateToken(data.token);
   }
-
   @MessagePattern(AuthMsgPattern.AUTH_LOGIN_FACEBOOK)
   async loginFromFacebook(data: ProfileFacebookUser) {
     return this.authService.loginFromFacebook(data);

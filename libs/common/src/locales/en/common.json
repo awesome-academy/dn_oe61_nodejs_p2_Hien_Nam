@@ -5,7 +5,9 @@
     "isEmail": "{field} must be a valid email",
     "isNotEmpty": "{field} should not be empty",
     "minLength": "{field} must be at least {min} characters",
-    "maxLength": "{field} must be at most {max} characters"
+    "maxLength": "{field} must be at most {max} characters",
+    "isDate":"{field} must be a valid date",
+    "phoneInvalidType": "{field} must be a valid phone number"
   },
   "auth": {
     "invalidCredentials": "Invalid credentials",
@@ -48,7 +50,27 @@
     "token_missing": "Token missing",
     "invalid_or_expired_token": "Invalid or expired token",
     "forbidden": "Forbidden",
-    "unauthorized": "Unauthorized"
+    "unauthorized": "Unauthorized",
+    "action":{
+      "login":{
+        "success":"Login successfully"
+      },
+      "facebookCallback":{
+        "success":"Login successfully"
+      }
+    }
+  },
+  "user":{
+    "phoneNumberExist":"Phone number already exists",
+    "emailExist":"Email already exists"
+  },
+  "adminuser":{
+    "action":{
+      "create":{
+        "success":"Create user successfully",
+        "error":"Failed to create user. Please try again"
+      }
+    }
   },
   "errors": {
     "internalServerError": "Internal server error",
@@ -91,6 +113,8 @@
     },
     "sendEmailComplete": {
       "dataNotFound": "Data is required"
-    }
+    },
+    "invalidTypeImage":"Only |jpg|jpeg|png|gif| image types are allowed",
+    "invalidSizeImage":"Image size must be less than 2MB"
   }
 }

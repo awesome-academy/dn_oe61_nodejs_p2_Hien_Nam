@@ -18,4 +18,9 @@ export default () => ({
     appSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackUrl: process.env.GOOGLE_CALLBACK_URL,
   },
+  twitter: {
+    appID: process.env.TWITTER_CLIENT_ID,
+    appSecret: process.env.TWITTER_CLIENT_SECRET,
+    callbackUrl: process.env.TWITTER_CALLBACK_URL,
+  },
 });

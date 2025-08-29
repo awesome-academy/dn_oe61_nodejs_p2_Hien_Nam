@@ -10,6 +10,7 @@ import * as classValidator from 'class-validator';
 import { AuthProvider, PrismaClient, Provider } from '../generated/prisma';
 import { INCLUDE_AUTH_PROVIDER_USER } from '../src/constants/include-auth-user';
 import { UserService } from '../src/user-service.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('UserService – Facebook login', () => {
   let service: UserService;
@@ -36,6 +37,10 @@ describe('UserService – Facebook login', () => {
           },
         },
         { provide: CustomLogger, useValue: { error: jest.fn(), log: jest.fn() } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('default-avatar.png') },
+        },
       ],
     }).compile();
     service = moduleRef.get<UserService>(UserService);
