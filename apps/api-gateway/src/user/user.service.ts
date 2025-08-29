@@ -1,13 +1,16 @@
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { USER_SERVICE } from '@app/common/constant/service.constant';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
+import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
 import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
+import { UserSummaryResponse } from '@app/common/dto/user/responses/user-summary.response';
 import { UserMsgPattern } from '@app/common/enums/message-patterns/user.pattern';
 import { callMicroservice } from '@app/common/helpers/microservices';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 
 @Injectable()
@@ -21,6 +24,22 @@ export class UserService {
     return await callMicroservice(
       this.userClient.send<BaseResponse<UserCreationResponse>>(
         UserMsgPattern.ADMIN_CREATE_USER,
+        dto,
+      ),
+      USER_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+  }
+  async updateRoles(dto: UserUpdateRoleRequest): Promise<BaseResponse<UserSummaryResponse[]>> {
+    const dtoInstance = plainToInstance(UserUpdateRoleRequest, dto);
+    await validateOrReject(dtoInstance);
+    return await callMicroservice(
+      this.userClient.send<BaseResponse<UserSummaryResponse[]>>(
+        UserMsgPattern.ADMIN_UPDATE_ROLE,
         dto,
       ),
       USER_SERVICE,

@@ -1,26 +1,36 @@
+import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
+import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
+import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
+import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
+import { UserSummaryResponse } from '@app/common/dto/user/responses/user-summary.response';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { RoleEnum } from '@app/common/enums/role.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { BaseResponse } from '@app/common/interfaces/data-type';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { handlePrismaError } from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { RpcException } from '@nestjs/microservices';
+import * as bcrypt from 'bcrypt';
+import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { randomUUID } from 'crypto';
-import { Injectable } from '@nestjs/common';
-import { AuthProvider, Prisma, PrismaClient, Provider, Role, User } from '../generated/prisma';
-import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
-import { RpcException } from '@nestjs/microservices';
-import { plainToInstance } from 'class-transformer';
+import {
+  AuthProvider,
+  Prisma,
+  PrismaClient,
+  Provider,
+  Role,
+  User,
+  UserProfile,
+} from '../generated/prisma';
 import { INCLUDE_AUTH_PROVIDER_USER } from './constants/include-auth-user';
-import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
-import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
-import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
-import { BaseResponse } from '@app/common/interfaces/data-type';
-import * as bcrypt from 'bcrypt';
-import { StatusKey } from '@app/common/enums/status-key.enum';
-import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
-import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class UserService {
   constructor(
@@ -477,5 +487,60 @@ export class UserService {
   }
   async hashPassword(rawPassword: string, saltRound: number = 10): Promise<string> {
     return await bcrypt.hash(rawPassword, saltRound);
+  }
+  async updateRoles(dto: UserUpdateRoleRequest): Promise<BaseResponse<UserSummaryResponse[]>> {
+    const dtoInstance = plainToInstance(UserUpdateRoleRequest, dto);
+    await validateOrReject(dtoInstance);
+    const userIds = dto.users.map((user) => user.userId);
+    const existingUsers = await this.prismaService.client.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true },
+    });
+    const existingIds = existingUsers.map((u) => u.id);
+    const notFoundIds = userIds.filter((id) => !existingIds.includes(id));
+    if (notFoundIds.length > 0) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.user.someUserNotExist',
+        args: {
+          missingIds: notFoundIds.join(', '),
+        },
+      });
+    }
+    try {
+      const updateRolesPromise = dto.users.map((user) =>
+        this.prismaService.client.user.update({
+          where: { id: user.userId },
+          data: { role: { connect: { name: user.role } } },
+          include: {
+            role: true,
+            profile: true,
+          },
+        }),
+      );
+      const updatedUsers = await this.prismaService.client.$transaction(updateRolesPromise);
+      const mappedUsers = updatedUsers.map((user) => this.mapToUserSummaryResponse(user));
+      return {
+        statusKey: StatusKey.SUCCESS,
+        data: mappedUsers,
+      };
+    } catch (error) {
+      return handlePrismaError(error, UserService.name, 'updateRoles', this.loggerService);
+    }
+  }
+  private mapToUserSummaryResponse(
+    data: User & { role: Role; profile: UserProfile | null },
+  ): UserSummaryResponse {
+    return {
+      id: data.id,
+      name: data.name,
+      userName: data.userName,
+      email: data.email,
+      phone: data.profile?.phoneNumber,
+      address: data.profile?.address,
+      isActive: data.isActive,
+      imageUrl: data.imageUrl,
+      role: data.role.name,
+    };
   }
 }

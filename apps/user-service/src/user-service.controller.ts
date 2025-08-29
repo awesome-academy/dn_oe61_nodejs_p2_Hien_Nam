@@ -7,6 +7,7 @@ import { UserService } from './user-service.service';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
+import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
 
 @Controller()
 export class UserServiceController {
@@ -47,5 +48,9 @@ export class UserServiceController {
   @MessagePattern(UserMsgPattern.ADMIN_CREATE_USER)
   async adminCreateUser(@Payload() dto: UserCreationRequest) {
     return await this.userService.create(dto);
+  }
+  @MessagePattern(UserMsgPattern.ADMIN_UPDATE_ROLE)
+  async adminUpdateRole(@Payload() dto: UserUpdateRoleRequest) {
+    return await this.userService.updateRoles(dto);
   }
 }

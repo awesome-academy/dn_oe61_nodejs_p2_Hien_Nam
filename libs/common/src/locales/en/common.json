@@ -11,7 +11,8 @@
     "isNumber": "{field} must be a number",
     "isInt": "{field} must be an integer",
     "isDateString": "{field} must be a valid ISO date string",
-    "isUrl": "{field} must be a valid URL"
+    "isUrl": "{field} must be a valid URL",
+    "isEnum":"{field} must be one of {enum}"
   },
   "product": {
     "invalidCredentials": "Invalid product information",
@@ -85,13 +86,18 @@
   },
   "user":{
     "phoneNumberExist":"Phone number already exists",
-    "emailExist":"Email already exists"
+    "emailExist":"Email already exists",
+    "someUserNotExist":"Some users do not exist. UserIds: [{missingIds}]"
   },
   "adminuser":{
     "action":{
       "create":{
         "success":"Create user successfully",
         "error":"Failed to create user. Please try again"
+      },
+      "updateRoles":{
+        "success":"Update roles successfully",
+        "failed":"Failed to update roles. Please try again"
       }
     }
   },
@@ -138,7 +144,7 @@
       "dataNotFound": "Data is required"
     },
     "invalidTypeImage":"Only |jpg|jpeg|png|gif| image types are allowed",
-    "invalidSizeImage":"Image size must be less than 2MB",
+    "invalidSizeImage":"Image size must be less than {maxImageSizeMB} MB",
     "cloudinary": {
       "fileExists": "File with name '{fileName}' already exists."
     }
