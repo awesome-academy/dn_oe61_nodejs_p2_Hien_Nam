@@ -28,6 +28,7 @@ model Category {
 
 model Product {
   id          Int                @id @default(autoincrement())
+  skuId       String @unique @db.VarChar(30)
   name        String             @db.VarChar(50)
   description String?
   status      ProductStatus      @default(IN_STOCK)
@@ -64,7 +65,7 @@ model ProductVariant {
   updatedAt DateTime? @updatedAt
 
   productId Int 
-  sizeId    Int 
+  sizeId    Int
 
   product Product @relation(fields: [productId], references: [id])
   size    Size    @relation(fields: [sizeId], references: [id])
@@ -132,7 +133,7 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
 
-  userId Int @unique
+  userId Int
 
   items    OrderItem[]
   payment  Payment?
@@ -157,11 +158,12 @@ model OrderItem {
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
 
-  orderId         Int @unique
-  productVariantId Int @unique
+  orderId         Int
+  productVariantId Int
 
   order          Order           @relation(fields: [orderId], references: [id])
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  @@unique([orderId, productVariantId])
   @@map("order_items")
 }
 
@@ -172,10 +174,11 @@ model Review {
   createdAt DateTime @default(now())
   updatedAt DateTime? @updatedAt
 
-  userId    Int @unique
-  productId Int @unique
+  userId    Int
+  productId Int
 
   product Product @relation(fields: [productId], references: [id])
+  @@unique([userId, productId])
   @@map("reviews")
 }
 

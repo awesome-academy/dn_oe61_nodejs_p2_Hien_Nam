@@ -1,0 +1,4 @@
+export enum ProductPattern {
+  CHECK_PRODUCT_EXISTS = 'CHECK_PRODUCT_EXISTS',
+  CREATE_PRODUCT = 'CREATE_PRODUCT',
+}
