@@ -17,7 +17,6 @@ export class ProductService {
     });
 
     if (!product) return null;
-
     return {
       id: product.id,
       name: product.name,
