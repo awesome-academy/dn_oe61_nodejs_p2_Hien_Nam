@@ -18,13 +18,20 @@
     "invalidCredentials": "Invalid product information",
     "action": {
       "create": {
-        "success": "New product successfully created"
+        "success": "New product successfully created",
+        "failed": "Create failed"
+      },
+      "update": {
+        "success": "Product successfully update",
+        "failed": "Update failed"
       }
     },
     "error": {
       "productExists": "Product already exists",
+      "failed": "Create failed",
+      "productNotFound": "Product does not exist yet",
       "filesExists": "Files not received yet",
-      "failed": "Create failed"
+      "skuIdExists": "SkuId already exists"
     }
   },
   "file": {

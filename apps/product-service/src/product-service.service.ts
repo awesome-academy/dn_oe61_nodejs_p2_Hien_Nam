@@ -1,11 +1,14 @@
 import { PrismaService } from '@app/prisma';
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient, Product } from '../generated/prisma';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
 import { Decimal } from '@prisma/client/runtime/library';
+import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 
 @Injectable()
 export class ProductService {
@@ -95,5 +98,60 @@ export class ProductService {
     } as ProductResponse;
 
     return result;
+  }
+
+  async updateProduct(input: UpdateProductDto, skuIdParam: string): Promise<Product | null> {
+    const dto = plainToInstance(UpdateProductDto, input);
+    await validateOrReject(dto);
+
+    const product = await this.validationDataProduct(input, skuIdParam);
+
+    return await this.prismaService.client.$transaction(async (prisma) => {
+      const productUpdate = await prisma.product.update({
+        data: {
+          ...(product.name !== undefined && { name: product.name }),
+          ...(product.skuId !== undefined && { skuId: product.skuId }),
+          ...(product.description !== undefined && { description: product.description }),
+          ...(product.status !== undefined && { status: product.status }),
+          ...(product.basePrice !== undefined && { basePrice: product.basePrice }),
+          ...(product.quantity !== undefined && { quantity: product.quantity }),
+        },
+        where: {
+          skuId: skuIdParam,
+        },
+      });
+      return productUpdate;
+    });
+  }
+
+  private async validationDataProduct(input: UpdateProductDto, skuIdParam: string) {
+    const product = await this.checkProductExists(skuIdParam);
+    if (!product) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.product.error.productNotFound',
+      });
+    }
+
+    if (input.skuId !== undefined && input.skuId !== product.skuId) {
+      const uniqueSkuId = await this.checkProductExists(input.skuId);
+      if (uniqueSkuId) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.error.skuIdExists',
+        });
+      }
+      product.skuId = input.skuId;
+    }
+
+    const { name, description, status, basePrice, quantity } = input;
+
+    if (name != undefined) product.name = name;
+    if (description != undefined) product.description = description;
+    if (status != undefined) product.status = status;
+    if (basePrice != undefined) product.basePrice = new Decimal(basePrice);
+    if (quantity != undefined) product.quantity = quantity;
+
+    return product;
   }
 }

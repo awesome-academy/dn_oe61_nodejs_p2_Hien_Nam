@@ -17,13 +17,20 @@
     "invalidCredentials": "Thông tin sản phẩm không chính xác",
     "action": {
       "create": {
-        "success": "Tạo mới sản phẩm thành công"
+        "success": "Tạo mới sản phẩm thành công",
+        "failed": "Tạo mới thất bại"
+      },
+      "update": {
+        "success": "Cập nhật sản phẩm thành công",
+        "failed": "Cập nhật thất bại"
       }
     },
     "error": {
       "productExists": "Sản phẩm đã tồn tại",
       "filesExists": "Chưa nhận được files",
-      "failed": "Tạo mới thất bại"
+      "failed": "Tạo mới thất bại",
+      "productNotFound": "Sản phẩm chưa tồn tại",
+      "skuIdExists": "SkuId đã tồn tại"
     }
   },
   "file": {

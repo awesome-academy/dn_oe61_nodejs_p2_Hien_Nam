@@ -1,4 +1,12 @@
-import { Body, Controller, Post, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Param,
+  Patch,
+  Post,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
 import { ProductDto } from '@app/common/dto/product/product.dto';
@@ -9,8 +17,9 @@ import { ProductResponse } from '@app/common/dto/product/response/product-respon
 import { AuthRoles } from '@app/common/decorators/auth-role.decorator';
 import { Role } from '@app/common/enums/roles/users.enum';
 import { COLUMN } from '@app/common/constant/column.constant';
+import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
 
-@Controller('products')
+@Controller('admin/products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
@@ -26,5 +35,11 @@ export class ProductController {
     @UploadedFiles() files: Array<Express.Multer.File>,
   ): Promise<BaseResponse<ProductResponse>> {
     return this.productService.create(input, files);
+  }
+
+  @AuthRoles(Role.ADMIN)
+  @Patch(':skuId')
+  async update(@Param('skuId') skuId: string, @Body() input: UpdateProductDto) {
+    return await this.productService.update(skuId, input);
   }
 }

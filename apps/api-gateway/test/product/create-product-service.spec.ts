@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { Readable } from 'stream';
 import { I18nService } from 'nestjs-i18n';
-import { ProductService } from '../src/product/product.service';
 import { ProductDto } from '@app/common/dto/product/product.dto';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
 import { BaseResponse } from '@app/common/interfaces/data-type';
@@ -27,6 +26,7 @@ jest.mock('@app/common/utils/data.util', () => ({
 
 import { callMicroservice } from '@app/common/helpers/microservices';
 import { buildBaseResponse } from '@app/common/utils/data.util';
+import { ProductService } from 'apps/api-gateway/src/product/product.service';
 import { Decimal } from '@prisma/client/runtime/library';
 
 describe('ProductService', () => {
@@ -306,7 +306,7 @@ describe('ProductService', () => {
       expect(mockCloudinaryService.uploadImagesToCloudinary).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle null product creation response', async () => {
+    it('should throw BadRequestException when product creation returns null', async () => {
       const mockImagesUrl = ['https://cloudinary.com/image1.jpg'];
 
       mockCallMicroservice.mockResolvedValueOnce(null);
@@ -317,9 +317,12 @@ describe('ProductService', () => {
       await expect(service.create(mockProductDto, [mockFiles[0]])).rejects.toThrow(
         BadRequestException,
       );
+      await expect(service.create(mockProductDto, [mockFiles[0]])).rejects.toThrow(
+        'Product creation failed',
+      );
 
-      expect(mockCallMicroservice).toHaveBeenCalledTimes(2);
-      expect(mockCloudinaryService.uploadImagesToCloudinary).toHaveBeenCalledTimes(1);
+      expect(mockCallMicroservice).toHaveBeenCalledTimes(4); // 2 calls per service.create call
+      expect(mockCloudinaryService.uploadImagesToCloudinary).toHaveBeenCalledTimes(2);
       expect(mockI18nService.translate).toHaveBeenCalledWith('common.product.error.failed');
     });
 
