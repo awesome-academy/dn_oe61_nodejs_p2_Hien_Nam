@@ -48,6 +48,10 @@
       "deleteProductCategory": {
         "success": "Product category relationship deleted successfully",
         "failed": "Failed to delete product category relationship"
+      },
+      "deleteProductImages": {
+        "success": "Product images deleted successfully",
+        "failed": "Failed to delete product images"
       }
     },
     "productCategory": {
@@ -63,12 +67,22 @@
         "categoryNotFound": "Category not found",
         "invalidCategoryData": "Invalid product category data"
       }
+    },
+    "productImages": {
+      "error": {
+        "maxImagesExceeded": "Products are allowed up to 10 photos maximum",
+        "productImagesNotFound": "Product images not found",
+        "productNotFound": "Product not found"
+      }
     }
   },
   "file": {
     "validation": {
       "unsupportedType": "File type not supported. Only JPG, JPEG, PNG, WEBP are allowed. Received: {fileType}",
       "sizeExceeded": "File size too large. Maximum allowed: 300MB. Received: {fileSize}MB"
+    },
+    "error": {
+      "invalidUrl": "URL is invalid"
     }
   },
   "auth": {

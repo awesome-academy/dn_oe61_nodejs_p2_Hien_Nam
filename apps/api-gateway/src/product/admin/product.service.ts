@@ -20,6 +20,10 @@ import { CreateProductCategoryDto } from '@app/common/dto/product/create-product
 import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
+import { CreateProductImagesDto } from '@app/common/dto/product/create-product-images.dto';
+import { MAX_IMAGES } from '@app/common/constant/cloudinary';
+import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
+import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
 
 @Injectable()
 export class ProductService {
@@ -263,5 +267,106 @@ export class ProductService {
     }
 
     return buildBaseResponse<ProductCategoryResponse>(StatusKey.SUCCESS, result);
+  }
+
+  async createProductImages(
+    dto: CreateProductImagesDto,
+    files: Array<Express.Multer.File>,
+  ): Promise<BaseResponse<ProductImagesResponse[]>> {
+    const productExists = await callMicroservice<ProductResponse>(
+      this.productClient.send(ProductPattern.CHECK_PRODUCT_BY_ID, dto.productId),
+      PRODUCT_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    if (!productExists) {
+      throw new BadRequestException(
+        this.i18nService.translate('common.product.error.productNotFound'),
+      );
+    }
+
+    if (!files || files.length === 0) {
+      throw new BadRequestException(this.i18nService.translate('common.product.error.filesExists'));
+    }
+
+    await this.isExceedMaxImages(dto, files);
+
+    const imagesUrl = await this.cloudinaryService.uploadImagesToCloudinary(files);
+
+    const result = await callMicroservice<ProductImagesResponse[]>(
+      this.productClient.send(ProductPattern.CREATE_PRODUCT_IMAGES, {
+        productId: dto.productId,
+        secureUrls: imagesUrl,
+      }),
+      PRODUCT_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    if (!result) {
+      try {
+        await this.cloudinaryService.deleteByUrls(imagesUrl);
+      } catch (err) {
+        if (err instanceof Error) {
+          this.loggerService.error('Rollback Cloudinary images failed', err.message);
+        }
+      }
+      throw new BadRequestException(
+        this.i18nService.translate('common.product.action.createProductImages.error.failed'),
+      );
+    }
+
+    return buildBaseResponse<ProductImagesResponse[]>(StatusKey.SUCCESS, result);
+  }
+
+  async isExceedMaxImages(
+    dto: CreateProductImagesDto,
+    files: Array<Express.Multer.File>,
+  ): Promise<void> {
+    const countProductImages = await callMicroservice<number>(
+      this.productClient.send(ProductPattern.COUNT_PRODUCT_IMAGES, dto.productId),
+      PRODUCT_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    const totalImages = countProductImages + files.length;
+    if (totalImages > MAX_IMAGES) {
+      throw new BadRequestException(
+        this.i18nService.translate('common.product.productImages.error.maxImagesExceeded'),
+      );
+    }
+  }
+
+  async deleteProductImages(
+    productImageIds: DeleteProductImagesDto,
+  ): Promise<BaseResponse<ProductImagesResponse[]>> {
+    const result = await callMicroservice<ProductImagesResponse[]>(
+      this.productClient.send(ProductPattern.DELETE_PRODUCT_IMAGES, productImageIds),
+      PRODUCT_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+
+    if (!result) {
+      throw new BadRequestException(
+        this.i18nService.translate('common.product.error.productNotFound'),
+      );
+    }
+
+    return buildBaseResponse<ProductImagesResponse[]>(StatusKey.SUCCESS, result);
   }
 }

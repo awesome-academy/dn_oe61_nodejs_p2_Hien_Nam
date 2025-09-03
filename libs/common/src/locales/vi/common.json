@@ -47,7 +47,23 @@
       "deleteProductCategory": {
         "success": "Xóa liên kết danh mục sản phẩm thành công",
         "failed": "Xóa liên kết danh mục sản phẩm thất bại"
+      },
+      "deleteProductImages": {
+        "success": "Xóa ảnh sản phẩm thành công",
+        "failed": "Xóa ảnh sản phẩm thất bại"
+      },
+      "createProductImages": {
+        "success": "Tạo ảnh sản phẩm thành công",
+        "failed": "Tạo ảnh sản phẩm thất bại"
       }
+    },
+    "error": {
+      "productExists": "Sản phẩm đã tồn tại",
+      "filesExists": "Chưa nhận được files",
+      "failed": "Tạo mới thất bại",
+      "productNotFound": "Sản phẩm chưa tồn tại",
+      "skuIdExists": "SkuId đã tồn tại",
+      "productInOrder": "Sản phẩm đã tồn tại trong đơn hàng"
     },
     "productCategory": {
       "error": {
@@ -62,12 +78,22 @@
         "categoryNotFound": "Không tìm thấy danh mục",
         "invalidCategoryData": "Dữ liệu danh mục sản phẩm không hợp lệ"
       }
+    },
+    "productImages": {
+      "error": {
+        "maxImagesExceeded": "Sản phẩm chỉ được phép tối đa 10 ảnh",
+        "productImagesNotFound": "Không tìm thấy ảnh sản phẩm",
+        "productNotFound": "Không tìm thấy sản phẩm"
+      }
     }
   },
   "file": {
     "validation": {
       "unsupportedType": "Loại file không được hỗ trợ. Chỉ cho phép JPG, JPEG, PNG, WEBP. Nhận được: {fileType}",
       "sizeExceeded": "Kích thước file quá lớn. Tối đa cho phép: 300MB. Nhận được: {fileSize}MB"
+    },
+    "error": {
+      "invalidUrl": "URL không hợp lệ"
     }
   },
   "auth": {
