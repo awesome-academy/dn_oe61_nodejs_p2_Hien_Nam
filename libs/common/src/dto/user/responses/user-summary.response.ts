@@ -7,5 +7,6 @@ export class UserSummaryResponse {
   address?: string | null;
   isActive: boolean;
   imageUrl?: string | null;
+  status: string;
   role: string;
 }

@@ -57,7 +57,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           statusCode,
           ...rest
         } = errorResponse as Record<string, unknown>;
-        message = (msg as string) ? this.i18nService.translate(msg as string) : HTTP_EXCEPTION_CODE;
+        message = (msg as string) || HTTP_EXCEPTION_CODE;
         detail = Object.keys(rest).length > 0 ? rest : undefined;
         code = (typeof err === 'string' ? err : HttpStatus[status]) ?? HTTP_EXCEPTION_CODE;
         status = typeof statusCode === 'number' ? statusCode : status;

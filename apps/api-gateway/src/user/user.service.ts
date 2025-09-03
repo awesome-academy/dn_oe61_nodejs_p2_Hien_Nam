@@ -2,6 +2,7 @@ import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.co
 import { USER_SERVICE } from '@app/common/constant/service.constant';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
+import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
 import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
 import { UserSummaryResponse } from '@app/common/dto/user/responses/user-summary.response';
 import { UserMsgPattern } from '@app/common/enums/message-patterns/user.pattern';
@@ -40,6 +41,22 @@ export class UserService {
     return await callMicroservice(
       this.userClient.send<BaseResponse<UserSummaryResponse[]>>(
         UserMsgPattern.ADMIN_UPDATE_ROLE,
+        dto,
+      ),
+      USER_SERVICE,
+      this.loggerService,
+      {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      },
+    );
+  }
+  async updateStatuses(dto: UserUpdateStatusRequest): Promise<BaseResponse<UserSummaryResponse[]>> {
+    const dtoInstance = plainToInstance(UserUpdateStatusRequest, dto);
+    await validateOrReject(dtoInstance);
+    return await callMicroservice(
+      this.userClient.send<BaseResponse<UserSummaryResponse[] | []>>(
+        UserMsgPattern.ADMIN_UPDATE_STATUS,
         dto,
       ),
       USER_SERVICE,

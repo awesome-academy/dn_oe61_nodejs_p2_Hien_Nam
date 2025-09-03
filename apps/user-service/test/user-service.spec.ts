@@ -20,6 +20,8 @@ import * as classValidator from 'class-validator';
 import { PrismaClient, Provider, Role } from '../generated/prisma';
 import { UserService } from '../src/user-service.service';
 import { Role as RoleUpdate } from '@app/common/enums/roles/users.enum';
+import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { UserStatus } from '@app/common/enums/user-status.enum';
 
 jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password') }));
 
@@ -280,6 +282,7 @@ describe('UserService', () => {
         name: 'Jane',
         userName: 'jane',
         role: 'USER',
+        status: 'ACTIVE',
         email: undefined,
       };
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
@@ -352,6 +355,7 @@ describe('UserService', () => {
         name: dto.name,
         userName: dto.userName,
         role: 'USER',
+        status: 'ACTIVE',
         email: dto.email,
       };
       const createUserSpy = jest.spyOn(service, 'createUser').mockResolvedValue(createdUser);
@@ -377,6 +381,7 @@ describe('UserService', () => {
         name: dto.name,
         userName: dto.userName,
         role: 'USER',
+        status: 'ACTIVE',
         email: undefined,
       };
       jest.spyOn(service, 'createUser').mockResolvedValue(createdUser);
@@ -788,7 +793,10 @@ describe('UserService', () => {
     });
     it('should validate dto, update roles and return mapped response', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
-      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([{ id: 1 }, { id: 2 }]);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, role: 'USER' },
+        { id: 2, role: 'ADMIN' },
+      ]);
       const updatedUsers = [
         {
           id: 1,
@@ -797,6 +805,7 @@ describe('UserService', () => {
           email: 'a@mail.com',
           isActive: true,
           imageUrl: null,
+          status: 'ACTIVE',
           role: { name: 'ADMIN' },
           profile: null,
         },
@@ -807,6 +816,7 @@ describe('UserService', () => {
           email: 'b@mail.com',
           isActive: false,
           imageUrl: null,
+          status: 'INACTIVE',
           role: { name: 'USER' },
           profile: { phoneNumber: null, address: null },
         },
@@ -815,7 +825,7 @@ describe('UserService', () => {
       const result = await service.updateRoles(dto);
       expect(_prismaMock.client.user.findMany).toHaveBeenCalledWith({
         where: { id: { in: [1, 2] } },
-        select: { id: true },
+        select: { id: true, role: { select: { name: true } } },
       });
       expect(_prismaMock.client.$transaction).toHaveBeenCalled();
       expect(result.statusKey).toBe(StatusKey.SUCCESS);
@@ -857,7 +867,10 @@ describe('UserService', () => {
     });
     it('should propagate prisma error via handlePrismaError', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
-      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([{ id: 1 }, { id: 2 }]);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, role: 'USER' },
+        { id: 2, role: 'ADMIN' },
+      ]);
       const prismaError = new Error('db fail');
       (_prismaMock.client.$transaction as jest.Mock).mockRejectedValueOnce(prismaError);
       const mappedError = new TypedRpcException({
@@ -874,6 +887,155 @@ describe('UserService', () => {
         'updateRoles',
         expect.anything(),
       );
+    });
+  });
+  describe('update statuses', () => {
+    const dto: UserUpdateStatusRequest = {
+      users: [
+        { userId: 1, status: UserStatus.ACTIVE },
+        { userId: 2, status: UserStatus.INACTIVE },
+      ],
+    };
+    beforeEach(() => {
+      jest.clearAllMocks();
+      (classValidator.validateOrReject as jest.Mock).mockResolvedValue(undefined);
+    });
+    // afterEach(() => {
+    //   (classValidator.validateOrReject as jest.Mock).mockResolvedValue(undefined);
+    // });
+    it('should validate dto, update statuses and return mapped response', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, status: 'INACTIVE' },
+        { id: 2, status: 'ACTIVE' },
+      ]);
+      const updatedUsers = [
+        {
+          id: 1,
+          name: 'User A',
+          userName: 'usera',
+          email: 'a@mail.com',
+          isActive: true,
+          imageUrl: null,
+          status: 'ACTIVE',
+          role: { name: 'USER' },
+          profile: null,
+        },
+        {
+          id: 2,
+          name: 'User B',
+          userName: 'userb',
+          email: 'b@mail.com',
+          isActive: false,
+          imageUrl: null,
+          status: 'INACTIVE',
+          role: { name: 'ADMIN' },
+          profile: { phoneNumber: null, address: null },
+        },
+      ];
+      (_prismaMock.client.$transaction as jest.Mock).mockResolvedValueOnce(updatedUsers);
+      const result = await service.updateStatuses(dto);
+      expect(_prismaMock.client.user.findMany).toHaveBeenCalledWith({
+        where: { id: { in: [1, 2] } },
+        select: { id: true, status: true },
+      });
+      expect(_prismaMock.client.$transaction).toHaveBeenCalled();
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 1, status: 'ACTIVE' }),
+          expect.objectContaining({ id: 2, status: 'INACTIVE' }),
+        ]),
+      );
+    });
+
+    it('should propagate validation error', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      } as const;
+      jest
+        .spyOn(classValidator, 'validateOrReject')
+        .mockRejectedValueOnce(new TypedRpcException(rpcError));
+      try {
+        await service.updateStatuses(dto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
+      }
+    });
+
+    it('should throw NOT_FOUND when some users do not exist', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([{ id: 1 }]);
+      await expect(service.updateStatuses(dto)).rejects.toEqual(
+        new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.user.someUserNotExist',
+          args: { missingIds: '2' },
+        }),
+      );
+    });
+
+    it('should propagate prisma error via handlePrismaError', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, status: 'INACTIVE' },
+        { id: 2, status: 'ACTIVE' },
+      ]);
+      const prismaError = new Error('db fail');
+      (_prismaMock.client.$transaction as jest.Mock).mockRejectedValueOnce(prismaError);
+      const mappedError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.rowNotFound',
+      });
+      jest.spyOn(prismaClientError, 'handlePrismaError').mockImplementationOnce(() => {
+        throw mappedError;
+      });
+      await expect(service.updateStatuses(dto)).rejects.toBe(mappedError);
+      expect(prismaClientError.handlePrismaError).toHaveBeenCalledWith(
+        prismaError,
+        'UserService',
+        'updateStatuses',
+        expect.anything(),
+      );
+    });
+
+    it('should return status unchanged if no users had their status changed', async () => {
+      const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
+      (_prismaMock.client.user.findMany as jest.Mock).mockResolvedValueOnce([
+        { id: 1, status: 'ACTIVE' },
+        { id: 2, status: 'INACTIVE' },
+      ]);
+      const unchangedUsers = [
+        {
+          id: 1,
+          name: 'User A',
+          userName: 'usera',
+          email: 'a@mail.com',
+          isActive: true,
+          imageUrl: null,
+          status: 'ACTIVE',
+          role: { name: 'USER' },
+          profile: null,
+        },
+        {
+          id: 2,
+          name: 'User B',
+          userName: 'userb',
+          email: 'b@mail.com',
+          isActive: false,
+          imageUrl: null,
+          status: 'INACTIVE',
+          role: { name: 'ADMIN' },
+          profile: { phoneNumber: null, address: null },
+        },
+      ];
+      (_prismaMock.client.$transaction as jest.Mock).mockResolvedValueOnce(unchangedUsers);
+      const result = await service.updateStatuses(dto);
+      expect(result.statusKey).toBe(StatusKey.UNCHANGED);
+      expect(result.data).toEqual([]);
     });
   });
 });
