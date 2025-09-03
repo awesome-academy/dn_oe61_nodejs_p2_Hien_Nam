@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ProductServiceController } from './product-service.controller';
 import { ProductService } from './product-service.service';
 import { ConfigModule } from '@nestjs/config';
@@ -8,6 +8,7 @@ import configuration from '../configuration';
 import { PrismaClient } from '../generated/prisma';
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
 import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 
 @Module({
   imports: [
@@ -38,6 +39,8 @@ import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n'
   controllers: [ProductServiceController],
   providers: [
     ProductService,
+    Logger,
+    PaginationService,
     {
       provide: 'APP_PIPE',
       useClass: I18nRpcValidationPipe,

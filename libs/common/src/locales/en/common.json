@@ -6,25 +6,63 @@
     "isNotEmpty": "{field} should not be empty",
     "minLength": "{field} must be at least {min} characters",
     "maxLength": "{field} must be at most {max} characters",
-    "isDate":"{field} must be a valid date",
+    "isDate": "{field} must be a valid date",
     "phoneInvalidType": "{field} must be a valid phone number",
     "isNumber": "{field} must be a number",
     "isInt": "{field} must be an integer",
     "isDateString": "{field} must be a valid ISO date string",
     "isUrl": "{field} must be a valid URL",
-    "isEnum":"{field} must be one of {enum}"
+    "isEnum": "{field} must be one of {enum}"
   },
   "product": {
     "invalidCredentials": "Invalid product information",
     "action": {
       "create": {
-        "success": "New product successfully created"
+        "success": "New product successfully created",
+        "failed": "Create failed"
+      },
+      "update": {
+        "success": "Product successfully update",
+        "failed": "Update failed"
+      },
+      "delete": {
+        "success": "Product successfully delete",
+        "failed": "Delete failed"
+      },
+      "getById": {
+        "success": "Product retrieved successfully",
+        "failed": "Failed to retrieve product"
+      },
+      "getAll": {
+        "success": "Product list retrieved successfully",
+        "failed": "Failed to retrieve product list"
+      },
+      "createProductCategory": {
+        "success": "Product category relationship created successfully",
+        "failed": "Failed to create product category relationship"
+      },
+      "updateProductCategory": {
+        "success": "Product category relationship updated successfully",
+        "failed": "Failed to update product category relationship"
+      },
+      "deleteProductCategory": {
+        "success": "Product category relationship deleted successfully",
+        "failed": "Failed to delete product category relationship"
       }
     },
-    "error": {
-      "productExists": "Product already exists",
-      "filesExists": "Files not received yet",
-      "failed": "Create failed"
+    "productCategory": {
+      "error": {
+        "productExists": "Product already exists",
+        "failed": "Create failed",
+        "productNotFound": "Product does not exist yet",
+        "filesExists": "Files not received yet",
+        "skuIdExists": "SkuId already exists",
+        "productInOrder": "Product already exists in order",
+        "relationshipExists": "Product category relationship already exists",
+        "relationshipNotFound": "Product category relationship not found",
+        "categoryNotFound": "Category not found",
+        "invalidCategoryData": "Invalid product category data"
+      }
     }
   },
   "file": {
@@ -75,78 +113,86 @@
     "invalid_or_expired_token": "Invalid or expired token",
     "forbidden": "Forbidden",
     "unauthorized": "Unauthorized",
-    "action":{
-      "login":{
-        "success":"Login successfully"
+    "action": {
+      "login": {
+        "success": "Login successfully"
       },
-      "facebookCallback":{
-        "success":"Login successfully"
+      "facebookCallback": {
+        "success": "Login successfully"
       }
     }
   },
-  "user":{
-    "phoneNumberExist":"Phone number already exists",
-    "emailExist":"Email already exists",
-    "someUserNotExist":"Some users do not exist. UserIds: [{missingIds}]"
+  "user": {
+    "phoneNumberExist": "Phone number already exists",
+    "emailExist": "Email already exists",
+    "someUserNotExist": "Some users do not exist. UserIds: [{missingIds}]"
   },
-  "adminuser":{
-    "action":{
-      "create":{
-        "success":"Create user successfully",
-        "error":"Failed to create user. Please try again"
+  "adminuser": {
+    "action": {
+      "create": {
+        "success": "Create user successfully",
+        "error": "Failed to create user. Please try again"
       },
-      "updateRoles":{
-        "success":"Update roles successfully",
-        "failed":"Failed to update roles. Please try again"
+      "updateRoles": {
+        "success": "Update roles successfully",
+        "failed": "Failed to update roles. Please try again"
       }
-    }
-  },
-  "errors": {
-    "internalServerError": "Internal server error",
-    "serviceUnavailable": "Service unavailable",
-    "uniqueConstraint": "Unique constraint violation",
-    "foreignKeyConstraint": "Foreign key constraint violation",
-    "recordNotFound": "Record not found",
-    "invalidInput": "Invalid input",
-    "dbSchema": "Database schema error",
-    "unexpectedDbError": "Unexpected database error",
-    "unauthorized": "Unauthorized",
-    "validationError": "Validation error",
-    "createUser": {
-      "error": "Create user failed",
-      "roleNotFound": "Role not found",
-      "exists": "User already exists",
-      "missingFields": "Missing user information"
     },
-    "signToken": {
-      "error": "Error when creating token"
+    "adminuser": {
+      "action": {
+        "create": {
+          "success": "Create user successfully",
+          "error": "Failed to create user. Please try again"
+        }
+      }
     },
-    "checkUserExists": {
-      "error": "Error when checking user"
-    },
-    "twitter": {
-      "invalidConfig": "Invalid configuration",
-      "error": "Error when authenticating user"
-    },
-    "login": {
-      "success": "Login successfully"
-    },
-    "registerUser": {
-      "userExists": "User already exists",
-      "error": "Register user not success",
-      "notToken": "Not found token"
-    },
-    "changeIsActive": {
-      "invalidPayload": "Invalid payload",
-      "alreadyActive": "Account is already active"
-    },
-    "sendEmailComplete": {
-      "dataNotFound": "Data is required"
-    },
-    "invalidTypeImage":"Only |jpg|jpeg|png|gif| image types are allowed",
-    "invalidSizeImage":"Image size must be less than {maxImageSizeMB} MB",
-    "cloudinary": {
-      "fileExists": "File with name '{fileName}' already exists."
+    "errors": {
+      "internalServerError": "Internal server error",
+      "serviceUnavailable": "Service unavailable",
+      "uniqueConstraint": "Unique constraint violation",
+      "foreignKeyConstraint": "Foreign key constraint violation",
+      "recordNotFound": "Record not found",
+      "invalidInput": "Invalid input",
+      "dbSchema": "Database schema error",
+      "unexpectedDbError": "Unexpected database error",
+      "unauthorized": "Unauthorized",
+      "validationError": "Validation error",
+      "createUser": {
+        "error": "Create user failed",
+        "roleNotFound": "Role not found",
+        "exists": "User already exists",
+        "missingFields": "Missing user information"
+      },
+      "signToken": {
+        "error": "Error when creating token"
+      },
+      "checkUserExists": {
+        "error": "Error when checking user"
+      },
+      "twitter": {
+        "invalidConfig": "Invalid configuration",
+        "error": "Error when authenticating user"
+      },
+      "login": {
+        "success": "Login successfully"
+      },
+      "registerUser": {
+        "userExists": "User already exists",
+        "error": "Register user not success",
+        "notToken": "Not found token"
+      },
+      "changeIsActive": {
+        "invalidPayload": "Invalid payload",
+        "alreadyActive": "Account is already active"
+      },
+      "sendEmailComplete": {
+        "dataNotFound": "Data is required"
+      },
+      "invalidTypeImage": "Only |jpg|jpeg|png|gif| image types are allowed",
+      "invalidSizeImage": "Image size must be less than 2MB",
+      "cloudinary": {
+        "fileExists": "File with name '{fileName}' already exists."
+      }
     }
   }
 }

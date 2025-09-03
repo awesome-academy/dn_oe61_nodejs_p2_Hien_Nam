@@ -231,6 +231,7 @@ describe('ProductService', () => {
       secureUrl: mockSecureUrl,
     };
 
+    // We'll check the result structure separately without using any
     const checkResultStructure = (result: unknown) => {
       expect(result).toHaveProperty('id', 1);
       expect(result).toHaveProperty('skuId', mockProductData.skuId);
