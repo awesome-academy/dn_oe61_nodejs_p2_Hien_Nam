@@ -4,7 +4,7 @@ import { SizeResponse } from './size-response';
 export class ProductVariantResponse {
   id: number;
   price: Decimal;
-  startDate: Date | '';
-  endDate?: Date | '';
+  startDate: Date | null;
+  endDate?: Date | null;
   size: SizeResponse;
 }
