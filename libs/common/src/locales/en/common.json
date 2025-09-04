@@ -52,7 +52,19 @@
       "deleteProductImages": {
         "success": "Product images deleted successfully",
         "failed": "Failed to delete product images"
+      },
+      "listProductsForUser": {
+        "success": "Product list retrieved successfully",
+        "failed": "Failed to retrieve product list"
       }
+    },
+    "error": {
+      "productExists": "Product already exists",
+      "filesExists": "Files not received yet",
+      "failed": "Create failed",
+      "productNotFound": "Product does not exist yet",
+      "skuIdExists": "SkuId already exists",
+      "productInOrder": "Product already exists in order"
     },
     "productCategory": {
       "error": {
@@ -74,6 +86,22 @@
         "productImagesNotFound": "Product images not found",
         "productNotFound": "Product not found"
       }
+    }
+  },
+  "userproduct": {
+    "action": {
+      "listProductsForUser": {
+        "success": "Product list retrieved successfully",
+        "failed": "Failed to retrieve product list"
+      }
+    },
+    "error": {
+      "productExists": "Product already exists",
+      "filesExists": "Files not received yet",
+      "failed": "Create failed",
+      "productNotFound": "Product does not exist yet",
+      "skuIdExists": "SkuId already exists",
+      "productInOrder": "Product already exists in order"
     }
   },
   "file": {
