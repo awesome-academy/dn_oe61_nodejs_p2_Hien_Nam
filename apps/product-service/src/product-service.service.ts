@@ -1,43 +1,51 @@
+import { Injectable } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validateOrReject } from 'class-validator';
+import { Decimal } from '@prisma/client/runtime/library';
+import { PrismaService } from '@app/prisma';
+import { Cart, CartItem, PrismaClient, Product, ProductStatus } from '../generated/prisma';
 import { MAX_IMAGES } from '@app/common/constant/cloudinary';
 import { PaginationDto } from '@app/common/dto/pagination.dto';
 import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
 import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
+import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
 import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
+import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
 import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
 import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
+import {
+  ProductResponse,
+  UserProductResponse,
+} from '@app/common/dto/product/response/product-response';
+import {
+  ProductDetailResponse,
+  UserProductDetailResponse,
+} from '@app/common/dto/product/response/product-detail-reponse';
 import {
   CategoryResponse,
   ChildCategories,
   RootCategory,
 } from '@app/common/dto/product/response/category-response';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
-import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
 import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
-import { ProductResponse } from '@app/common/dto/product/response/product-response';
 import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
-import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
-import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { PaginationResult } from '@app/common/interfaces/pagination';
+import { ProductWithIncludes } from '@app/common/types/product.type';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
 import { buildBaseResponse } from '@app/common/utils/data.util';
 import { handleServiceError } from '@app/common/utils/prisma-client-error';
-import { PrismaService } from '@app/prisma';
-import { Injectable } from '@nestjs/common';
-import { Decimal } from '@prisma/client/runtime/library';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject } from 'class-validator';
-import { Cart, CartItem, PrismaClient, Product } from '../generated/prisma';
 
 @Injectable()
 export class ProductService {
@@ -344,8 +352,8 @@ export class ProductService {
         variants: product.variants.map((variant) => ({
           id: variant.id,
           price: variant.price,
-          startDate: variant.startDate ?? '',
-          endDate: variant.endDate ?? '',
+          startDate: variant.startDate ?? null,
+          endDate: variant.endDate ?? null,
           size: {
             id: String(variant.size.id),
             nameSize: variant.size.nameSize ?? '',
@@ -847,6 +855,7 @@ export class ProductService {
 
     return result;
   }
+
   async deleteSoftCart(dto: DeleteSoftCartRequest): Promise<void> {
     try {
       const cartByUser = await this.prismaService.client.cart.findUnique({
@@ -1014,5 +1023,183 @@ export class ProductService {
         0,
       ),
     };
+  }
+
+  async listProductsForUser(query: GetAllProductUserDto): Promise<UserProductResponse[] | []> {
+    const dto = plainToInstance(GetAllProductUserDto, query);
+    await validateOrReject(dto);
+
+    const { page, pageSize } = query;
+
+    const where = this.buildUserProductWhereClause(query);
+
+    const products = await this.paginationService.queryWithPagination(
+      this.prismaService.client.product,
+      { page, pageSize },
+      {
+        orderBy: { createdAt: 'asc' },
+        where,
+        include: {
+          images: true,
+          categories: { include: { category: true } },
+          variants: { include: { size: true } },
+          reviews: true,
+        },
+      },
+    );
+
+    if (products.items.length === 0) {
+      return [];
+    }
+
+    const result = (products.items as ProductWithIncludes[]).map((product) => {
+      return {
+        id: product.id,
+        skuId: product.skuId,
+        name: product.name,
+        description: product.description ?? '',
+        status: product.status,
+        basePrice: product.basePrice ?? 0,
+        quantity: product.quantity ?? 0,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt ?? null,
+        deletedAt: product.deletedAt ?? null,
+        images: product.images?.length ? product.images : [],
+        categories: product.categories?.length ? product.categories : [],
+        variants: product.variants?.length ? product.variants : [],
+        reviews: product.reviews?.length ? product.reviews : [],
+      } as UserProductResponse;
+    });
+
+    return result;
+  }
+
+  private buildUserProductWhereClause(query: GetAllProductUserDto) {
+    const { name, rootCategoryId, categoryId, minPrice, maxPrice, rating } = query;
+    const where = {
+      deletedAt: null,
+      status: ProductStatus.IN_STOCK,
+      ...(name && { name: { contains: name } }),
+      ...(rootCategoryId || categoryId
+        ? {
+            categories: {
+              some: {
+                OR: [
+                  ...(rootCategoryId ? [{ category: { id: rootCategoryId, parentId: null } }] : []),
+                  ...(categoryId
+                    ? [{ category: { id: categoryId, parentId: rootCategoryId } }]
+                    : []),
+                ],
+              },
+            },
+          }
+        : {}),
+      ...(minPrice || maxPrice
+        ? {
+            variants: {
+              some: {
+                price: {
+                  ...(minPrice && { gte: Number(minPrice) }),
+                  ...(maxPrice && { lte: Number(maxPrice) }),
+                },
+              },
+            },
+          }
+        : {}),
+      ...(rating
+        ? {
+            reviews: {
+              some: { rating: { gte: rating } },
+            },
+          }
+        : {}),
+    };
+    return where;
+  }
+
+  async getProductDetailForUser(
+    skuId: DeleteProductDto,
+  ): Promise<UserProductDetailResponse | null> {
+    try {
+      const dto = plainToInstance(DeleteProductDto, skuId);
+      await validateOrReject(dto);
+
+      const product = await this.prismaService.client.product.findUnique({
+        where: { skuId: skuId.skuId },
+        include: {
+          images: true,
+          categories: {
+            include: {
+              category: true,
+            },
+          },
+          variants: {
+            include: {
+              size: true,
+            },
+          },
+          reviews: true,
+        },
+      });
+
+      if (!product) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.error.productNotFound',
+        });
+      }
+
+      const groupedCategories = await this.groupedCategories(product);
+
+      const result: UserProductDetailResponse = {
+        id: product.id,
+        name: product.name,
+        skuId: product.skuId,
+        description: product.description ?? '',
+        basePrice: product.basePrice ?? 0,
+        status: product.status as StatusProduct,
+        quantity: product.quantity ?? 0,
+        images: product.images.map((image) => ({
+          id: image.id,
+          url: image.url ?? '',
+        })),
+        categories: groupedCategories ?? [],
+        variants: product.variants.map((variant) => ({
+          id: variant.id,
+          price: variant.price ?? 0,
+          startDate: variant.startDate ?? null,
+          endDate: variant.endDate ?? null,
+          size: {
+            id: String(variant.size.id),
+            nameSize: variant.size.nameSize ?? '',
+            description: variant.size.description ?? '',
+          },
+        })),
+        reviews: product.reviews.map((review) => ({
+          id: review.id,
+          rating: review.rating ?? 0,
+          comment: review.comment ?? '',
+          createdAt: review.createdAt,
+          updatedAt: review.updatedAt ?? null,
+          userId: review.userId,
+          productId: review.productId,
+        })),
+      };
+
+      return result;
+    } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+      this.loggerService.error(
+        'DeleteProduct',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
   }
 }

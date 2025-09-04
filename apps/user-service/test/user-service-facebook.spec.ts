@@ -18,7 +18,6 @@ import { UserStatus } from '@app/common/enums/user-status.enum';
 describe('UserService – Facebook login', () => {
   let service: UserService;
   let moduleRef: TestingModule;
-
   beforeEach(async () => {
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -53,14 +52,12 @@ describe('UserService – Facebook login', () => {
     service = moduleRef.get<UserService>(UserService);
     jest.spyOn(validationHelper, 'validateDto').mockResolvedValue({});
   });
-
   const profile: ProfileFacebookUser = {
     providerId: 'fb-123',
     firstName: 'John',
     lastName: 'Doe',
     email: 'john.doe@example.com',
   } as ProfileFacebookUser;
-
   it('should throw validation error when DTO invalid', async () => {
     const rpcError = {
       code: HTTP_ERROR_CODE.BAD_REQUEST,
@@ -69,7 +66,6 @@ describe('UserService – Facebook login', () => {
     jest
       .spyOn(validationHelper, 'validateDto')
       .mockRejectedValueOnce(new TypedRpcException(rpcError));
-
     try {
       await service.findOrCreateUserFromFacebook(profile);
       fail('Expected method to throw');
@@ -77,7 +73,6 @@ describe('UserService – Facebook login', () => {
       assertRpcException(error, rpcError.code, rpcError);
     }
   });
-
   it('returns existing user when Facebook provider already exists', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     const providerDetail = {
@@ -106,7 +101,6 @@ describe('UserService – Facebook login', () => {
       include: INCLUDE_AUTH_PROVIDER_USER,
     });
   });
-
   it('creates new user & provider when none exist', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
@@ -145,7 +139,6 @@ describe('UserService – Facebook login', () => {
       true,
     );
   });
-
   it('should propagate error when transaction creating user & provider fails', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
@@ -159,7 +152,6 @@ describe('UserService – Facebook login', () => {
       TypedRpcException,
     );
   });
-
   it('links Facebook provider to existing user lacking it', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
@@ -196,7 +188,6 @@ describe('UserService – Facebook login', () => {
     expect(result.id).toBe(existingUser.id);
     expect(result.authProviders?.some((p) => p.provider === Provider.FACEBOOK)).toBe(true);
   });
-
   it('should propagate error when linking facebook provider fails', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
@@ -215,7 +206,6 @@ describe('UserService – Facebook login', () => {
       authProviders: [],
     } as UserResponse;
     jest.spyOn(service, 'getUserByEmail').mockResolvedValueOnce(existingUser);
-
     const rpcError = new TypedRpcException({
       code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
       message: 'common.errors.internalServerError',
@@ -225,7 +215,6 @@ describe('UserService – Facebook login', () => {
       TypedRpcException,
     );
   });
-
   it('propagates Prisma unique constraint as conflict error', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
@@ -235,7 +224,6 @@ describe('UserService – Facebook login', () => {
       TypedRpcException,
     );
   });
-
   it('calls tx.user.create when creating new user & provider', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
@@ -269,7 +257,6 @@ describe('UserService – Facebook login', () => {
     };
     txUserCreateSpy.mockResolvedValueOnce(stubUser);
     txAuthCreateSpy.mockResolvedValueOnce(stubProvider);
-
     (prisma.client.$transaction as jest.Mock).mockImplementationOnce(
       (cb: (tx: PrismaClient) => Promise<unknown>) => cb(prisma.client),
     );
@@ -277,23 +264,19 @@ describe('UserService – Facebook login', () => {
     expect(txUserCreateSpy).toHaveBeenCalled();
     expect(txAuthCreateSpy).toHaveBeenCalled();
   });
-
   it('maps Prisma error from transaction to TypedRpcException', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
     jest.spyOn(service, 'getUserByEmail').mockResolvedValueOnce(null);
-
     const prismaErr = new PrismaClientKnownRequestError('fail', {
       code: '202',
       clientVersion: '1.0.0',
     });
     (prisma.client.$transaction as jest.Mock).mockRejectedValueOnce(prismaErr);
-
     await expect(service.findOrCreateUserFromFacebook(profile)).rejects.toBeInstanceOf(
       TypedRpcException,
     );
   });
-
   it('maps Prisma error when linking facebook provider', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
@@ -319,7 +302,6 @@ describe('UserService – Facebook login', () => {
       TypedRpcException,
     );
   });
-
   it('returns user unchanged when facebook provider already linked', async () => {
     const prisma = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
     (prisma.client.authProvider.findUnique as jest.Mock).mockResolvedValueOnce(null);
