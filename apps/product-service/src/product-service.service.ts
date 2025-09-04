@@ -25,6 +25,10 @@ import { CreateProductCategoryDto } from '@app/common/dto/product/create-product
 import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
+import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
+import { MAX_IMAGES } from '@app/common/constant/cloudinary';
+import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
+import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
 
 @Injectable()
 export class ProductService {
@@ -40,6 +44,26 @@ export class ProductService {
     });
 
     if (!product) return null;
+    return {
+      id: product.id,
+      name: product.name,
+      skuId: product.skuId,
+      description: product.description,
+      status: product.status,
+      basePrice: product.basePrice,
+      quantity: product.quantity,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    } as ProductResponse;
+  }
+
+  async checkProductById(productId: number): Promise<ProductResponse | null> {
+    const product = await this.prismaService.client.product.findFirst({
+      where: { id: productId },
+    });
+
+    if (!product) return null;
+
     return {
       id: product.id,
       name: product.name,
@@ -701,5 +725,121 @@ export class ProductService {
         message: 'common.product.action.deleteProductCategory.failed',
       });
     }
+  }
+
+  async countProductImages(productId: number): Promise<number> {
+    return await this.prismaService.client.productImage.count({
+      where: { productId: productId },
+    });
+  }
+
+  async createProductImages(
+    payLoad: CreateProductImagesServiceDto,
+  ): Promise<ProductImagesResponse[] | null> {
+    const validationData = plainToInstance(CreateProductImagesServiceDto, payLoad);
+    await validateOrReject(validationData);
+    try {
+      const productExists = await this.checkProductById(validationData.productId);
+
+      if (!productExists) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.error.productNotFound',
+        });
+      }
+
+      const countProductImages = await this.countProductImages(validationData.productId);
+
+      const totalImages = countProductImages + validationData.secureUrls.length;
+      if (totalImages > MAX_IMAGES) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.productImages.error.maxImagesExceeded',
+        });
+      }
+
+      const query = await this.prismaService.client.$transaction(
+        validationData.secureUrls.map((secureUrl) =>
+          this.prismaService.client.productImage.create({
+            data: {
+              productId: validationData.productId,
+              url: secureUrl,
+            },
+          }),
+        ),
+      );
+
+      const result: ProductImagesResponse[] = query.map(
+        (item) =>
+          ({
+            id: item.id,
+            url: item.url,
+            productId: item.productId,
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt || null,
+            deletedAt: item.deletedAt || null,
+          }) as ProductImagesResponse,
+      );
+
+      return result;
+    } catch (error) {
+      this.loggerService.error('Error create Product Images:', error);
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async deleteProductImages(
+    productImageIds: DeleteProductImagesDto,
+  ): Promise<ProductImagesResponse[] | []> {
+    const result = await this.prismaService.client.$transaction(async (prisma) => {
+      const productImageExists = await prisma.productImage.findMany({
+        where: { id: { in: productImageIds.productImageIds }, deletedAt: null },
+      });
+
+      const existingImageIds = productImageExists.map((img) => img.id);
+      const notFoundIds = productImageIds.productImageIds.filter(
+        (id) => !existingImageIds.includes(id),
+      );
+
+      if (notFoundIds.length > 0) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.productImages.error.productImagesNotFound',
+        });
+      }
+
+      await prisma.productImage.updateMany({
+        data: {
+          deletedAt: new Date(),
+        },
+        where: {
+          id: { in: productImageIds.productImageIds },
+        },
+      });
+
+      const updatedImages = await prisma.productImage.findMany({
+        where: { id: { in: existingImageIds } },
+      });
+
+      const productImages = updatedImages.map((productImage) => {
+        return {
+          id: productImage.id,
+          url: productImage.url,
+          productId: productImage.productId,
+          createdAt: productImage.createdAt,
+          updatedAt: productImage.updatedAt || null,
+          deletedAt: productImage.deletedAt || null,
+        };
+      }) as ProductImagesResponse[];
+      return productImages;
+    });
+
+    return result;
   }
 }

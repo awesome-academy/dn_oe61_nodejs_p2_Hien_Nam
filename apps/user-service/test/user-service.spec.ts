@@ -44,7 +44,7 @@ describe('UserService', () => {
                 findMany: jest.fn(),
               },
               role: { findUnique: jest.fn() },
-              userProfile: { findUnique: jest.fn() },
+              userProfile: { findUnique: jest.fn(), findFirst: jest.fn() },
               authProvider: {
                 findFirst: jest.fn(),
                 findUnique: jest.fn(),
@@ -725,7 +725,7 @@ describe('UserService', () => {
     });
     it('should throw conflict error when phone exists', async () => {
       const _prismaMock = moduleRef.get<PrismaService<PrismaClient>>(PrismaService);
-      (_prismaMock.client.userProfile.findUnique as jest.Mock).mockResolvedValue({ id: 99 });
+      (_prismaMock.client.userProfile.findFirst as jest.Mock).mockResolvedValue({ id: 99 });
       await expect(service.create({ ...baseDto, phone: '0123456789' })).rejects.toEqual(
         new TypedRpcException({
           code: HTTP_ERROR_CODE.CONFLICT,

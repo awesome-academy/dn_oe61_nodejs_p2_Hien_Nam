@@ -159,7 +159,7 @@ export class UserService {
   async create(dto: UserCreationRequest): Promise<BaseResponse<UserCreationResponse>> {
     await validateOrReject(Object.assign(new UserCreationRequest(), dto));
     if (dto?.phone) {
-      const userByPhone = await this.prismaService.client.userProfile.findUnique({
+      const userByPhone = await this.prismaService.client.userProfile.findFirst({
         where: {
           phoneNumber: dto.phone,
         },

@@ -28,6 +28,9 @@ import { CreateProductCategoryDto } from '@app/common/dto/product/create-product
 import { UpdateProductCategoryBodyDto } from '@app/common/dto/product/update-product-category.dto';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
+import { CreateProductImagesDto } from '@app/common/dto/product/create-product-images.dto';
+import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
+import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
 
 @Controller('admin/products')
 export class ProductController {
@@ -96,5 +99,23 @@ export class ProductController {
     @Param() id: DeleteProductCategoryDto,
   ): Promise<BaseResponse<ProductCategoryResponse>> {
     return await this.productService.deleteProductCategory(id);
+  }
+
+  @AuthRoles(Role.ADMIN)
+  @Post('images')
+  @UseInterceptors(FilesInterceptor('images', 10))
+  async createProductImages(
+    @Body() dto: CreateProductImagesDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    return await this.productService.createProductImages(dto, files);
+  }
+
+  @AuthRoles(Role.ADMIN)
+  @Delete('images/delete')
+  async deleteProductImages(
+    @Body() productImageIds: DeleteProductImagesDto,
+  ): Promise<BaseResponse<ProductImagesResponse[] | []>> {
+    return await this.productService.deleteProductImages(productImageIds);
   }
 }

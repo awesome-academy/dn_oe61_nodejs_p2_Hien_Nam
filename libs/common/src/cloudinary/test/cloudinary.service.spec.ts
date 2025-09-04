@@ -114,6 +114,7 @@ describe('CloudinaryService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('upload', () => {
@@ -373,6 +374,326 @@ describe('CloudinaryService', () => {
       mockCloudinary.uploader.destroy.mockRejectedValue(error);
 
       await expect(service.delete(publicId)).rejects.toThrow(error);
+    });
+  });
+
+  describe('deleteByUrls', () => {
+    it('should successfully delete a single image by URL', async function (this: void) {
+      const imageUrl =
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/test_image.jpg';
+      const mockResponse = createMockUploadApiResponse();
+
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      const result = await service.deleteByUrls(imageUrl);
+
+      expect(result).toEqual(mockResponse);
+      expect(mockCloudinary.uploader.destroy).toHaveBeenCalledWith('products/test_image');
+    });
+
+    it('should successfully delete multiple images by URLs', async () => {
+      const imageUrls = [
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/image1.jpg',
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/image2.png',
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/image3.webp',
+      ];
+      const mockResponse = createMockUploadApiResponse();
+
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      const result = await service.deleteByUrls(imageUrls);
+
+      expect(result).toEqual([mockResponse, mockResponse, mockResponse]);
+      expect(mockCloudinary.uploader.destroy).toHaveBeenCalledTimes(3);
+      expect(mockCloudinary.uploader.destroy).toHaveBeenNthCalledWith(1, 'products/image1');
+      expect(mockCloudinary.uploader.destroy).toHaveBeenNthCalledWith(2, 'products/image2');
+      expect(mockCloudinary.uploader.destroy).toHaveBeenNthCalledWith(3, 'products/image3');
+    });
+
+    it('should handle URLs with whitespace by trimming them', async function (this: void) {
+      const imageUrl =
+        '  https://res.cloudinary.com/test/image/upload/v1234567890/products/test_image.jpg  ';
+      const mockResponse = createMockUploadApiResponse();
+
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      const result = await service.deleteByUrls(imageUrl);
+
+      expect(result).toEqual(mockResponse);
+      expect(mockCloudinary.uploader.destroy).toHaveBeenCalledWith('products/test_image');
+    });
+
+    it('should handle URLs without version numbers', async () => {
+      const imageUrl = 'https://res.cloudinary.com/test/image/upload/products/test_image.jpg';
+      const mockResponse = createMockUploadApiResponse();
+
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      const result = await service.deleteByUrls(imageUrl);
+
+      expect(result).toEqual(mockResponse);
+      expect(mockCloudinary.uploader.destroy).toHaveBeenCalledWith('products/test_image');
+    });
+
+    it('should handle URLs with transformations', async function (this: void) {
+      const imageUrl =
+        'https://res.cloudinary.com/test/image/upload/c_fill,w_300,h_300/v1234567890/products/test_image.jpg';
+      const mockResponse = createMockUploadApiResponse();
+
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      const result = await service.deleteByUrls(imageUrl);
+
+      expect(result).toEqual(mockResponse);
+      expect(mockCloudinary.uploader.destroy).toHaveBeenCalledWith('products/test_image');
+    });
+
+    it('should handle nested folder structure in public ID', async function (this: void) {
+      const imageUrl =
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/category/subcategory/test_image.jpg';
+      const mockResponse = createMockUploadApiResponse();
+
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      const result = await service.deleteByUrls(imageUrl);
+
+      expect(result).toEqual(mockResponse);
+      expect(mockCloudinary.uploader.destroy).toHaveBeenCalledWith(
+        'products/category/subcategory/test_image',
+      );
+    });
+
+    it('should throw BadRequestException for invalid URL format', async function (this: void) {
+      const invalidUrl = 'https://example.com/invalid/url.jpg';
+      mockI18nService.translate.mockReturnValue('URL is invalid');
+
+      // Mock I18nContext.current to return undefined
+      const mockCurrentContext = jest.spyOn(I18nContext, 'current');
+      mockCurrentContext.mockReturnValue(undefined as never);
+
+      await expect(service.deleteByUrls(invalidUrl)).rejects.toThrow(BadRequestException);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockI18nService.translate).toHaveBeenCalledWith(
+        'common.file.error.invalidUrl',
+        expect.objectContaining({
+          lang: undefined,
+          args: { url: invalidUrl },
+        }),
+      );
+    });
+
+    it('should throw BadRequestException for URL without upload segment', async function (this: void) {
+      const invalidUrl =
+        'https://res.cloudinary.com/test/image/transform/v1234567890/products/test_image.jpg';
+      mockI18nService.translate.mockReturnValue('URL is invalid');
+
+      // Mock I18nContext.current to return undefined
+      const mockCurrentContext = jest.spyOn(I18nContext, 'current');
+      mockCurrentContext.mockReturnValue(undefined as never);
+
+      await expect(service.deleteByUrls(invalidUrl)).rejects.toThrow(BadRequestException);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockI18nService.translate).toHaveBeenCalledWith(
+        'common.file.error.invalidUrl',
+        expect.objectContaining({
+          lang: undefined,
+          args: { url: invalidUrl },
+        }),
+      );
+    });
+
+    it('should throw BadRequestException for malformed URL', async function (this: void) {
+      const malformedUrl = 'not-a-valid-url';
+      mockI18nService.translate.mockReturnValue('URL is invalid');
+
+      // Mock I18nContext.current to return undefined
+      const mockCurrentContext = jest.spyOn(I18nContext, 'current');
+      mockCurrentContext.mockReturnValue(undefined as never);
+
+      await expect(service.deleteByUrls(malformedUrl)).rejects.toThrow(BadRequestException);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockI18nService.translate).toHaveBeenCalledWith(
+        'common.file.error.invalidUrl',
+        expect.objectContaining({
+          lang: undefined,
+          args: { url: malformedUrl },
+        }),
+      );
+    });
+
+    it('should handle array with one invalid URL among valid ones', async function (this: void) {
+      const imageUrls = [
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/image1.jpg',
+        'https://example.com/invalid/url.jpg',
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/image3.jpg',
+      ];
+      mockI18nService.translate.mockReturnValue('URL is invalid');
+
+      // Mock I18nContext.current to return undefined
+      const mockCurrentContext = jest.spyOn(I18nContext, 'current');
+      mockCurrentContext.mockReturnValue(undefined as never);
+
+      await expect(service.deleteByUrls(imageUrls)).rejects.toThrow(BadRequestException);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockI18nService.translate).toHaveBeenCalledWith(
+        'common.file.error.invalidUrl',
+        expect.objectContaining({
+          lang: undefined,
+          args: { url: 'https://example.com/invalid/url.jpg' },
+        }),
+      );
+    });
+
+    it('should handle cloudinary destroy errors for single URL', async function (this: void) {
+      const imageUrl =
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/test_image.jpg';
+      const error = new Error('Cloudinary destroy failed');
+
+      mockCloudinary.uploader.destroy.mockRejectedValue(error);
+
+      await expect(service.deleteByUrls(imageUrl)).rejects.toThrow(error);
+    });
+
+    it('should handle cloudinary destroy errors for multiple URLs', async () => {
+      const imageUrls = [
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/image1.jpg',
+        'https://res.cloudinary.com/test/image/upload/v1234567890/products/image2.jpg',
+      ];
+      const error = new Error('Cloudinary destroy failed');
+
+      mockCloudinary.uploader.destroy.mockRejectedValue(error);
+
+      await expect(service.deleteByUrls(imageUrls)).rejects.toThrow(error);
+    });
+
+    it('should use I18nContext.current() lang when available for error messages', async function (this: void) {
+      const invalidUrl = 'https://example.com/invalid/url.jpg';
+
+      const mockCurrentContext = jest.spyOn(I18nContext, 'current');
+      mockCurrentContext.mockReturnValue({ lang: 'vi' } as never);
+      mockI18nService.translate.mockReturnValue('URL không hợp lệ');
+
+      await expect(service.deleteByUrls(invalidUrl)).rejects.toThrow(BadRequestException);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockI18nService.translate).toHaveBeenCalledWith(
+        'common.file.error.invalidUrl',
+        expect.objectContaining({
+          lang: 'vi',
+          args: { url: invalidUrl },
+        }),
+      );
+    });
+
+    it('should handle empty array', async () => {
+      const emptyArray: string[] = [];
+
+      const result = await service.deleteByUrls(emptyArray);
+
+      expect(result).toEqual([]);
+      expect(mockCloudinary.uploader.destroy).not.toHaveBeenCalled();
+    });
+
+    it('should handle concurrent deletion of large number of URLs', async () => {
+      const imageUrls = Array.from(
+        { length: 10 },
+        (_, i) => `https://res.cloudinary.com/test/image/upload/v1234567890/products/image${i}.jpg`,
+      );
+      const mockResponse = createMockUploadApiResponse();
+
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      const result = await service.deleteByUrls(imageUrls);
+
+      expect(result).toEqual(Array(10).fill(mockResponse));
+      expect(mockCloudinary.uploader.destroy).toHaveBeenCalledTimes(10);
+
+      // Verify all calls were made with correct public IDs
+      for (let i = 0; i < 10; i++) {
+        expect(mockCloudinary.uploader.destroy).toHaveBeenNthCalledWith(
+          i + 1,
+          `products/image${i}`,
+        );
+      }
+    });
+  });
+
+  describe('extractPublicIdFromUrl (private method testing)', () => {
+    // Testing private method through public interface
+    it('should extract public ID from various URL formats through deleteByUrls', async () => {
+      const testCases = [
+        {
+          url: 'https://res.cloudinary.com/test/image/upload/v1234567890/products/test_image.jpg',
+          expectedPublicId: 'products/test_image',
+        },
+        {
+          url: 'https://res.cloudinary.com/test/image/upload/products/test_image.png',
+          expectedPublicId: 'products/test_image',
+        },
+        {
+          url: 'https://res.cloudinary.com/test/image/upload/c_fill,w_300/v1234567890/products/test_image.webp',
+          expectedPublicId: 'products/test_image',
+        },
+        {
+          url: 'https://res.cloudinary.com/test/image/upload/v1234567890/folder/subfolder/image.jpg',
+          expectedPublicId: 'folder/subfolder/image',
+        },
+        {
+          url: 'https://res.cloudinary.com/test/image/upload/simple_image.gif',
+          expectedPublicId: 'simple_image',
+        },
+      ];
+
+      const mockResponse = createMockUploadApiResponse();
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      for (const testCase of testCases) {
+        await service.deleteByUrls(testCase.url);
+        expect(mockCloudinary.uploader.destroy).toHaveBeenCalledWith(testCase.expectedPublicId);
+        jest.clearAllMocks();
+      }
+    });
+
+    it('should handle edge cases in URL parsing through deleteByUrls', async () => {
+      const edgeCases = [
+        'https://res.cloudinary.com/test/image/upload/v1234567890/test.jpg',
+        'https://res.cloudinary.com/test/image/upload/test',
+        'https://res.cloudinary.com/test/image/upload/v1234567890/a/b/c/d/e/f.png',
+      ];
+
+      const mockResponse = createMockUploadApiResponse();
+      mockCloudinary.uploader.destroy.mockResolvedValue(mockResponse);
+
+      for (const url of edgeCases) {
+        await service.deleteByUrls(url);
+        expect(mockCloudinary.uploader.destroy).toHaveBeenCalled();
+        jest.clearAllMocks();
+      }
+    });
+
+    it('should handle URL that results in empty public ID', async () => {
+      // URL that will result in empty publicId after processing
+      const urlWithEmptyPublicId = 'https://res.cloudinary.com/test/image/upload/v1234567890/.jpg';
+      mockI18nService.translate.mockReturnValue('URL is invalid');
+
+      // Mock I18nContext.current to return undefined
+      const mockCurrentContext = jest.spyOn(I18nContext, 'current');
+      mockCurrentContext.mockReturnValue(undefined as never);
+
+      await expect(service.deleteByUrls(urlWithEmptyPublicId)).rejects.toThrow(BadRequestException);
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockI18nService.translate).toHaveBeenCalledWith(
+        'common.file.error.invalidUrl',
+        expect.objectContaining({
+          lang: undefined,
+          args: { url: urlWithEmptyPublicId },
+        }),
+      );
     });
   });
 

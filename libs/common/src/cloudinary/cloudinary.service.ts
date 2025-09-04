@@ -77,6 +77,62 @@ export class CloudinaryService {
     return this.cloudinary.uploader.destroy(publicId) as unknown as Promise<UploadApiResponse>;
   }
 
+  async deleteByUrls(
+    imageUrl: string | string[],
+  ): Promise<UploadApiResponse | UploadApiResponse[]> {
+    if (Array.isArray(imageUrl)) {
+      return Promise.all(
+        imageUrl.map(async (url) => {
+          const publicId = this.extractPublicIdFromUrl(url.trim());
+          if (!publicId) {
+            throw new BadRequestException(
+              this.i18nService.translate('common.file.error.invalidUrl', {
+                lang: I18nContext.current()?.lang,
+                args: { url },
+              }),
+            );
+          }
+          return this.delete(publicId);
+        }),
+      );
+    }
+
+    const publicId = this.extractPublicIdFromUrl(imageUrl.trim());
+    if (!publicId) {
+      throw new BadRequestException(
+        this.i18nService.translate('common.file.error.invalidUrl', {
+          lang: I18nContext.current()?.lang,
+          args: { url: imageUrl },
+        }),
+      );
+    }
+    return this.delete(publicId);
+  }
+
+  private extractPublicIdFromUrl(imageUrl: string): string | null {
+    try {
+      const url = new URL(imageUrl);
+      const parts = url.pathname.split('/');
+      const uploadIndex = parts.findIndex((part) => part === 'upload');
+
+      if (uploadIndex === -1) {
+        return null;
+      }
+
+      let pathAfterUpload = parts.slice(uploadIndex + 1).join('/');
+
+      const transformationRegex = /^[^/]*[a-z]_[^/,]*(?:,[^/]*)*\//;
+      pathAfterUpload = pathAfterUpload.replace(transformationRegex, '');
+
+      pathAfterUpload = pathAfterUpload.replace(/^v\d+\//, '');
+      const publicId = pathAfterUpload.replace(/\.[^.]+$/, '');
+
+      return publicId || null;
+    } catch {
+      return null;
+    }
+  }
+
   async uploadImagesToCloudinary(files: Array<Express.Multer.File>): Promise<string[]> {
     if (!files || files.length === 0) {
       throw new BadRequestException(this.i18nService.translate('common.product.error.filesExists'));
