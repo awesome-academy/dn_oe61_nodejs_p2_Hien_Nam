@@ -12,7 +12,7 @@
     "isInt": "{field} must be an integer",
     "isDateString": "{field} must be a valid ISO date string",
     "isUrl": "{field} must be a valid URL",
-    "isEnum": "{field} must be one of {enum}"
+    "isEnum":"{field} must be one of {enum}"
   },
   "product": {
     "invalidCredentials": "Invalid product information",
@@ -137,16 +137,17 @@
       }
     }
   },
-  "user": {
-    "phoneNumberExist": "Phone number already exists",
-    "emailExist": "Email already exists",
-    "someUserNotExist": "Some users do not exist. UserIds: [{missingIds}]"
+  "user":{
+    "notFound":"User not found",
+    "phoneNumberExist":"Phone number already exists",
+    "emailExist":"Email already exists",
+    "someUserNotExist":"Some users do not exist. UserIds: [{missingIds}]"
   },
-  "adminuser": {
-    "action": {
-      "create": {
-        "success": "Create user successfully",
-        "error": "Failed to create user. Please try again"
+  "adminuser":{
+    "action":{
+      "create":{
+        "success":"Create user successfully",
+        "error":"Failed to create user. Please try again"
       },
       "updateRoles":{
         "success":"Update roles successfully",
@@ -156,17 +157,15 @@
         "success":"Update statuses successfully",
         "failed":"Failed to update statuses. Please try again",
         "unchanged":"No user statuses were changed"
+      },
+      "delete":{
+        "success":"Delete user successfully",
+        "failed":"Failed to delete user. Please try again",
+        "unChanged":"No user was deleted"
       }
-    },
-    "adminuser": {
-      "action": {
-        "create": {
-          "success": "Create user successfully",
-          "error": "Failed to create user. Please try again"
-        }
-      }
-    },
-    "errors": {
+    }
+  },
+  "errors": {
       "internalServerError": "Internal server error",
       "serviceUnavailable": "Service unavailable",
       "uniqueConstraint": "Unique constraint violation",
@@ -193,9 +192,6 @@
         "invalidConfig": "Invalid configuration",
         "error": "Error when authenticating user"
       },
-      "login": {
-        "success": "Login successfully"
-      },
       "registerUser": {
         "userExists": "User already exists",
         "error": "Register user not success",
@@ -215,4 +211,3 @@
       }
     }
   }
-}

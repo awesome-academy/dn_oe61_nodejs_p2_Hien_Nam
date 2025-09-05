@@ -32,16 +32,21 @@ import {
   UserProfile,
 } from '../generated/prisma';
 import { INCLUDE_AUTH_PROVIDER_USER } from './constants/include-auth-user';
+import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
+import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
+import { buildBaseResponse } from '@app/common/utils/data.util';
+import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
+import { ProductProducer } from './producer/product.producer';
+import { validateDto } from '@app/common/helpers/validation.helper';
 @Injectable()
 export class UserService {
   constructor(
     private readonly prismaService: PrismaService<PrismaClient>,
     private readonly loggerService: CustomLogger,
     private readonly configService: ConfigService,
+    private readonly productProducer: ProductProducer,
   ) {}
-
   async getUserByEmail(dto: UserByEmailRequest): Promise<UserResponse | null> {
-    await validateOrReject(Object.assign(new UserByEmailRequest(), dto));
     const userFindByEmail = await this.prismaService.client.user.findUnique({
       where: { email: dto.email },
       include: {
@@ -60,13 +65,14 @@ export class UserService {
       imageUrl: userFindByEmail.imageUrl ?? '',
       createdAt: userFindByEmail.createdAt,
       updatedAt: userFindByEmail.updatedAt,
+      deletedAt: userFindByEmail.deletedAt,
       role: userFindByEmail.role.name,
       status: userFindByEmail.status,
       authProviders: userFindByEmail.authProviders,
     };
   }
   async findOrCreateUserFromFacebook(profile: ProfileFacebookUser): Promise<UserResponse> {
-    await validateOrReject(Object.assign(new ProfileFacebookUser(), profile));
+    await validateDto(ProfileFacebookUser, profile);
     const hasEmail = !!profile.email;
     let userByEmail: UserResponse | null = null;
     const providerDetail = await this.prismaService.client.authProvider.findUnique({
@@ -259,6 +265,7 @@ export class UserService {
       imageUrl: authProvider.user.imageUrl ?? '',
       createdAt: authProvider.user.createdAt,
       updatedAt: authProvider.user.updatedAt,
+      deletedAt: authProvider.user.deletedAt,
       role: authProvider.user.role.name,
       status: authProvider.user.status,
       authProviders: authProvider.user.authProviders,
@@ -306,6 +313,7 @@ export class UserService {
       imageUrl: user.imageUrl ?? undefined,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt ?? undefined,
+      deletedAt: user.deletedAt,
       role: user.role?.name,
       status: user.status,
       authProviders: user.authProviders || undefined,
@@ -331,7 +339,6 @@ export class UserService {
   async validateOAuthUserCreation(data: CreateUserDto): Promise<UserResponse | null> {
     const dto = plainToInstance(CreateUserDto, data);
     await validateOrReject(dto);
-
     const existingUser = await this.checkUserExists(data.providerId as string);
     if (existingUser) {
       throw new TypedRpcException({
@@ -387,6 +394,7 @@ export class UserService {
         status: dataUser.status,
         email: dataUser.email ?? undefined,
         providerName: data.provider,
+        deletedAt: dataUser.deletedAt,
       };
 
       return result;
@@ -432,6 +440,7 @@ export class UserService {
       userName: result.userName,
       status: result.status,
       email: result.email ?? undefined,
+      deletedAt: result.deletedAt,
       role: result.role,
     };
 
@@ -475,6 +484,7 @@ export class UserService {
         email: updated.email ?? undefined,
         role: updated.role.name,
         status: updated.status,
+        deletedAt: updated.deletedAt,
         authProviders: updated.authProviders,
       };
 
@@ -601,6 +611,53 @@ export class UserService {
       };
     } catch (error) {
       return handlePrismaError(error, UserService.name, 'updateStatuses', this.loggerService);
+    }
+  }
+  async softdeleteUser(dto: SoftDeleteUserRequest): Promise<BaseResponse<SoftDeleteUserResponse>> {
+    const userById = await this.prismaService.client.user.findUnique({
+      where: { id: dto.userId },
+      select: {
+        id: true,
+        deletedAt: true,
+      },
+    });
+    if (!userById)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.user.notFound',
+      });
+
+    if (userById.deletedAt) {
+      const payload: SoftDeleteUserResponse = {
+        userId: userById.id,
+        deletedAt: userById.deletedAt,
+      };
+      return buildBaseResponse(StatusKey.UNCHANGED, payload);
+    }
+    try {
+      const userUpdated = await this.prismaService.client.$transaction(async (tx) => {
+        const userUpdated = await tx.user.update({
+          where: { id: dto.userId },
+          data: { deletedAt: new Date() },
+        });
+        // Nếu có record thì xoá, không gây lỗi nếu không có
+        await tx.userProfile.updateMany({
+          where: { userId: dto.userId },
+          data: { deletedAt: new Date() },
+        });
+        return userUpdated;
+      });
+      const payload: SoftDeleteUserResponse = {
+        userId: userUpdated.id,
+        deletedAt: userUpdated.deletedAt ?? new Date(),
+      };
+      const payloadSoftDeleteCart: DeleteSoftCartRequest = {
+        userId: userUpdated.id,
+      };
+      await this.productProducer.addJobSoftDeleteCart(payloadSoftDeleteCart);
+      return buildBaseResponse(StatusKey.SUCCESS, payload);
+    } catch (error) {
+      return handlePrismaError(error, UserService.name, 'softdeleteUser', this.loggerService);
     }
   }
   private mapToUserSummaryResponse(

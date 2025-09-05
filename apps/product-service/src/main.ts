@@ -13,8 +13,8 @@ async function bootstrap() {
       port: configService.get<number>('redis.port'),
     },
   });
-
   await app.startAllMicroservices();
+  await app.init();
 }
 bootstrap().catch((err) => {
   console.error(err);

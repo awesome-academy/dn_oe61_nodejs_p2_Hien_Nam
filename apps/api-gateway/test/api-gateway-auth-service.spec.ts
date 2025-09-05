@@ -389,6 +389,7 @@ describe('ApiGateway AuthService', () => {
         name: 'Test User',
         userName: 'testuser',
         status: UserStatus.ACTIVE.toString(),
+        deletedAt: null,
         role: 'user',
       };
     });
@@ -458,6 +459,7 @@ describe('ApiGateway AuthService', () => {
         name: 'Test User',
         userName: 'testuser',
         status: UserStatus.ACTIVE.toString(),
+        deletedAt: null,
         role: 'user',
       };
 

@@ -36,7 +36,6 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginRequestDto): Promise<BaseResponse<LoginResponse>> {
-    await validateOrReject(Object.assign(new LoginRequestDto(), dto));
     const getUserByEmailRequestDto: UserByEmailRequest = {
       email: dto.email,
     };
@@ -61,6 +60,12 @@ export class AuthService {
       throw new TypedRpcException({
         code: HTTP_ERROR_CODE.UNAUTHORIZED,
         message: 'common.auth.inactiveAccount',
+      });
+    }
+    if (userByEmail.deletedAt) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.auth.invalidCredentials',
       });
     }
     const passwordLocal = userByEmail.authProviders?.find(
@@ -165,7 +170,6 @@ export class AuthService {
       if (!accessToken) {
         throw new RpcException('common.auth.action.signToken.error');
       }
-
       const payload: LoginResponse = this.buildLoginResponse(accessToken, data);
       return payload;
     } catch {

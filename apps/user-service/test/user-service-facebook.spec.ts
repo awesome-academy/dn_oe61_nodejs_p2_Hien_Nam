@@ -6,11 +6,13 @@ import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import * as classValidator from 'class-validator';
+import * as validationHelper from '@app/common/helpers/validation.helper';
 import { AuthProvider, PrismaClient, Provider, StatusUser } from '../generated/prisma';
 import { INCLUDE_AUTH_PROVIDER_USER } from '../src/constants/include-auth-user';
 import { UserService } from '../src/user-service.service';
 import { ConfigService } from '@nestjs/config';
+import { ProductProducer } from '../src/producer/product.producer';
+import { assertRpcException } from '@app/common/helpers/test.helper';
 
 describe('UserService – Facebook login', () => {
   let service: UserService;
@@ -41,10 +43,14 @@ describe('UserService – Facebook login', () => {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue('default-avatar.png') },
         },
+        {
+          provide: ProductProducer,
+          useValue: { addJobSoftDeleteCart: jest.fn() },
+        },
       ],
     }).compile();
     service = moduleRef.get<UserService>(UserService);
-    jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue(undefined as never);
+    jest.spyOn(validationHelper, 'validateDto').mockResolvedValue({});
   });
 
   const profile: ProfileFacebookUser = {
@@ -57,20 +63,17 @@ describe('UserService – Facebook login', () => {
   it('should throw validation error when DTO invalid', async () => {
     const rpcError = {
       code: HTTP_ERROR_CODE.BAD_REQUEST,
-      message: 'common.errors.validationError',
+      message: 'common.validation.error',
     } as const;
     jest
-      .spyOn(classValidator, 'validateOrReject')
+      .spyOn(validationHelper, 'validateDto')
       .mockRejectedValueOnce(new TypedRpcException(rpcError));
 
     try {
-      await expect(service.findOrCreateUserFromFacebook(profile)).rejects.toBeInstanceOf(
-        TypedRpcException,
-      );
+      await service.findOrCreateUserFromFacebook(profile);
+      fail('Expected method to throw');
     } catch (error) {
-      expect(error).toBeInstanceOf(TypedRpcException);
-      expect((error as TypedRpcException).getError()).toEqual(rpcError);
-      expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.BAD_REQUEST);
+      assertRpcException(error, rpcError.code, rpcError);
     }
   });
 
@@ -204,6 +207,7 @@ describe('UserService – Facebook login', () => {
       imageUrl: '',
       createdAt: new Date(),
       updatedAt: null,
+      deletedAt: null,
       role: 'USER',
       status: 'ACTIVE',
       isActive: true,
@@ -246,6 +250,7 @@ describe('UserService – Facebook login', () => {
       imageUrl: '',
       createdAt: new Date(),
       updatedAt: null,
+      deletedAt: null,
       roleId: 1,
       role: { name: 'USER' },
       isActive: true,
@@ -298,6 +303,7 @@ describe('UserService – Facebook login', () => {
       authProviders: [],
       createdAt: new Date(),
       updatedAt: null,
+      deletedAt: null,
       role: 'USER',
       isActive: true,
       status: 'ACTIVE',

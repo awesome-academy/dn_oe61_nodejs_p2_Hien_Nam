@@ -10,4 +10,5 @@ export enum UserMsgPattern {
   ADMIN_CREATE_USER = 'admin.user.createUser',
   ADMIN_UPDATE_ROLE = 'admin.user.updateRole',
   ADMIN_UPDATE_STATUS = 'admin.user.updateStatus',
+  ADMIN_DELETE_USER = 'admin.user.deleteUser',
 }

@@ -1,7 +1,12 @@
-import { IsEmail } from 'class-validator';
+import { IsEmail, IsNotEmpty } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
 
 export class UserByEmailRequest {
+  @IsNotEmpty({
+    message: i18nValidationMessage('common.validation.isNotEmpty', {
+      field: 'email',
+    }),
+  })
   @IsEmail(
     {},
     {

@@ -7,7 +7,13 @@ import { HTTP_EXCEPTION_CODE, UNKNOWN_MESSAGE } from '../constant/error-message.
 import { HTTP_ERROR_NAME } from '../enums/errors/http-error-name';
 import { ValidationErrorResponse } from '../interfaces/validation-error';
 import { CustomLogger } from '../logger/custom-logger.service';
-import { formatValidationErrors, isRpcError } from '../utils/error.util';
+import {
+  formatValidationErrors,
+  isRpcError,
+  isValidationDetailErrors,
+  parseRpcError,
+  translateValidationDetails,
+} from '../utils/error.util';
 import { httpErrorCodeToHttpStatus } from '../utils/parse-http-error-status';
 
 @Catch()
@@ -73,12 +79,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             : [];
       }
     } else if (isRpcError(exception)) {
-      code = exception.code;
-      status = httpErrorCodeToHttpStatus(exception.code);
-      message = this.i18nService.translate(exception.message, {
-        args: exception.args || {},
+      const rpcError = parseRpcError(exception) ?? exception;
+      code = rpcError.code;
+      status = httpErrorCodeToHttpStatus(rpcError.code);
+      message = this.i18nService.translate(rpcError.message, {
+        args: rpcError.args || {},
       });
-      detail = exception.details;
+      if (isValidationDetailErrors(rpcError.details)) {
+        detail = translateValidationDetails(rpcError.details, this.i18nService);
+      } else {
+        detail = rpcError.details;
+      }
     } else if (exception instanceof Error) {
       this.loggerService.error('[Internal Server Error]', `Details:: ${exception.stack}`);
       code = HTTP_ERROR_NAME.INTERNAL_SERVER_ERROR;

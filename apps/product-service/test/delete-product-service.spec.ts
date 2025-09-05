@@ -1,12 +1,12 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
-import { ProductService } from '../src/product-service.service';
-import { PrismaService } from '@app/prisma';
-import { PaginationService } from '@app/common/shared/pagination.shared';
-import { Decimal } from '@prisma/client/runtime/library';
 import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
-import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { PrismaService } from '@app/prisma';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Decimal } from '@prisma/client/runtime/library';
+import { ProductService } from '../src/product-service.service';
 
 // Mock interfaces
 interface MockProduct {
@@ -172,7 +172,7 @@ describe('ProductService - deleteProduct', () => {
           useValue: mockPrismaService,
         },
         {
-          provide: Logger,
+          provide: CustomLogger,
           useValue: mockLoggerService,
         },
         {
