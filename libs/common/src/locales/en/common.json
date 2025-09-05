@@ -6,7 +6,8 @@
     "isNotEmpty": "{field} should not be empty",
     "minLength": "{field} must be at least {min} characters",
     "maxLength": "{field} must be at most {max} characters",
-    "isDate": "{field} must be a valid date",
+    "min": "{field} must be at least {min}",
+    "isDate":"{field} must be a valid date",
     "phoneInvalidType": "{field} must be a valid phone number",
     "isNumber": "{field} must be a number",
     "isInt": "{field} must be an integer",
@@ -16,6 +17,9 @@
   },
   "product": {
     "invalidCredentials": "Invalid product information",
+    "notFound":"Product not found",
+    "quantityNotEnough":"Product quantity is not enough",
+    "someProductNotExist":"Some products do not exist. ProductIds: [{missingIds}]",
     "action": {
       "create": {
         "success": "New product successfully created",
@@ -73,6 +77,19 @@
         "maxImagesExceeded": "Products are allowed up to 10 photos maximum",
         "productImagesNotFound": "Product images not found",
         "productNotFound": "Product not found"
+      }
+    }
+  },
+  "cart":{
+    "notFound":"Cart not found",
+    "action":{
+      "addProductCart":{
+        "success":"Add product items to cart successfully",
+        "failed":"Failed to add product items to cart"
+      },
+      "deleteProductCart":{
+        "success":"Delete product items cart successfully",
+        "failed":"Failed to delete product items cart"
       }
     }
   },

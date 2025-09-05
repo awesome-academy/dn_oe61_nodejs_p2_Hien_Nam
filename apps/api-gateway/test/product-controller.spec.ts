@@ -1,23 +1,23 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { GetByIdProductDto } from '@app/common/dto/product/get-by-id-product';
+import { ProductDto } from '@app/common/dto/product/product.dto';
+import { CategoryResponse } from '@app/common/dto/product/response/category-response';
+import { ImageRes } from '@app/common/dto/product/response/images-response';
+import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
+import { ProductResponse } from '@app/common/dto/product/response/product-response';
+import { ProductVariantResponse } from '@app/common/dto/product/response/product-variant-response';
+import { VariantInput } from '@app/common/dto/product/variants.dto';
+import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
+import { BaseResponse } from '@app/common/interfaces/data-type';
 import { BadRequestException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Readable } from 'stream';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Decimal } from '@prisma/client/runtime/library';
 import { I18nService } from 'nestjs-i18n';
+import { Readable } from 'stream';
 import { RolesGuard } from '../src/auth/guards/roles.guard';
 import { ProductController } from '../src/product/admin/product.controller';
 import { ProductService } from '../src/product/admin/product.service';
-import { ProductDto } from '@app/common/dto/product/product.dto';
-import { ProductResponse } from '@app/common/dto/product/response/product-response';
-import { BaseResponse } from '@app/common/interfaces/data-type';
-import { StatusKey } from '@app/common/enums/status-key.enum';
-import { StatusProduct } from '@app/common/enums/product/product-status.enum';
-import { VariantInput } from '@app/common/dto/product/variants.dto';
-import { Decimal } from '@prisma/client/runtime/library';
-import { GetByIdProductDto } from '@app/common/dto/product/get-by-id-product';
-import { ProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
-import { CategoryResponse } from '@app/common/dto/product/response/category-response';
-import { ProductVariantResponse } from '@app/common/dto/product/response/product-variant-response';
-import { ImageRes } from '@app/common/dto/product/response/images-response';
 
 describe('ProductController', () => {
   let controller: ProductController;
@@ -27,6 +27,7 @@ describe('ProductController', () => {
   const mockProductService = {
     create: jest.fn(),
     getById: jest.fn(),
+    addProductCart: jest.fn(),
   };
 
   const mockI18nService = {

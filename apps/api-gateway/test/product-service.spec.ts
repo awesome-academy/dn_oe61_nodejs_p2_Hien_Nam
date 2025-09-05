@@ -1,19 +1,19 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException } from '@nestjs/common';
-import { Readable } from 'stream';
-import { I18nService } from 'nestjs-i18n';
-import { ProductService } from '../src/product/admin/product.service';
-import { ProductDto } from '@app/common/dto/product/product.dto';
-import { ProductResponse } from '@app/common/dto/product/response/product-response';
-import { BaseResponse } from '@app/common/interfaces/data-type';
-import { StatusKey } from '@app/common/enums/status-key.enum';
-import { StatusProduct } from '@app/common/enums/product/product-status.enum';
-import { VariantInput } from '@app/common/dto/product/variants.dto';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PRODUCT_SERVICE } from '@app/common';
 import { CloudUploadQueueService } from '@app/common/cloudinary/cloud-upload-queue/cloud-upload-queue.service';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
-import { PRODUCT_SERVICE } from '@app/common';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
+import { ProductDto } from '@app/common/dto/product/product.dto';
+import { ProductResponse } from '@app/common/dto/product/response/product-response';
+import { VariantInput } from '@app/common/dto/product/variants.dto';
+import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
+import { BaseResponse } from '@app/common/interfaces/data-type';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { BadRequestException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { I18nService } from 'nestjs-i18n';
+import { Readable } from 'stream';
+import { ProductService } from '../src/product/admin/product.service';
 
 // Mock the callMicroservice helper
 jest.mock('@app/common/helpers/microservices', () => ({
@@ -308,7 +308,6 @@ describe('ProductService', () => {
 
     it('should handle null product creation response', async () => {
       const mockImagesUrl = ['https://cloudinary.com/image1.jpg'];
-
       mockCallMicroservice.mockResolvedValueOnce(null);
       mockCloudinaryService.uploadImagesToCloudinary.mockResolvedValueOnce(mockImagesUrl);
       mockCallMicroservice.mockResolvedValueOnce(null);
