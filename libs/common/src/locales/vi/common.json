@@ -87,6 +87,22 @@
       }
     }
   },
+  "userproduct": {
+    "action": {
+      "listProductsForUser": {
+        "success": "Lấy danh sách sản phẩm thành công",
+        "failed": "Lấy danh sách sản phẩm thất bại"
+      }
+    },
+    "error": {
+      "productExists": "Sản phẩm đã tồn tại",
+      "filesExists": "Chưa nhận được files",
+      "failed": "Tạo mới thất bại",
+      "productNotFound": "Sản phẩm chưa tồn tại",
+      "skuIdExists": "SkuId đã tồn tại",
+      "productInOrder": "Sản phẩm đã tồn tại trong đơn hàng"
+    }
+  },
   "file": {
     "validation": {
       "unsupportedType": "Loại file không được hỗ trợ. Chỉ cho phép JPG, JPEG, PNG, WEBP. Nhận được: {fileType}",

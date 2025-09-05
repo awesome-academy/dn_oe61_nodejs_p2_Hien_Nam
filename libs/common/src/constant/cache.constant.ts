@@ -1,0 +1,2 @@
+export const DEFAULT_CACHE_TTL_1H = 3600;
+export const MAX_DATA_BYTES = 104857600;

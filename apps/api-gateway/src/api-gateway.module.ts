@@ -30,6 +30,9 @@ import { ProductController } from './product/admin/product.controller';
 import { CloudinaryConsoleModule } from '@app/common/cloudinary/cloudinary.module';
 import { CloudinaryModule } from 'libs/cloudinary/cloudinary.module';
 import { ProductService } from './product/admin/product.service';
+import { UserProductService } from './product/user/user-product.service';
+import { UserProductController } from './product/user/user-product.controller';
+import { CacheModule } from '@app/common/cache/cache.module';
 
 @Module({
   imports: [
@@ -105,8 +108,9 @@ import { ProductService } from './product/admin/product.service';
     PassportModule.register({ session: true }),
     CloudinaryConsoleModule,
     CloudinaryModule,
+    CacheModule,
   ],
-  controllers: [AuthController, AdminUserController, ProductController],
+  controllers: [AuthController, AdminUserController, ProductController, UserProductController],
   providers: [
     AuthService,
     ProductService,
@@ -131,6 +135,7 @@ import { ProductService } from './product/admin/product.service';
     FacebookStrategy,
     TwitterStrategy,
     GoogleStrategy,
+    UserProductService,
   ],
 })
 export class ApiGatewayModule {}

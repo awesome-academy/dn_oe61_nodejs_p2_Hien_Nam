@@ -14,3 +14,11 @@ export class ChildCategories {
   name: string;
   parent: number | '';
 }
+
+export class CategoriesResponse {
+  id: number;
+  name: string;
+  parentId: number | '';
+  createdAt: Date;
+  updatedAt: Date;
+}

@@ -3,6 +3,7 @@ import { ImageRes } from '@app/common/dto/product/response/images-response';
 import { ProductVariantResponse } from './product-variant-response';
 import { Decimal } from '@prisma/client/runtime/library';
 import { CategoryResponse } from './category-response';
+import { ReviewRes } from './product-response';
 
 export class ProductDetailResponse {
   id: number;
@@ -18,4 +19,8 @@ export class ProductDetailResponse {
   createdAt?: Date | '';
   updatedAt?: Date | '';
   deletedAt?: Date | '';
+}
+
+export class UserProductDetailResponse extends ProductDetailResponse {
+  reviews: ReviewRes[];
 }
