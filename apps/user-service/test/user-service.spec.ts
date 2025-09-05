@@ -1069,7 +1069,7 @@ describe('UserService', () => {
       expect(result.data).toEqual([]);
     });
   });
-  describe('delete user', () => {
+  describe('soft delete user', () => {
     const dto: SoftDeleteUserRequest = { userId: 1 } as SoftDeleteUserRequest;
     let prismaMock: PrismaService<PrismaClient>;
     let productProducerMock: jest.Mocked<ProductProducer>;

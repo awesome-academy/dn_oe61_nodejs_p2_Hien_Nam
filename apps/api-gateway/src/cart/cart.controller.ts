@@ -4,8 +4,9 @@ import { AddProductPayload } from '@app/common/dto/product/requests/add-product-
 import { DeleteProductCartPayload } from '@app/common/dto/product/requests/delete-product-cart-payload';
 import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { AccessTokenPayload } from '@app/common/interfaces/token-payload';
-import { Body, Controller, Delete, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post } from '@nestjs/common';
 import { CartService } from './cart.service';
+import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
 
 @Controller('carts')
 export class CartController {
@@ -31,5 +32,12 @@ export class CartController {
       productVariantIds: dto.productVariantIds,
     };
     return this.cartService.deleteProductCart(payload);
+  }
+  @Get('')
+  async getCart(@CurrentUser() user: AccessTokenPayload) {
+    const payload: GetCartRequest = {
+      userId: user.id,
+    };
+    return this.cartService.getCart(payload);
   }
 }
