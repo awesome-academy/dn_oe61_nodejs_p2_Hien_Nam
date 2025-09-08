@@ -133,7 +133,6 @@ describe('CartService', () => {
         productVariantId: 10,
         quantity: 2,
       };
-
       await expect(service.addProductCart(requestWithNullUserId)).rejects.toThrow();
       expect(mockCallMicroservice).not.toHaveBeenCalled();
     });
@@ -570,6 +569,302 @@ describe('CartService', () => {
           retries: RETRIES_DEFAULT,
         },
       );
+    });
+  });
+  describe('getCart', () => {
+    const mockGetCartRequest = {
+      userId: 123,
+    };
+
+    const mockCartSummaryResponse = {
+      cartId: 1,
+      userId: 123,
+      cartItems: [
+        {
+          id: 1,
+          quantity: 3,
+          productVariant: {
+            id: 10,
+            price: 25000,
+          },
+        },
+        {
+          id: 2,
+          quantity: 2,
+          productVariant: {
+            id: 20,
+            price: 15000,
+          },
+        },
+      ],
+      totalQuantity: 5,
+      totalAmount: 105000,
+    };
+
+    const mockSuccessCartResponse: BaseResponse<CartSummaryResponse> = {
+      statusKey: StatusKey.SUCCESS,
+      data: mockCartSummaryResponse,
+    };
+
+    beforeEach(() => {
+      mockI18nService.translate.mockImplementation((key: string) => key);
+    });
+
+    it('should get cart successfully with valid userId', async () => {
+      mockCallMicroservice.mockResolvedValueOnce(mockSuccessCartResponse);
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        PRODUCT_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+
+      expect(mockCallMicroservice).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessCartResponse);
+      expect(result.data?.cartItems).toHaveLength(2);
+      expect(result.data?.totalQuantity).toBe(5);
+      expect(result.data?.totalAmount).toBe(105000);
+    });
+
+    it('should return empty cart when no items exist', async () => {
+      const emptyCartResponse: BaseResponse<CartSummaryResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: {
+          userId: 123,
+          cartItems: [],
+          totalQuantity: 0,
+          totalAmount: 0,
+        },
+      };
+
+      mockCallMicroservice.mockResolvedValueOnce(emptyCartResponse);
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        PRODUCT_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+
+      expect(result).toEqual(emptyCartResponse);
+      expect(result.data?.cartItems).toHaveLength(0);
+      expect(result.data?.totalQuantity).toBe(0);
+      expect(result.data?.totalAmount).toBe(0);
+    });
+
+    it('should throw TypedRpcException when userId is undefined', async () => {
+      const requestWithoutUserId = {
+        userId: undefined as unknown as number,
+      };
+      try {
+        await service.getCart(requestWithoutUserId);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.UNAUTHORIZED);
+        expect((error as TypedRpcException).message).toEqual('common.guard.unauthorized');
+      }
+
+      expect(mockCallMicroservice).not.toHaveBeenCalled();
+    });
+    it('should throw TypedRpcException when userId is null', async () => {
+      const requestWithNullUserId = {
+        userId: null as unknown as number,
+      };
+      try {
+        await service.getCart(requestWithNullUserId);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError().code).toEqual(HTTP_ERROR_CODE.UNAUTHORIZED);
+        expect((error as TypedRpcException).message).toEqual('common.guard.unauthorized');
+      }
+      expect(mockCallMicroservice).not.toHaveBeenCalled();
+    });
+
+    it('should validate userId is truthy before making microservice call', async () => {
+      const falsyUserIds = [undefined, null, 0, false, '', NaN];
+      for (const falsyUserId of falsyUserIds) {
+        const requestWithFalsyUserId = {
+          userId: falsyUserId as unknown as number,
+        };
+
+        await expect(service.getCart(requestWithFalsyUserId)).rejects.toThrow(TypedRpcException);
+      }
+      expect(mockCallMicroservice).not.toHaveBeenCalled();
+    });
+
+    it('should handle microservice returning database error', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.errors.rowNotFound',
+      };
+      mockCallMicroservice.mockRejectedValueOnce(new TypedRpcException(rpcError));
+
+      try {
+        await service.getCart(mockGetCartRequest);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).message).toEqual(rpcError.message);
+      }
+
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        PRODUCT_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+    });
+
+    it('should handle microservice returning validation error', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.errors.validationError',
+      };
+      mockCallMicroservice.mockRejectedValueOnce(new TypedRpcException(rpcError));
+
+      try {
+        await service.getCart(mockGetCartRequest);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+      }
+
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        PRODUCT_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+    });
+
+    it('should handle microservice connection timeout', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        message: 'common.errors.serviceUnavailable',
+      };
+      mockCallMicroservice.mockRejectedValueOnce(new TypedRpcException(rpcError));
+
+      try {
+        await service.getCart(mockGetCartRequest);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        expect((error as TypedRpcException).getError()).toEqual(rpcError);
+        expect((error as TypedRpcException).message).toEqual(rpcError.message);
+      }
+
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        PRODUCT_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+      expect(mockCallMicroservice).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle microservice returning null response', async () => {
+      mockCallMicroservice.mockResolvedValueOnce(null);
+
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        PRODUCT_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle cart with single item', async () => {
+      const singleItemCartResponse: BaseResponse<CartSummaryResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: {
+          cartId: 1,
+          userId: 123,
+          cartItems: [
+            {
+              id: 1,
+              quantity: 1,
+              productVariant: {
+                id: 10,
+                price: 50000,
+              },
+            },
+          ],
+          totalQuantity: 1,
+          totalAmount: 50000,
+        },
+      };
+
+      mockCallMicroservice.mockResolvedValueOnce(singleItemCartResponse);
+
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        PRODUCT_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+
+      expect(result.data?.cartItems).toHaveLength(1);
+      expect(result.data?.totalQuantity).toBe(1);
+      expect(result.data?.totalAmount).toBe(50000);
+    });
+
+    it('should handle cart with multiple items of same product variant', async () => {
+      const multipleItemsCartResponse: BaseResponse<CartSummaryResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: {
+          cartId: 1,
+          userId: 123,
+          cartItems: [
+            {
+              id: 1,
+              quantity: 10,
+              productVariant: {
+                id: 10,
+                price: 25000,
+              },
+            },
+          ],
+          totalQuantity: 10,
+          totalAmount: 250000,
+        },
+      };
+
+      mockCallMicroservice.mockResolvedValueOnce(multipleItemsCartResponse);
+
+      const result = await service.getCart(mockGetCartRequest);
+
+      expect(result.data?.cartItems).toHaveLength(1);
+      expect(result.data?.totalQuantity).toBe(10);
+      expect(result.data?.totalAmount).toBe(250000);
     });
   });
 });

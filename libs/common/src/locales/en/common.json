@@ -13,7 +13,8 @@
     "isInt": "{field} must be an integer",
     "isDateString": "{field} must be a valid ISO date string",
     "isUrl": "{field} must be a valid URL",
-    "isEnum": "{field} must be one of {enum}"
+    "isEnum":"{field} must be one of {enum}",
+    "arrayNotEmpty":"{field} should not be empty"
   },
   "product": {
     "invalidCredentials": "Invalid product information",

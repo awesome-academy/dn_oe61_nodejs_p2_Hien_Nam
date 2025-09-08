@@ -18,6 +18,7 @@ import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-us
 import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
 import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
+import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import {
   ProductResponse,
@@ -874,7 +875,7 @@ export class ProductService {
         });
       }
     } catch (error) {
-      return handleServiceError(error, ProductService.name, 'deleteSoftCart', this.loggerService);
+      handleServiceError(error, ProductService.name, 'deleteSoftCart', this.loggerService);
     }
   }
   async addProductCart(dto: AddProductCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
@@ -999,6 +1000,31 @@ export class ProductService {
       return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
     } catch (error) {
       handleServiceError(error, ProductService.name, 'deleteProductCart', this.loggerService);
+    }
+  }
+  async getCart(dto: GetCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
+    try {
+      const cartSummary = await this.prismaService.client.cart.findUnique({
+        where: { userId: dto.userId },
+        include: {
+          items: {
+            include: {
+              productVariant: { select: { id: true, price: true } },
+            },
+          },
+        },
+      });
+      if (cartSummary)
+        return buildBaseResponse(StatusKey.SUCCESS, this.toCartSummaryResponse(cartSummary));
+      const cartEmpty: CartSummaryResponse = {
+        userId: dto.userId,
+        cartItems: [],
+        totalAmount: 0,
+        totalQuantity: 0,
+      };
+      return buildBaseResponse(StatusKey.SUCCESS, cartEmpty);
+    } catch (error) {
+      handleServiceError(error, ProductService.name, 'getCart', this.loggerService);
     }
   }
   private toCartSummaryResponse(
