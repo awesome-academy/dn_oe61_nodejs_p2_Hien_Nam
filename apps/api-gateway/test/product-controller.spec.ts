@@ -749,13 +749,13 @@ describe('ProductController', () => {
     it('should handle empty dates in response', async () => {
       const emptyDatesProductDetail: ProductDetailResponse = {
         ...mockProductDetailResponse,
-        createdAt: '',
-        updatedAt: '',
+        createdAt: null,
+        updatedAt: null,
         variants: [
           {
             ...mockProductVariantResponse,
-            startDate: '',
-            endDate: '',
+            startDate: null,
+            endDate: null,
           },
         ],
       };
@@ -772,10 +772,10 @@ describe('ProductController', () => {
       const result = await controller.getById(mockGetByIdDto);
 
       expect(productServiceGetByIdSpy).toHaveBeenCalledWith(mockGetByIdDto);
-      expect(result.data!.createdAt).toBe('');
-      expect(result.data!.updatedAt).toBe('');
-      expect(result.data!.variants[0].startDate).toBe('');
-      expect(result.data!.variants[0].endDate).toBe('');
+      expect(result.data!.createdAt).toBeNull();
+      expect(result.data!.updatedAt).toBeNull();
+      expect(result.data!.variants[0].startDate).toBeNull();
+      expect(result.data!.variants[0].endDate).toBeNull();
     });
 
     it('should propagate BadRequestException from service', async () => {
@@ -960,8 +960,8 @@ describe('ProductController', () => {
       const variantWithEmptyDates: ProductVariantResponse = {
         id: 1,
         price: new Decimal(29.99),
-        startDate: '',
-        endDate: '',
+        startDate: null,
+        endDate: null,
         size: {
           id: '1',
           nameSize: 'Medium',
@@ -986,8 +986,8 @@ describe('ProductController', () => {
       const result = await controller.getById(mockGetByIdDto);
 
       expect(productServiceGetByIdSpy).toHaveBeenCalledWith(mockGetByIdDto);
-      expect(result.data!.variants[0].startDate).toBe('');
-      expect(result.data!.variants[0].endDate).toBe('');
+      expect(result.data!.variants[0].startDate).toBeNull();
+      expect(result.data!.variants[0].endDate).toBeNull();
     });
 
     it('should handle null input gracefully', async () => {

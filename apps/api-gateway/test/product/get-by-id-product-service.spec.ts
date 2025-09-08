@@ -572,13 +572,13 @@ describe('ProductService - getById', () => {
     it('should handle empty dates in response', async () => {
       const emptyDatesProductDetail: ProductDetailResponse = {
         ...mockProductDetailResponse,
-        createdAt: '',
-        updatedAt: '',
+        createdAt: null,
+        updatedAt: null,
         variants: [
           {
             ...mockProductVariantResponse,
-            startDate: '',
-            endDate: '',
+            startDate: null,
+            endDate: null,
           },
         ],
       };
@@ -594,10 +594,10 @@ describe('ProductService - getById', () => {
 
       const result = await service.getById(mockGetByIdDto);
 
-      expect(result.data!.createdAt).toBe('');
-      expect(result.data!.updatedAt).toBe('');
-      expect(result.data!.variants[0].startDate).toBe('');
-      expect(result.data!.variants[0].endDate).toBe('');
+      expect(result.data!.createdAt).toBeNull();
+      expect(result.data!.updatedAt).toBeNull();
+      expect(result.data!.variants[0].startDate).toBeNull();
+      expect(result.data!.variants[0].endDate).toBeNull();
     });
 
     it('should handle null input gracefully', async () => {

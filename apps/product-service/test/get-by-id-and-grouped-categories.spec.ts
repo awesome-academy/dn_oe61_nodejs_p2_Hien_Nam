@@ -328,8 +328,8 @@ describe('ProductService - getById and groupedCategories', () => {
 
       const result = await service.getById(mockDeleteProductDto);
 
-      expect(result!.variants[0].startDate).toBe('');
-      expect(result!.variants[0].endDate).toBe('');
+      expect(result!.variants[0].startDate).toBeNull();
+      expect(result!.variants[0].endDate).toBeNull();
       expect(result!.variants[0].size.description).toBe('');
     });
 
