@@ -1,0 +1,1 @@
+export const EXPIRE_TIME_PAYMENT_DEFAULT = '1h';

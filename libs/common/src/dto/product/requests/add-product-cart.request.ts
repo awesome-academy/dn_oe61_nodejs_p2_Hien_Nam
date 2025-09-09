@@ -1,4 +1,4 @@
-import { MIN_QUANTITY_ADD_CART } from '@app/common/constant/product.constant';
+import { MIN_QUANTITY_PRODUCT } from '@app/common/constant/product.constant';
 import { IsInt, Min } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
 
@@ -20,10 +20,10 @@ export class AddProductCartRequest {
       field: 'quantity',
     }),
   })
-  @Min(MIN_QUANTITY_ADD_CART, {
+  @Min(MIN_QUANTITY_PRODUCT, {
     message: i18nValidationMessage('common.validation.min', {
       field: 'quantity',
-      value: MIN_QUANTITY_ADD_CART,
+      value: MIN_QUANTITY_PRODUCT,
     }),
   })
   quantity: number;

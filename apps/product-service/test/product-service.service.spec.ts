@@ -1,3 +1,4 @@
+import { NOTIFICATION_SERVICE } from '@app/common';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
 import { ProductDto } from '@app/common/dto/product/product.dto';
 import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
@@ -13,11 +14,14 @@ import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
 import * as prismaClientError from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
+import { I18nService } from 'nestjs-i18n';
 import { ProductService } from '../src/product-service.service';
+import { ProductProducer } from '../src/product.producer';
 
 jest.mock('class-validator', () => {
   const actual = jest.requireActual<typeof import('class-validator')>('class-validator');
@@ -37,9 +41,24 @@ jest.mock('class-transformer', () => {
 
 jest.mock('@app/common/utils/prisma-client-error');
 
+jest.mock('@app/common/utils/prisma-client-error');
+
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
+const mockConfigService = {
+  get: jest.fn(),
+};
+const mockNotificationClient = {
+  emit: jest.fn(),
+};
 
+const mockI18nService = {
+  translate: jest.fn(),
+};
+
+const mockProductProducer = {
+  addJobRetryPayment: jest.fn(),
+};
 interface MockProduct {
   id: number;
   skuId: string;
@@ -225,6 +244,22 @@ describe('ProductService', () => {
         },
         { provide: CustomLogger, useValue: { error: jest.fn(), log: jest.fn() } },
         { provide: PaginationService, useValue: { queryWithPagination: jest.fn() } },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
+        },
       ],
     }).compile();
     service = module.get<ProductService>(ProductService);
@@ -1248,7 +1283,6 @@ describe('ProductService', () => {
     });
 
     it('should handle database errors via handlePrismaError', async () => {
-      const prismaError = new Error('Database fail');
       const rpcError = {
         code: HTTP_ERROR_CODE.CONFLICT,
         message: 'common.errors.databaseError',
@@ -1258,7 +1292,7 @@ describe('ProductService', () => {
       mockPlainToInstance.mockReturnValue(mockDto);
       mockValidateOrReject.mockResolvedValue(undefined);
 
-      (mockPrismaService.client.cart.findUnique as jest.Mock).mockRejectedValue(prismaError);
+      (mockPrismaService.client.cart.findUnique as jest.Mock).mockRejectedValue(rpcError);
       jest.spyOn(prismaClientError, 'handleServiceError').mockReturnValue(mappedError as never);
       try {
         await service.getCart(mockGetCartRequest);
@@ -1266,7 +1300,7 @@ describe('ProductService', () => {
         assertRpcException(error, rpcError.code, rpcError);
       }
       expect(prismaClientError.handleServiceError).toHaveBeenCalledWith(
-        prismaError,
+        rpcError,
         'ProductService',
         'getCart',
         expect.anything(),

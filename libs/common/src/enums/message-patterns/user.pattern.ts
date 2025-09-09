@@ -14,4 +14,5 @@ export enum UserMsgPattern {
   GET_USER_PROFILE = 'user.getUserProfile',
   UPDATE_USER_PROFILE = 'user.updateUserProfile',
   UPDATE_PASSWORD = 'user.updatePassword',
+  GET_ALL_ADMIN = 'admin.user.getAllAdmin',
 }

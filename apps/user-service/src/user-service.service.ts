@@ -44,6 +44,7 @@ import { buildBaseResponse } from '@app/common/utils/data.util';
 import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { ProductProducer } from './producer/product.producer';
 import { validateDto } from '@app/common/helpers/validation.helper';
+import { AdminInfoResponse } from '@app/common/dto/user/responses/admin-info.response';
 @Injectable()
 export class UserService {
   constructor(
@@ -992,6 +993,13 @@ export class UserService {
     }
   }
 
+  async getAllAdmin(): Promise<AdminInfoResponse[] | []> {
+    const adminUsers = await this.prismaService.client.user.findMany({
+      where: { role: { name: RoleEnum.ADMIN }, deletedAt: null },
+      select: { id: true, name: true, email: true },
+    });
+    return adminUsers;
+  }
   private mapToUserSummaryResponse(
     data: User & { role: Role; profile: UserProfile | null },
   ): UserSummaryResponse {

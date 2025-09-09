@@ -37,6 +37,10 @@ import { CartService } from './cart/cart.service';
 import { UserProductService } from './product/user/user-product.service';
 import { UserProductController } from './product/user/user-product.controller';
 import { CacheModule } from '@app/common/cache/cache.module';
+import { OrderService } from './order/order.service';
+import { OrderController } from './order/order.controller';
+import { PaymentController } from './payment/paymet.controller';
+import { PaymentService } from './payment/payment.service';
 
 @Module({
   imports: [
@@ -122,6 +126,8 @@ import { CacheModule } from '@app/common/cache/cache.module';
     UserProductController,
     UserProductController,
     UserProfileController,
+    OrderController,
+    PaymentController,
   ],
   providers: [
     AuthService,
@@ -130,6 +136,8 @@ import { CacheModule } from '@app/common/cache/cache.module';
     UserService,
     CartService,
     UserProfileService,
+    OrderService,
+    PaymentService,
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,

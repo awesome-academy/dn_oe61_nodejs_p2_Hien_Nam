@@ -9,6 +9,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { ProductService } from '../src/product-service.service';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 // Mock class-transformer
 jest.mock('class-transformer', () => ({
@@ -16,6 +20,20 @@ jest.mock('class-transformer', () => ({
   Transform: jest.fn(() => jest.fn()),
   Type: jest.fn(() => jest.fn()),
 }));
+const mockConfigService = {
+  get: jest.fn(),
+};
+const mockNotificationClient = {
+  emit: jest.fn(),
+};
+
+const mockI18nService = {
+  translate: jest.fn(),
+};
+
+const mockProductProducer = {
+  addJobRetryPayment: jest.fn(),
+};
 
 // Mock class-validator
 jest.mock('class-validator', () => ({
@@ -115,6 +133,22 @@ describe('ProductService - deleteProductCategory', () => {
           useValue: {
             paginate: jest.fn(),
           },
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

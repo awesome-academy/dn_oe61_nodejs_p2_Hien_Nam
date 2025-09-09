@@ -75,7 +75,6 @@ export class UserServiceController {
   async adminDeleteUser(@Payload() dto: SoftDeleteUserRequest) {
     return await this.userService.softdeleteUser(dto);
   }
-
   @UsePipes(I18nRpcValidationPipe)
   @MessagePattern(UserMsgPattern.GET_USER_PROFILE)
   async getUserProfile(@Payload() dto: GetUserProfileRequest): Promise<UserProfileResponse> {
@@ -94,5 +93,9 @@ export class UserServiceController {
   @MessagePattern(UserMsgPattern.UPDATE_PASSWORD)
   async updatePassword(@Payload() dto: UpdatePasswordRequest): Promise<UpdatePasswordResponse> {
     return await this.userService.updatePassword(dto);
+  }
+  @MessagePattern(UserMsgPattern.GET_ALL_ADMIN)
+  async getAllAdmin() {
+    return await this.userService.getAllAdmin();
   }
 }

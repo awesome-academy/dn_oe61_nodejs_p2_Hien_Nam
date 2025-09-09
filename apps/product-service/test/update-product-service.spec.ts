@@ -10,6 +10,10 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { ProductService } from '../src/product-service.service';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 // Mock class-validator
 jest.mock('class-validator', () => {
@@ -101,7 +105,20 @@ describe('ProductService - updateProduct and validationDataProduct', () => {
     basePrice: 199.99,
     quantity: 20,
   };
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+  const mockNotificationClient = {
+    emit: jest.fn(),
+  };
 
+  const mockI18nService = {
+    translate: jest.fn(),
+  };
+
+  const mockProductProducer = {
+    addJobRetryPayment: jest.fn(),
+  };
   beforeEach(async () => {
     // Create mock transaction object
     mockTransaction = {
@@ -141,6 +158,22 @@ describe('ProductService - updateProduct and validationDataProduct', () => {
           useValue: {
             queryWithPagination: jest.fn(),
           },
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

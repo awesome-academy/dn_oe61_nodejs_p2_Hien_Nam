@@ -135,44 +135,49 @@ model CartItem {
 }
 
 model Order {
-  id        Int         @id @default(autoincrement())
-  status    OrderStatus @default(PENDING)
-  amount    Decimal
-  createdAt DateTime    @default(now())
-  updatedAt DateTime?   @updatedAt
-
-  userId Int
-
-  items   OrderItem[]
-  payment Payment?
+  id              Int           @id @default(autoincrement())
+  status          OrderStatus   @default(PENDING)
+  amount          Decimal
+  deliveryAddress String        @db.VarChar(255)
+  paymentMethod   PaymentMethod @default(CASH)
+  paymentStatus   PaymentStatus @default(UNPAID)
+  note            String?       @db.VarChar(255)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime?     @updatedAt
+  userId          Int
+  items           OrderItem[]
+  payment         Payment?
 
   @@map("orders")
 }
 
 model Payment {
-  id        Int           @id @default(autoincrement())
-  status    PaymentStatus @default(PENDING)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime?     @updatedAt
-
-  orderId Int   @unique
-  order   Order @relation(fields: [orderId], references: [id])
+  id              Int           @id @default(autoincrement())
+  status          PaymentStatus @default(UNPAID)
+  amount          Decimal
+  transactionCode String        @db.VarChar(100)
+  accountNumber   String        @db.VarChar(100)
+  bankCode        String        @db.VarChar(50)
+  paymentType     PaymentType   @default(PAYIN)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime?     @updatedAt
+  orderId         Int           @unique
+  order           Order         @relation(fields: [orderId], references: [id])
 
   @@map("payments")
 }
 
 model OrderItem {
-  id        Int       @id @default(autoincrement())
-  quantity  Int
-  price     Decimal
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-
+  id               Int            @id @default(autoincrement())
+  quantity         Int
+  amount           Decimal
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime?      @updatedAt
+  note             String?        @db.VarChar(255)
   orderId          Int
   productVariantId Int
-
-  order          Order          @relation(fields: [orderId], references: [id])
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  order            Order          @relation(fields: [orderId], references: [id])
+  productVariant   ProductVariant @relation(fields: [productVariantId], references: [id])
 
   @@unique([orderId, productVariantId])
   @@map("order_items")
@@ -185,7 +190,6 @@ model Review {
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
   deletedAt DateTime?
-
   userId    Int
   productId Int
 
@@ -218,9 +222,22 @@ enum OrderStatus {
 
 enum PaymentStatus {
   PENDING
+  UNPAID
   PAID
   CANCELLED
   REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  E_WALLET
+  BANK_TRANSFER
+}
+
+enum PaymentType {
+  PAYIN
+  PAYOUT
 }
 
 enum ProductStatus {

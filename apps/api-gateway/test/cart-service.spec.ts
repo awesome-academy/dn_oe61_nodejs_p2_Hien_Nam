@@ -615,7 +615,7 @@ describe('CartService', () => {
       const result = await service.getCart(mockGetCartRequest);
 
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
         mockLoggerService,
         {
@@ -646,7 +646,7 @@ describe('CartService', () => {
       const result = await service.getCart(mockGetCartRequest);
 
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
         mockLoggerService,
         {
@@ -717,7 +717,7 @@ describe('CartService', () => {
       }
 
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
         mockLoggerService,
         {
@@ -742,7 +742,7 @@ describe('CartService', () => {
       }
 
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
         mockLoggerService,
         {
@@ -768,7 +768,7 @@ describe('CartService', () => {
       }
 
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
         mockLoggerService,
         {
@@ -785,7 +785,7 @@ describe('CartService', () => {
       const result = await service.getCart(mockGetCartRequest);
 
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
         mockLoggerService,
         {
@@ -823,7 +823,7 @@ describe('CartService', () => {
       const result = await service.getCart(mockGetCartRequest);
 
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        mockCartClient.send(ProductPattern.GET_CAR, mockGetCartRequest),
+        mockCartClient.send(ProductPattern.GET_CART, mockGetCartRequest),
         PRODUCT_SERVICE,
         mockLoggerService,
         {

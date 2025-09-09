@@ -7,6 +7,10 @@ import { PrismaService } from '@app/prisma';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Decimal } from '@prisma/client/runtime/library';
 import { ProductService } from '../src/product-service.service';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 // Mock interfaces
 interface MockProduct {
@@ -162,7 +166,20 @@ describe('ProductService - deleteProduct', () => {
     const mockPaginationService = {
       queryWithPagination: jest.fn(),
     };
+    const mockConfigService = {
+      get: jest.fn(),
+    };
+    const mockNotificationClient = {
+      emit: jest.fn(),
+    };
 
+    const mockI18nService = {
+      translate: jest.fn(),
+    };
+
+    const mockProductProducer = {
+      addJobRetryPayment: jest.fn(),
+    };
     // Create the testing module
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -178,6 +195,22 @@ describe('ProductService - deleteProduct', () => {
         {
           provide: PaginationService,
           useValue: mockPaginationService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

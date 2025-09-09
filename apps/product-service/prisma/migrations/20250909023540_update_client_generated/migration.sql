@@ -21,6 +21,7 @@ CREATE TABLE `products` (
     `quantity` INTEGER NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
+    `deletedAt` DATETIME(3) NULL,
 
     UNIQUE INDEX `products_skuId_key`(`skuId`),
     PRIMARY KEY (`id`)
@@ -81,6 +82,7 @@ CREATE TABLE `carts` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
+    `deletedAt` DATETIME(3) NULL,
     `userId` INTEGER NOT NULL,
 
     UNIQUE INDEX `carts_userId_key`(`userId`),
@@ -96,6 +98,7 @@ CREATE TABLE `cart_items` (
     `cartId` INTEGER NOT NULL,
     `productVariantId` INTEGER NOT NULL,
 
+    UNIQUE INDEX `cart_items_cartId_productVariantId_key`(`cartId`, `productVariantId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -104,6 +107,10 @@ CREATE TABLE `orders` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `status` ENUM('PENDING', 'CONFIRMED', 'SHIPPED', 'COMPLETED', 'CANCELLED') NOT NULL DEFAULT 'PENDING',
     `amount` DECIMAL(65, 30) NOT NULL,
+    `deliveryAddress` VARCHAR(255) NOT NULL,
+    `paymentMethod` ENUM('CASH', 'CREDIT_CARD', 'E_WALLET', 'BANK_TRANSFER') NOT NULL DEFAULT 'CASH',
+    `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
+    `note` VARCHAR(255) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
     `userId` INTEGER NOT NULL,
@@ -114,7 +121,12 @@ CREATE TABLE `orders` (
 -- CreateTable
 CREATE TABLE `payments` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `status` ENUM('PENDING', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'PENDING',
+    `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
+    `amount` DECIMAL(65, 30) NOT NULL,
+    `transactionCode` VARCHAR(100) NOT NULL,
+    `accountNumber` VARCHAR(100) NOT NULL,
+    `bankCode` VARCHAR(50) NOT NULL,
+    `paymentType` ENUM('PAYIN', 'PAYOUT') NOT NULL DEFAULT 'PAYIN',
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
     `orderId` INTEGER NOT NULL,
@@ -127,9 +139,10 @@ CREATE TABLE `payments` (
 CREATE TABLE `order_items` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `quantity` INTEGER NOT NULL,
-    `price` DECIMAL(65, 30) NOT NULL,
+    `amount` DECIMAL(65, 30) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
+    `note` VARCHAR(255) NULL,
     `orderId` INTEGER NOT NULL,
     `productVariantId` INTEGER NOT NULL,
 
@@ -144,6 +157,7 @@ CREATE TABLE `reviews` (
     `comment` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
+    `deletedAt` DATETIME(3) NULL,
     `userId` INTEGER NOT NULL,
     `productId` INTEGER NOT NULL,
 

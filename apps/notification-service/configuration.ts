@@ -20,4 +20,9 @@ export default () => ({
     shareMessengerUrl: process.env.SHARE_MESSENGER_URL,
   },
   frontendUrl: process.env.FRONTEND_URL,
+  chatwork: {
+    apiToken: process.env.CHATWORK_API_TOKEN,
+    baseApi: process.env.CHATWORK_BASE_API,
+    roomId: process.env.CHATWORK_ROOM_ID,
+  },
 });

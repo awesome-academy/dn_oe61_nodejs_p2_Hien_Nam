@@ -9,6 +9,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
 import { ProductService } from '../src/product-service.service';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { I18nService } from 'nestjs-i18n';
+import { ProductProducer } from '../src/product.producer';
 
 jest.mock('class-validator', () => {
   const actual = jest.requireActual<typeof import('class-validator')>('class-validator');
@@ -28,7 +32,20 @@ jest.mock('class-transformer', () => {
 
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
+const mockConfigService = {
+  get: jest.fn(),
+};
+const mockNotificationClient = {
+  emit: jest.fn(),
+};
 
+const mockI18nService = {
+  translate: jest.fn(),
+};
+
+const mockProductProducer = {
+  addJobRetryPayment: jest.fn(),
+};
 interface MockProduct {
   id: number;
   skuId: string;
@@ -133,6 +150,22 @@ describe('ProductService', () => {
           useValue: {
             queryWithPagination: jest.fn(),
           },
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
         },
       ],
     }).compile();

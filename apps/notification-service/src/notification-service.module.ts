@@ -1,18 +1,20 @@
+import { PRODUCT_SERVICE, USER_SERVICE } from '@app/common';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import * as path from 'path';
-import configuration from '../configuration';
-import { MailQueueModule } from './mail/mail-queue.module';
-import { APP_PIPE } from '@nestjs/core';
-import { NotificationService } from './notification-service.service';
-import { NotificationServiceController } from './notification-service.controller';
-import { BullModule } from '@nestjs/bull';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { PugAdapter } from '@nestjs-modules/mailer/dist/adapters/pug.adapter';
+import { BullModule } from '@nestjs/bull';
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_PIPE } from '@nestjs/core';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { PRODUCT_SERVICE } from '@app/common';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { AcceptLanguageResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
+import * as path from 'path';
+import configuration from '../configuration';
+import { ChatworkModule } from './chatwork/chatwork.module';
+import { MailQueueModule } from './mail/mail-queue.module';
+import { NotificationServiceController } from './notification-service.controller';
+import { NotificationService } from './notification-service.service';
 
 @Module({
   imports: [
@@ -20,6 +22,20 @@ import { CustomLogger } from '@app/common/logger/custom-logger.service';
       isGlobal: true,
       envFilePath: path.resolve(process.cwd(), 'apps/notification-service/.env'),
       load: [configuration],
+    }),
+    I18nModule.forRoot({
+      fallbackLanguage: 'en',
+      loaderOptions: {
+        path: path.join(process.cwd(), 'libs/common/src/locales/'),
+        watch: true,
+      },
+      loader: I18nJsonLoader,
+      resolvers: [
+        {
+          use: AcceptLanguageResolver,
+          options: ['x-custom-lang'],
+        },
+      ],
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
@@ -68,7 +84,19 @@ import { CustomLogger } from '@app/common/logger/custom-logger.service';
         }),
         inject: [ConfigService],
       },
+      {
+        name: USER_SERVICE,
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.REDIS,
+          options: {
+            host: configService.get<string>('REDIS_HOST'),
+            port: configService.get<number>('REDIS_PORT'),
+          },
+        }),
+        inject: [ConfigService],
+      },
     ]),
+    ChatworkModule,
     MailQueueModule,
   ],
   providers: [
