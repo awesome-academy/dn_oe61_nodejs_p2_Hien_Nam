@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsString } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
 
-export class DeleteProductDto {
+export class skuIdProductDto {
   @IsString({
     message: i18nValidationMessage('common.validation.isString', {
       field: 'skuId',

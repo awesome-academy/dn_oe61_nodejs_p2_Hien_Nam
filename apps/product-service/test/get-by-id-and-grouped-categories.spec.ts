@@ -1,4 +1,4 @@
-import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import {
   CategoryResponse,
   ChildCategories,
@@ -121,7 +121,7 @@ describe('ProductService - getById and groupedCategories', () => {
   });
 
   describe('getById', () => {
-    const mockDeleteProductDto: DeleteProductDto = {
+    const mockskuIdProductDto: skuIdProductDto = {
       skuId: 'PROD-001',
     };
 
@@ -166,7 +166,7 @@ describe('ProductService - getById and groupedCategories', () => {
     const mockChildCategories = [{ id: 2, name: 'Smartphones', parentId: 1 }];
 
     beforeEach(() => {
-      mockPlainToInstance.mockReturnValue(mockDeleteProductDto);
+      mockPlainToInstance.mockReturnValue(mockskuIdProductDto);
       mockValidateOrReject.mockResolvedValue();
     });
 
@@ -177,7 +177,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue(mockChildCategories);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result).toBeDefined();
       expect(result!.id).toBe(1);
@@ -224,10 +224,10 @@ describe('ProductService - getById and groupedCategories', () => {
     it('should throw TypedRpcException when product not found', async () => {
       mockPrismaClient.product.findUnique.mockResolvedValue(null);
 
-      await expect(service.getById(mockDeleteProductDto)).rejects.toThrow(TypedRpcException);
+      await expect(service.getById(mockskuIdProductDto)).rejects.toThrow(TypedRpcException);
 
       try {
-        await service.getById(mockDeleteProductDto);
+        await service.getById(mockskuIdProductDto);
       } catch (error) {
         expect(error).toBeInstanceOf(TypedRpcException);
         const typedError = error as TypedRpcException;
@@ -241,7 +241,7 @@ describe('ProductService - getById and groupedCategories', () => {
       const validationError = new Error('Validation failed');
       mockValidateOrReject.mockRejectedValue(validationError);
 
-      await expect(service.getById(mockDeleteProductDto)).rejects.toThrow(TypedRpcException);
+      await expect(service.getById(mockskuIdProductDto)).rejects.toThrow(TypedRpcException);
 
       expect(mockPrismaClient.product.findUnique).not.toHaveBeenCalled();
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -255,7 +255,7 @@ describe('ProductService - getById and groupedCategories', () => {
       const databaseError = new Error('Database connection failed');
       mockPrismaClient.product.findUnique.mockRejectedValue(databaseError);
 
-      await expect(service.getById(mockDeleteProductDto)).rejects.toThrow(TypedRpcException);
+      await expect(service.getById(mockskuIdProductDto)).rejects.toThrow(TypedRpcException);
 
       expect(mockLogger.error).toHaveBeenCalledWith(
         'DeleteProduct',
@@ -276,7 +276,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.description).toBe('');
     });
@@ -296,7 +296,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.images[0].url).toBe('');
       expect(result!.images[1].url).toBe('https://example.com/image2.jpg');
@@ -326,7 +326,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.variants[0].startDate).toBeNull();
       expect(result!.variants[0].endDate).toBeNull();
@@ -345,7 +345,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.images).toEqual([]);
     });
@@ -362,7 +362,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.variants).toEqual([]);
     });
@@ -378,7 +378,7 @@ describe('ProductService - getById and groupedCategories', () => {
         deletedAt: null,
       });
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.categories).toEqual([]);
       expect(mockPrismaClient.category.findMany).not.toHaveBeenCalled();
@@ -394,7 +394,7 @@ describe('ProductService - getById and groupedCategories', () => {
       mockPrismaClient.product.findUnique.mockResolvedValue({ ...soldOutProduct, deletedAt: null });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.status).toBe(StatusProduct.SOLD_OUT);
     });
@@ -406,10 +406,10 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      await service.getById(mockDeleteProductDto);
+      await service.getById(mockskuIdProductDto);
 
-      expect(mockPlainToInstance).toHaveBeenCalledWith(DeleteProductDto, mockDeleteProductDto);
-      expect(mockValidateOrReject).toHaveBeenCalledWith(mockDeleteProductDto);
+      expect(mockPlainToInstance).toHaveBeenCalledWith(skuIdProductDto, mockskuIdProductDto);
+      expect(mockValidateOrReject).toHaveBeenCalledWith(mockskuIdProductDto);
     });
 
     it('should propagate TypedRpcException without modification', async () => {
@@ -420,7 +420,7 @@ describe('ProductService - getById and groupedCategories', () => {
 
       mockValidateOrReject.mockRejectedValue(typedRpcError);
 
-      await expect(service.getById(mockDeleteProductDto)).rejects.toThrow(typedRpcError);
+      await expect(service.getById(mockskuIdProductDto)).rejects.toThrow(typedRpcError);
 
       expect(mockLogger.error).not.toHaveBeenCalled();
     });
@@ -450,7 +450,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.basePrice).toEqual(new Decimal('999999.99'));
       expect(result!.variants[0].price).toEqual(new Decimal('888888.88'));
@@ -480,7 +480,7 @@ describe('ProductService - getById and groupedCategories', () => {
         .spyOn(service as unknown as ProductServiceWithPrivate, 'groupedCategories')
         .mockResolvedValue(null as unknown as CategoryResponse[]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       // Should use the fallback empty array when groupedCategories returns null
       expect(result!.categories).toEqual([]);
@@ -516,7 +516,7 @@ describe('ProductService - getById and groupedCategories', () => {
       });
       mockPrismaClient.category.findMany.mockResolvedValue([]);
 
-      const result = await service.getById(mockDeleteProductDto);
+      const result = await service.getById(mockskuIdProductDto);
 
       expect(result!.variants[0].size.nameSize).toBe('');
     });
@@ -525,7 +525,7 @@ describe('ProductService - getById and groupedCategories', () => {
       const nonErrorException = 'String error';
       mockPrismaClient.product.findUnique.mockRejectedValue(nonErrorException);
 
-      await expect(service.getById(mockDeleteProductDto)).rejects.toThrow(TypedRpcException);
+      await expect(service.getById(mockskuIdProductDto)).rejects.toThrow(TypedRpcException);
 
       expect(mockLogger.error).toHaveBeenCalledWith('DeleteProduct', 'String error', undefined);
     });

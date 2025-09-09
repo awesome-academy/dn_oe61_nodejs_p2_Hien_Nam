@@ -1,4 +1,10 @@
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
+import { GetUserProfileRequest } from '@app/common/dto/user/requests/get-user-profile.request';
+import { UpdatePasswordRequest } from '@app/common/dto/user/requests/update-password.request';
+import { UpdateUserProfileRequest } from '@app/common/dto/user/requests/update-user-profile.request';
+import { UpdatePasswordResponse } from '@app/common/dto/user/responses/update-password.response';
+import { UpdateUserProfileResponse } from '@app/common/dto/user/responses/update-user-profile.response';
+import { UserProfileResponse } from '@app/common/dto/user/responses/user-profile.response';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { UserMsgPattern } from '@app/common/enums/message-patterns/user.pattern';
 import { Controller, UseFilters, UsePipes } from '@nestjs/common';
@@ -68,5 +74,25 @@ export class UserServiceController {
   @MessagePattern(UserMsgPattern.ADMIN_DELETE_USER)
   async adminDeleteUser(@Payload() dto: SoftDeleteUserRequest) {
     return await this.userService.softdeleteUser(dto);
+  }
+
+  @UsePipes(I18nRpcValidationPipe)
+  @MessagePattern(UserMsgPattern.GET_USER_PROFILE)
+  async getUserProfile(@Payload() dto: GetUserProfileRequest): Promise<UserProfileResponse> {
+    return await this.userService.getUserProfile(dto);
+  }
+
+  @UsePipes(I18nRpcValidationPipe)
+  @MessagePattern(UserMsgPattern.UPDATE_USER_PROFILE)
+  async updateUserProfile(
+    @Payload() dto: UpdateUserProfileRequest,
+  ): Promise<UpdateUserProfileResponse> {
+    return await this.userService.updateUserProfile(dto);
+  }
+
+  @UsePipes(I18nRpcValidationPipe)
+  @MessagePattern(UserMsgPattern.UPDATE_PASSWORD)
+  async updatePassword(@Payload() dto: UpdatePasswordRequest): Promise<UpdatePasswordResponse> {
+    return await this.userService.updatePassword(dto);
   }
 }

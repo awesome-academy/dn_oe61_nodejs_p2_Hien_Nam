@@ -6,6 +6,14 @@ import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-us
 import { GetByIdProductDto } from '@app/common/dto/product/get-by-id-product';
 import { UserProductResponse } from '@app/common/dto/product/response/product-response';
 import { UserProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
+import { ShareUrlProductResponse } from '@app/common/dto/product/response/share-url-product-response';
+import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
+import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
+import {
+  CreateReviewResponse,
+  ReviewResponse,
+} from '@app/common/dto/product/response/review-response.dto';
+import { PaginationResult } from '@app/common/interfaces/pagination';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
@@ -15,6 +23,7 @@ import { SizeResponse } from '@app/common/dto/product/response/size-response';
 import { Decimal } from '@prisma/client/runtime/library';
 import { I18nService } from 'nestjs-i18n';
 import { BadRequestException } from '@nestjs/common';
+import { User } from 'apps/user-service/generated/prisma';
 
 describe('UserProductController', () => {
   let controller: UserProductController;
@@ -22,6 +31,9 @@ describe('UserProductController', () => {
   const mockUserProductService = {
     listProductsForUser: jest.fn(),
     getProductDetailForUser: jest.fn(),
+    shareProduct: jest.fn(),
+    createReview: jest.fn(),
+    getProductReviews: jest.fn(),
   };
 
   const mockI18nService = {
@@ -108,9 +120,18 @@ describe('UserProductController', () => {
     };
     const createMockResponse = (
       data: UserProductResponse[],
-    ): BaseResponse<UserProductResponse[]> => ({
+    ): BaseResponse<PaginationResult<UserProductResponse>> => ({
       statusKey: StatusKey.SUCCESS,
-      data,
+      data: {
+        items: data,
+        paginations: {
+          currentPage: 1,
+          totalPages: 1,
+          pageSize: 50,
+          totalItems: data.length,
+          itemsOnPage: data.length,
+        },
+      },
     });
 
     it('should be defined', () => {
@@ -129,9 +150,10 @@ describe('UserProductController', () => {
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledWith(query);
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockResponse);
-      expect(result.data).toHaveLength(1);
-      if (result.data && result.data.length > 0) {
-        expect(result.data[0].name).toBe('Test Product');
+      expect(result.data?.items).toHaveLength(1);
+      if (result.data?.items && result.data.items.length > 0) {
+        const product = result.data.items[0];
+        expect(product.name).toBe('Test Product');
       }
     });
 
@@ -150,8 +172,9 @@ describe('UserProductController', () => {
       const result = await controller.listProductsForUser(query);
 
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledWith(query);
-      if (result.data && result.data.length > 0) {
-        expect(result.data[0].name).toBe('Test Product');
+      if (result.data?.items && result.data.items.length > 0) {
+        const product = result.data.items[0];
+        expect(product.name).toBe('Test Product');
       }
     });
 
@@ -164,7 +187,7 @@ describe('UserProductController', () => {
       const result = await controller.listProductsForUser(query);
 
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledWith(query);
-      expect(result.data).toHaveLength(0);
+      expect(result.data?.items).toHaveLength(0);
     });
 
     it('should propagate service errors', async () => {
@@ -207,8 +230,9 @@ describe('UserProductController', () => {
       const result = await controller.listProductsForUser(query);
 
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledWith(query);
-      if (result.data && result.data.length > 0) {
-        expect(result.data[0].name).toBe('Pizza');
+      if (result.data?.items && result.data.items.length > 0) {
+        const product = result.data.items[0];
+        expect(product.name).toBe('Pizza');
       }
     });
 
@@ -227,8 +251,9 @@ describe('UserProductController', () => {
       const result = await controller.listProductsForUser(query);
 
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledWith(query);
-      if (result.data && result.data.length > 0) {
-        expect(result.data[0].basePrice).toBeDefined();
+      if (result.data?.items && result.data.items.length > 0) {
+        const product = result.data.items[0];
+        expect(product.basePrice).toBeDefined();
       }
     });
 
@@ -247,13 +272,11 @@ describe('UserProductController', () => {
       const result = await controller.listProductsForUser(query);
 
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledWith(query);
-      if (
-        result.data &&
-        result.data.length > 0 &&
-        result.data[0].reviews &&
-        result.data[0].reviews.length > 0
-      ) {
-        expect(result.data[0].reviews[0].rating).toEqual(new Decimal(5));
+      if (result.data?.items && result.data.items.length > 0) {
+        const product = result.data.items[0];
+        if (product.reviews && product.reviews.length > 0) {
+          expect(product.reviews[0].rating).toEqual(new Decimal(5));
+        }
       }
     });
 
@@ -273,11 +296,13 @@ describe('UserProductController', () => {
       // Verify the result structure
       expect(result).toHaveProperty('statusKey');
       expect(result).toHaveProperty('data');
-      expect(Array.isArray(result.data)).toBe(true);
+      expect(result.data).toHaveProperty('items');
+      expect(result.data).toHaveProperty('paginations');
+      expect(Array.isArray(result.data?.items)).toBe(true);
 
       // Verify product structure if data exists
-      if (result.data && result.data.length > 0) {
-        const product = result.data[0];
+      if (result.data?.items && result.data.items.length > 0) {
+        const product = result.data.items[0];
         expect(product).toHaveProperty('id');
         expect(product).toHaveProperty('skuId');
         expect(product).toHaveProperty('name');
@@ -313,11 +338,13 @@ describe('UserProductController', () => {
       ]);
 
       expect(mockUserProductService.listProductsForUser).toHaveBeenCalledTimes(2);
-      if (result1.data && result1.data.length > 0) {
-        expect(result1.data[0].name).toBe('Product 1');
+      if (result1.data?.items && result1.data.items.length > 0) {
+        const product1 = result1.data.items[0];
+        expect(product1.name).toBe('Product 1');
       }
-      if (result2.data && result2.data.length > 0) {
-        expect(result2.data[0].name).toBe('Product 2');
+      if (result2.data?.items && result2.data.items.length > 0) {
+        const product2 = result2.data.items[0];
+        expect(product2.name).toBe('Product 2');
       }
     });
   });
@@ -691,6 +718,1360 @@ describe('UserProductController', () => {
       expect(result.data?.deletedAt).toBeUndefined();
       expect(result.data?.createdAt).toBeUndefined();
       expect(result.data?.updatedAt).toBeUndefined();
+    });
+  });
+
+  describe('shareProduct', () => {
+    const mockSkuId: GetByIdProductDto = { skuId: 'test-sku-123' };
+    const mockShareUrlResponse: ShareUrlProductResponse = {
+      messengerShare: 'https://m.me/share?link=https://example.com/product/test-sku-123',
+      facebookShare:
+        'https://www.facebook.com/sharer/sharer.php?u=https://example.com/product/test-sku-123',
+      productUrl: 'https://example.com/product/test-sku-123',
+    };
+    const mockBaseResponse: BaseResponse<ShareUrlProductResponse> = {
+      statusKey: StatusKey.SUCCESS,
+      data: mockShareUrlResponse,
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should successfully share a product and return share URLs', async () => {
+      // Arrange
+      mockUserProductService.shareProduct.mockResolvedValue(mockBaseResponse);
+
+      // Act
+      const result = await controller.shareProduct(mockSkuId);
+
+      // Assert
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(1);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(mockSkuId);
+      expect(result).toEqual(mockBaseResponse);
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toBeDefined();
+      expect(result.data?.messengerShare).toBe(mockShareUrlResponse.messengerShare);
+      expect(result.data?.facebookShare).toBe(mockShareUrlResponse.facebookShare);
+      expect(result.data?.productUrl).toBe(mockShareUrlResponse.productUrl);
+    });
+
+    it('should handle service errors when sharing product fails', async () => {
+      // Arrange
+      const mockError = new Error('Share service unavailable');
+      mockUserProductService.shareProduct.mockRejectedValue(mockError);
+
+      // Act & Assert
+      await expect(controller.shareProduct(mockSkuId)).rejects.toThrow('Share service unavailable');
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(1);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(mockSkuId);
+    });
+
+    it('should handle BadRequestException when product not found', async () => {
+      // Arrange
+      const badRequestError = new BadRequestException('Product not found');
+      mockUserProductService.shareProduct.mockRejectedValue(badRequestError);
+
+      // Act & Assert
+      await expect(controller.shareProduct(mockSkuId)).rejects.toThrow(BadRequestException);
+      await expect(controller.shareProduct(mockSkuId)).rejects.toThrow('Product not found');
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(2);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(mockSkuId);
+    });
+
+    it('should handle empty skuId parameter', async () => {
+      // Arrange
+      const emptySkuId: GetByIdProductDto = { skuId: '' };
+      const validationError = new BadRequestException('Invalid SKU ID');
+      mockUserProductService.shareProduct.mockRejectedValue(validationError);
+
+      // Act & Assert
+      await expect(controller.shareProduct(emptySkuId)).rejects.toThrow(BadRequestException);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(1);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(emptySkuId);
+    });
+
+    it('should handle null/undefined response from service', async () => {
+      // Arrange
+      const nullResponse = null as unknown as BaseResponse<ShareUrlProductResponse>;
+      mockUserProductService.shareProduct.mockResolvedValue(nullResponse);
+
+      // Act
+      const result = await controller.shareProduct(mockSkuId);
+
+      // Assert
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(1);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(mockSkuId);
+      expect(result).toBeNull();
+    });
+
+    it('should handle service returning error status', async () => {
+      // Arrange
+      const errorResponse: BaseResponse<ShareUrlProductResponse> = {
+        statusKey: StatusKey.FAILED,
+        data: null as unknown as ShareUrlProductResponse,
+      };
+      mockUserProductService.shareProduct.mockResolvedValue(errorResponse);
+
+      // Act
+      const result = await controller.shareProduct(mockSkuId);
+
+      // Assert
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(1);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(mockSkuId);
+      expect(result).toEqual(errorResponse);
+      expect(result.statusKey).toBe(StatusKey.FAILED);
+      expect(result.data).toBeNull();
+    });
+
+    it('should verify method signature and return type', async () => {
+      // Arrange
+      mockUserProductService.shareProduct.mockResolvedValue(mockBaseResponse);
+
+      // Act
+      const result = await controller.shareProduct(mockSkuId);
+
+      // Assert
+      expect(typeof controller.shareProduct).toBe('function');
+      expect(result).toBeInstanceOf(Object);
+      expect(result).toHaveProperty('statusKey');
+      expect(result).toHaveProperty('data');
+      expect(typeof result.statusKey).toBe('string');
+      expect(result.data).toBeInstanceOf(Object);
+    });
+
+    it('should handle concurrent share requests for same product', async () => {
+      // Arrange
+      mockUserProductService.shareProduct.mockResolvedValue(mockBaseResponse);
+
+      // Act
+      const promises = [
+        controller.shareProduct(mockSkuId),
+        controller.shareProduct(mockSkuId),
+        controller.shareProduct(mockSkuId),
+      ];
+      const results = await Promise.all(promises);
+
+      // Assert
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(3);
+      results.forEach((result) => {
+        expect(result).toEqual(mockBaseResponse);
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      });
+    });
+
+    it('should handle different SKU ID formats', async () => {
+      // Arrange
+      const testCases: GetByIdProductDto[] = [
+        { skuId: 'SKU-123' },
+        { skuId: 'product_456' },
+        { skuId: '789-abc-def' },
+        { skuId: 'FOOD-ITEM-001' },
+      ];
+      mockUserProductService.shareProduct.mockResolvedValue(mockBaseResponse);
+
+      // Act & Assert
+      for (const testCase of testCases) {
+        const result = await controller.shareProduct(testCase);
+        expect(result).toEqual(mockBaseResponse);
+        expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(testCase);
+      }
+
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(testCases.length);
+    });
+
+    it('should handle timeout errors from service', async () => {
+      // Arrange
+      const timeoutError = new Error('Request timeout');
+      timeoutError.name = 'TimeoutError';
+      mockUserProductService.shareProduct.mockRejectedValue(timeoutError);
+
+      // Act & Assert
+      await expect(controller.shareProduct(mockSkuId)).rejects.toThrow('Request timeout');
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(1);
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledWith(mockSkuId);
+    });
+
+    it('should verify controller method is properly decorated', () => {
+      // Assert
+      expect(controller).toHaveProperty('shareProduct');
+      expect(typeof controller.shareProduct).toBe('function');
+
+      // Verify the method exists on the controller prototype
+      const controllerPrototype = Object.getPrototypeOf(controller) as Record<string, unknown>;
+      expect(controllerPrototype.shareProduct).toBeDefined();
+    });
+
+    it('should handle malformed response data structure', async () => {
+      // Arrange
+      const malformedResponse = {
+        statusKey: StatusKey.SUCCESS,
+        data: {
+          // Missing required properties
+          invalidProperty: 'test',
+        } as unknown as ShareUrlProductResponse,
+      } as BaseResponse<ShareUrlProductResponse>;
+      mockUserProductService.shareProduct.mockResolvedValue(malformedResponse);
+
+      // Act
+      const result = await controller.shareProduct(mockSkuId);
+
+      // Assert
+      expect(mockUserProductService.shareProduct).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(malformedResponse);
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+    });
+  });
+
+  describe('createReview', () => {
+    const mockSkuId: GetByIdProductDto = { skuId: 'TEST-SKU-001' };
+    const mockCreateReviewDto: CreateReviewDto = {
+      rating: 4.5,
+      comment: 'Great product!',
+    };
+    const mockUser: User = {
+      id: 1,
+      email: 'test@example.com',
+      name: 'Test User',
+      userName: 'testuser',
+      imageUrl: null,
+      isActive: true,
+      status: 'ACTIVE' as const,
+      roleId: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    } as User;
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    describe('successful scenarios', () => {
+      it('should create review successfully', async () => {
+        // Arrange
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 1,
+            rating: 4.5,
+            comment: 'Great product!',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 1,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(mockUserProductService.createReview).toHaveBeenCalledTimes(1);
+        expect(mockUserProductService.createReview).toHaveBeenCalledWith(
+          mockSkuId.skuId,
+          mockCreateReviewDto,
+          mockUser.id,
+        );
+        expect(result).toEqual(mockResponse);
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+        expect(result.data?.rating).toBe(4.5);
+      });
+
+      it('should create review with minimum rating (1 star)', async () => {
+        // Arrange
+        const minRatingDto: CreateReviewDto = {
+          rating: 1,
+          comment: 'Poor quality',
+        };
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 2,
+            rating: 1,
+            comment: 'Poor quality',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 2,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, minRatingDto, mockUser);
+
+        // Assert
+        expect(mockUserProductService.createReview).toHaveBeenCalledTimes(1);
+        expect(mockUserProductService.createReview).toHaveBeenCalledWith(
+          mockSkuId.skuId,
+          minRatingDto,
+          mockUser.id,
+        );
+        expect(result).toEqual(mockResponse);
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+        expect(result.data?.rating).toBe(1);
+      });
+
+      it('should create review with maximum rating (5 stars)', async () => {
+        // Arrange
+        const maxRatingDto: CreateReviewDto = {
+          rating: 5,
+          comment: 'Excellent!',
+        };
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 3,
+            rating: 5,
+            comment: 'Excellent!',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 3,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, maxRatingDto, mockUser);
+
+        // Assert
+        expect(result.data?.rating).toBe(5);
+        expect(result.data?.comment).toBe('Excellent!');
+      });
+
+      it('should create review without comment', async () => {
+        // Arrange
+        const noCommentDto: CreateReviewDto = {
+          rating: 3,
+        };
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 4,
+            rating: 3,
+            comment: undefined,
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 4,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, noCommentDto, mockUser);
+
+        // Assert
+        expect(result.data?.comment).toBeUndefined();
+        expect(result.data?.rating).toBe(3);
+      });
+    });
+
+    describe('error scenarios', () => {
+      it('should propagate BadRequestException when service throws it', async () => {
+        // Arrange
+        const errorMessage = 'Product not found';
+        mockUserProductService.createReview.mockRejectedValue(
+          new BadRequestException(errorMessage),
+        );
+
+        // Act & Assert
+        await expect(
+          controller.createReview(mockSkuId, mockCreateReviewDto, mockUser),
+        ).rejects.toThrow(BadRequestException);
+        expect(mockUserProductService.createReview).toHaveBeenCalledTimes(1);
+      });
+
+      it('should propagate error when user already reviewed product', async () => {
+        // Arrange
+        const alreadyReviewedError = new BadRequestException('User already reviewed this product');
+        mockUserProductService.createReview.mockRejectedValue(alreadyReviewedError);
+
+        // Act & Assert
+        await expect(
+          controller.createReview(mockSkuId, mockCreateReviewDto, mockUser),
+        ).rejects.toThrow('User already reviewed this product');
+      });
+
+      it('should propagate error when product does not exist', async () => {
+        // Arrange
+        const productNotFoundError = new BadRequestException('Product not found');
+        mockUserProductService.createReview.mockRejectedValue(productNotFoundError);
+
+        // Act & Assert
+        await expect(
+          controller.createReview(mockSkuId, mockCreateReviewDto, mockUser),
+        ).rejects.toThrow('Product not found');
+      });
+
+      it('should handle service returning null response', async () => {
+        // Arrange
+        mockUserProductService.createReview.mockResolvedValue(null);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(result).toBeNull();
+        expect(mockUserProductService.createReview).toHaveBeenCalledTimes(1);
+      });
+
+      it('should handle service returning undefined response', async () => {
+        // Arrange
+        mockUserProductService.createReview.mockResolvedValue(undefined);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(result).toBeUndefined();
+      });
+
+      it('should handle generic service errors', async () => {
+        // Arrange
+        const genericError = new Error('Internal server error');
+        mockUserProductService.createReview.mockRejectedValue(genericError);
+
+        // Act & Assert
+        await expect(
+          controller.createReview(mockSkuId, mockCreateReviewDto, mockUser),
+        ).rejects.toThrow('Internal server error');
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle very long comment', async () => {
+        // Arrange
+        const longComment = 'A'.repeat(1000);
+        const longCommentDto: CreateReviewDto = {
+          rating: 4,
+          comment: longComment,
+        };
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 5,
+            rating: 4,
+            comment: longComment,
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 5,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, longCommentDto, mockUser);
+
+        // Assert
+        expect(result.data?.comment).toBe(longComment);
+        expect(result.data?.comment?.length).toBe(1000);
+      });
+
+      it('should handle special characters in skuId', async () => {
+        // Arrange
+        const specialSkuId: GetByIdProductDto = { skuId: 'TEST-SKU-@#$%^&*()' };
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 6,
+            rating: 3.5,
+            comment: 'Test with special SKU',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 6,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(specialSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(mockUserProductService.createReview).toHaveBeenCalledWith(
+          specialSkuId.skuId,
+          mockCreateReviewDto,
+          mockUser.id,
+        );
+        expect(result).toEqual(mockResponse);
+      });
+
+      it('should handle decimal rating values', async () => {
+        // Arrange
+        const decimalRatingDto: CreateReviewDto = {
+          rating: 3.7,
+          comment: 'Decimal rating test',
+        };
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 7,
+            rating: 3.7,
+            comment: 'Decimal rating test',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 7,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, decimalRatingDto, mockUser);
+
+        // Assert
+        expect(result.data?.rating).toBe(3.7);
+      });
+
+      it('should handle high userId values', async () => {
+        // Arrange
+        const highUserIdDto: CreateReviewDto = {
+          rating: 4,
+          comment: 'High user ID test',
+        };
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 8,
+            rating: 4,
+            comment: 'High user ID test',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 999999,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, highUserIdDto, mockUser);
+
+        // Assert
+        expect(result.data?.userId).toBe(999999);
+      });
+    });
+
+    describe('method verification', () => {
+      it('should verify correct method signature and return type', async () => {
+        // Arrange
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 9,
+            rating: 4,
+            comment: 'Method verification test',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 9,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(typeof controller.createReview).toBe('function');
+        expect(result).toHaveProperty('statusKey');
+        expect(result).toHaveProperty('data');
+        expect(result.data).toHaveProperty('id');
+        expect(result.data).toHaveProperty('rating');
+        expect(result.data).toHaveProperty('createdAt');
+        expect(result.data).toHaveProperty('userId');
+        expect(result.data).toHaveProperty('productId');
+      });
+
+      it('should verify parameter validation', async () => {
+        // Arrange
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 10,
+            rating: 5,
+            comment: 'Parameter validation test',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 10,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(mockUserProductService.createReview).toHaveBeenCalledWith(
+          expect.stringMatching(/.+/),
+          expect.objectContaining({
+            rating: mockCreateReviewDto.rating,
+          }),
+          mockUser.id,
+        );
+      });
+
+      it('should verify service method call count and parameters', async () => {
+        // Arrange
+        const mockResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 11,
+            rating: 2,
+            comment: 'Service call verification',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 11,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(mockResponse);
+
+        // Act
+        await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+        await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(mockUserProductService.createReview).toHaveBeenCalledTimes(2);
+        expect(mockUserProductService.createReview).toHaveBeenNthCalledWith(
+          1,
+          mockSkuId.skuId,
+          mockCreateReviewDto,
+          mockUser.id,
+        );
+        expect(mockUserProductService.createReview).toHaveBeenNthCalledWith(
+          2,
+          mockSkuId.skuId,
+          mockCreateReviewDto,
+          mockUser.id,
+        );
+      });
+    });
+
+    describe('response structure validation', () => {
+      it('should handle malformed response from service', async () => {
+        // Arrange
+        const malformedResponse = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            // Missing required properties
+            invalidProperty: 'test',
+          } as unknown as CreateReviewResponse,
+        } as BaseResponse<CreateReviewResponse>;
+        mockUserProductService.createReview.mockResolvedValue(malformedResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(mockUserProductService.createReview).toHaveBeenCalledTimes(1);
+        expect(result).toEqual(malformedResponse);
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      });
+
+      it('should handle response with different status keys', async () => {
+        // Arrange
+        const errorResponse: BaseResponse<CreateReviewResponse> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            id: 12,
+            rating: 1,
+            comment: 'Error status test',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 12,
+            productId: 1,
+          },
+        };
+        mockUserProductService.createReview.mockResolvedValue(errorResponse);
+
+        // Act
+        const result = await controller.createReview(mockSkuId, mockCreateReviewDto, mockUser);
+
+        // Assert
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+        expect(result.data).toBeDefined();
+      });
+    });
+  });
+
+  describe('getProductReviews', () => {
+    const mockSkuId: GetByIdProductDto = { skuId: 'TEST-SKU-001' };
+    const mockQuery: GetProductReviewsDto = {
+      page: 1,
+      pageSize: 10,
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    describe('successful scenarios', () => {
+      it('should get product reviews successfully with default pagination', async () => {
+        // Arrange
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 1,
+            rating: 4.5,
+            comment: 'Great product!',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 1,
+            productId: 1,
+          },
+          {
+            id: 2,
+            rating: 3.0,
+            comment: 'Good product',
+            createdAt: new Date('2024-01-02T00:00:00Z'),
+            userId: 2,
+            productId: 1,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 10,
+            totalItems: 2,
+            itemsOnPage: 2,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledTimes(1);
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledWith(mockSkuId, mockQuery);
+        expect(result).toEqual(mockResponse);
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+        expect(result.data?.items).toHaveLength(2);
+        expect(result.data?.paginations.totalItems).toBe(2);
+      });
+
+      it('should get product reviews with custom pagination', async () => {
+        // Arrange
+        const customQuery: GetProductReviewsDto = {
+          page: 2,
+          pageSize: 5,
+        };
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 6,
+            rating: 2.5,
+            comment: 'Average product',
+            createdAt: new Date('2024-01-06T00:00:00Z'),
+            userId: 6,
+            productId: 1,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 2,
+            totalPages: 3,
+            pageSize: 5,
+            totalItems: 11,
+            itemsOnPage: 1,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, customQuery);
+
+        // Assert
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledWith(
+          mockSkuId,
+          customQuery,
+        );
+        expect(result.data?.paginations.currentPage).toBe(2);
+        expect(result.data?.paginations.pageSize).toBe(5);
+        expect(result.data?.paginations.totalPages).toBe(3);
+      });
+
+      it('should get empty reviews list when no reviews exist', async () => {
+        // Arrange
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: [],
+          paginations: {
+            currentPage: 1,
+            totalPages: 0,
+            pageSize: 10,
+            totalItems: 0,
+            itemsOnPage: 0,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result.data?.items).toHaveLength(0);
+        expect(result.data?.paginations.totalItems).toBe(0);
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      });
+
+      it('should get reviews with various rating values', async () => {
+        // Arrange
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 1,
+            rating: 1.0,
+            comment: 'Poor quality',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 1,
+            productId: 1,
+          },
+          {
+            id: 2,
+            rating: 5.0,
+            comment: 'Excellent!',
+            createdAt: new Date('2024-01-02T00:00:00Z'),
+            userId: 2,
+            productId: 1,
+          },
+          {
+            id: 3,
+            rating: 3.7,
+            comment: 'Decent product',
+            createdAt: new Date('2024-01-03T00:00:00Z'),
+            userId: 3,
+            productId: 1,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 10,
+            totalItems: 3,
+            itemsOnPage: 3,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result.data?.items[0]?.rating).toBe(1.0);
+        expect(result.data?.items[1]?.rating).toBe(5.0);
+        expect(result.data?.items[2]?.rating).toBe(3.7);
+      });
+    });
+
+    describe('error scenarios', () => {
+      it('should propagate BadRequestException when service throws it', async () => {
+        // Arrange
+        const errorMessage = 'Product not found';
+        mockUserProductService.getProductReviews.mockRejectedValue(
+          new BadRequestException(errorMessage),
+        );
+
+        // Act & Assert
+        await expect(controller.getProductReviews(mockSkuId, mockQuery)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledTimes(1);
+      });
+
+      it('should propagate error when product does not exist', async () => {
+        // Arrange
+        const productNotFoundError = new BadRequestException('Product not found');
+        mockUserProductService.getProductReviews.mockRejectedValue(productNotFoundError);
+
+        // Act & Assert
+        await expect(controller.getProductReviews(mockSkuId, mockQuery)).rejects.toThrow(
+          'Product not found',
+        );
+      });
+
+      it('should handle service returning null response', async () => {
+        // Arrange
+        mockUserProductService.getProductReviews.mockResolvedValue(null);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result).toBeNull();
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledTimes(1);
+      });
+
+      it('should handle service returning undefined response', async () => {
+        // Arrange
+        mockUserProductService.getProductReviews.mockResolvedValue(undefined);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result).toBeUndefined();
+      });
+
+      it('should handle generic service errors', async () => {
+        // Arrange
+        const genericError = new Error('Database connection failed');
+        mockUserProductService.getProductReviews.mockRejectedValue(genericError);
+
+        // Act & Assert
+        await expect(controller.getProductReviews(mockSkuId, mockQuery)).rejects.toThrow(
+          'Database connection failed',
+        );
+      });
+
+      it('should handle validation errors from query parameters', async () => {
+        // Arrange
+        const validationError = new BadRequestException('Invalid pagination parameters');
+        mockUserProductService.getProductReviews.mockRejectedValue(validationError);
+
+        // Act & Assert
+        await expect(controller.getProductReviews(mockSkuId, mockQuery)).rejects.toThrow(
+          'Invalid pagination parameters',
+        );
+      });
+    });
+
+    describe('pagination scenarios', () => {
+      it('should handle first page pagination', async () => {
+        // Arrange
+        const firstPageQuery: GetProductReviewsDto = {
+          page: 1,
+          pageSize: 3,
+        };
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 1,
+            rating: 4.0,
+            comment: 'First review',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 1,
+            productId: 1,
+          },
+          {
+            id: 2,
+            rating: 3.0,
+            comment: 'Second review',
+            createdAt: new Date('2024-01-02T00:00:00Z'),
+            userId: 2,
+            productId: 1,
+          },
+          {
+            id: 3,
+            rating: 5.0,
+            comment: 'Third review',
+            createdAt: new Date('2024-01-03T00:00:00Z'),
+            userId: 3,
+            productId: 1,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 1,
+            totalPages: 4,
+            pageSize: 3,
+            totalItems: 10,
+            itemsOnPage: 3,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, firstPageQuery);
+
+        // Assert
+        expect(result.data?.paginations.currentPage).toBe(1);
+        expect(result.data?.items).toHaveLength(3);
+        expect(result.data?.paginations.totalPages).toBe(4);
+      });
+
+      it('should handle last page pagination', async () => {
+        // Arrange
+        const lastPageQuery: GetProductReviewsDto = {
+          page: 4,
+          pageSize: 3,
+        };
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 10,
+            rating: 2.5,
+            comment: 'Last review',
+            createdAt: new Date('2024-01-10T00:00:00Z'),
+            userId: 10,
+            productId: 1,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 4,
+            totalPages: 4,
+            pageSize: 3,
+            totalItems: 10,
+            itemsOnPage: 1,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, lastPageQuery);
+
+        // Assert
+        expect(result.data?.paginations.currentPage).toBe(4);
+        expect(result.data?.items).toHaveLength(1);
+        expect(result.data?.paginations.totalItems).toBe(10);
+      });
+
+      it('should handle large page size', async () => {
+        // Arrange
+        const largePageQuery: GetProductReviewsDto = {
+          page: 1,
+          pageSize: 100,
+        };
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: [],
+          paginations: {
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 100,
+            totalItems: 5,
+            itemsOnPage: 0,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, largePageQuery);
+
+        // Assert
+        expect(result.data?.paginations.pageSize).toBe(100);
+        expect(result.data?.paginations.totalPages).toBe(1);
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle reviews with null comments', async () => {
+        // Arrange
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 1,
+            rating: 4.0,
+            comment: undefined,
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 1,
+            productId: 1,
+          },
+          {
+            id: 2,
+            rating: 3.0,
+            comment: undefined,
+            createdAt: new Date('2024-01-02T00:00:00Z'),
+            userId: 2,
+            productId: 1,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 10,
+            totalItems: 2,
+            itemsOnPage: 2,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result.data?.items[0]?.comment).toBeUndefined();
+        expect(result.data?.items[1]?.comment).toBeUndefined();
+      });
+
+      it('should handle special characters in skuId', async () => {
+        // Arrange
+        const specialSkuId: GetByIdProductDto = { skuId: 'TEST-SKU-@#$%^&*()' };
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: [],
+          paginations: {
+            currentPage: 1,
+            totalPages: 0,
+            pageSize: 10,
+            totalItems: 0,
+            itemsOnPage: 0,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(specialSkuId, mockQuery);
+
+        // Assert
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledWith(
+          specialSkuId,
+          mockQuery,
+        );
+        expect(result).toEqual(mockResponse);
+      });
+
+      it('should handle very long comments', async () => {
+        // Arrange
+        const longComment = 'A'.repeat(2000);
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 1,
+            rating: 4.0,
+            comment: longComment,
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 1,
+            productId: 1,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 10,
+            totalItems: 1,
+            itemsOnPage: 1,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result.data?.items[0]?.comment).toBe(longComment);
+        expect(result.data?.items[0]?.comment?.length).toBe(2000);
+      });
+
+      it('should handle high user and product IDs', async () => {
+        // Arrange
+        const mockReviews: ReviewResponse[] = [
+          {
+            id: 999999,
+            rating: 4.0,
+            comment: 'High ID test',
+            createdAt: new Date('2024-01-01T00:00:00Z'),
+            userId: 888888,
+            productId: 777777,
+          },
+        ];
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: mockReviews,
+          paginations: {
+            currentPage: 1,
+            totalPages: 1,
+            pageSize: 10,
+            totalItems: 1,
+            itemsOnPage: 1,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result.data?.items[0]?.id).toBe(999999);
+        expect(result.data?.items[0]?.userId).toBe(888888);
+        expect(result.data?.items[0]?.productId).toBe(777777);
+      });
+    });
+
+    describe('method verification', () => {
+      it('should verify correct method signature and return type', async () => {
+        // Arrange
+        const mockPaginationResult: PaginationResult<ReviewResponse> = {
+          items: [],
+          paginations: {
+            currentPage: 1,
+            totalPages: 0,
+            pageSize: 10,
+            totalItems: 0,
+            itemsOnPage: 0,
+          },
+        };
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: mockPaginationResult,
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(typeof controller.getProductReviews).toBe('function');
+        expect(result).toHaveProperty('statusKey');
+        expect(result).toHaveProperty('data');
+        expect(result.data).toHaveProperty('items');
+        expect(result.data).toHaveProperty('paginations');
+        expect(result.data?.paginations).toHaveProperty('currentPage');
+        expect(result.data?.paginations).toHaveProperty('pageSize');
+        expect(result.data?.paginations).toHaveProperty('totalPages');
+      });
+
+      it('should verify parameter validation', async () => {
+        // Arrange
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            items: [],
+            paginations: {
+              currentPage: 1,
+              totalPages: 0,
+              pageSize: 10,
+              totalItems: 0,
+              itemsOnPage: 0,
+            },
+          },
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledWith(
+          expect.objectContaining({
+            skuId: mockSkuId.skuId,
+          }),
+          expect.objectContaining({
+            page: mockQuery.page,
+            pageSize: mockQuery.pageSize,
+          }),
+        );
+      });
+
+      it('should verify service method call count and parameters', async () => {
+        // Arrange
+        const mockResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            items: [],
+            paginations: {
+              currentPage: 1,
+              totalPages: 0,
+              pageSize: 10,
+              totalItems: 0,
+              itemsOnPage: 0,
+            },
+          },
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(mockResponse);
+
+        // Act
+        await controller.getProductReviews(mockSkuId, mockQuery);
+        await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledTimes(2);
+        expect(mockUserProductService.getProductReviews).toHaveBeenNthCalledWith(
+          1,
+          mockSkuId,
+          mockQuery,
+        );
+        expect(mockUserProductService.getProductReviews).toHaveBeenNthCalledWith(
+          2,
+          mockSkuId,
+          mockQuery,
+        );
+      });
+    });
+
+    describe('response structure validation', () => {
+      it('should handle malformed response from service', async () => {
+        // Arrange
+        const malformedResponse = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            // Missing required pagination properties
+            invalidProperty: 'test',
+          } as unknown as PaginationResult<ReviewResponse>,
+        } as BaseResponse<PaginationResult<ReviewResponse>>;
+        mockUserProductService.getProductReviews.mockResolvedValue(malformedResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(mockUserProductService.getProductReviews).toHaveBeenCalledTimes(1);
+        expect(result).toEqual(malformedResponse);
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      });
+
+      it('should handle response with different status keys', async () => {
+        // Arrange
+        const successResponse: BaseResponse<PaginationResult<ReviewResponse>> = {
+          statusKey: StatusKey.SUCCESS,
+          data: {
+            items: [],
+            paginations: {
+              currentPage: 1,
+              totalPages: 0,
+              pageSize: 10,
+              totalItems: 0,
+              itemsOnPage: 0,
+            },
+          },
+        };
+        mockUserProductService.getProductReviews.mockResolvedValue(successResponse);
+
+        // Act
+        const result = await controller.getProductReviews(mockSkuId, mockQuery);
+
+        // Assert
+        expect(result.statusKey).toBe(StatusKey.SUCCESS);
+        expect(result.data).toBeDefined();
+      });
     });
   });
 });

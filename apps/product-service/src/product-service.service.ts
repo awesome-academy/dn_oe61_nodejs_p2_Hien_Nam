@@ -12,7 +12,7 @@ import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
 import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
-import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
 import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
@@ -20,6 +20,10 @@ import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delet
 import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
+import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
+import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
+import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
+import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import {
   ProductResponse,
   UserProductResponse,
@@ -39,6 +43,10 @@ import { ProductWithCategories } from '@app/common/dto/product/response/product-
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
+import {
+  CreateReviewResponse,
+  ReviewResponse,
+} from '@app/common/dto/product/response/review-response.dto';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { PaginationResult } from '@app/common/interfaces/pagination';
@@ -216,9 +224,9 @@ export class ProductService {
     return product;
   }
 
-  async deleteProduct(skuId: DeleteProductDto): Promise<Product | null> {
+  async deleteProduct(skuId: skuIdProductDto): Promise<Product | null> {
     try {
-      const dto = plainToInstance(DeleteProductDto, skuId);
+      const dto = plainToInstance(skuIdProductDto, skuId);
       await validateOrReject(dto);
       const product = await this.prismaService.client.product.findUnique({
         where: { skuId: skuId.skuId },
@@ -308,9 +316,9 @@ export class ProductService {
     }
   }
 
-  async getById(skuId: DeleteProductDto): Promise<ProductDetailResponse | null> {
+  async getById(skuId: skuIdProductDto): Promise<ProductDetailResponse | null> {
     try {
-      const dto = plainToInstance(DeleteProductDto, skuId);
+      const dto = plainToInstance(skuIdProductDto, skuId);
       await validateOrReject(dto);
 
       const product = await this.prismaService.client.product.findUnique({
@@ -1051,7 +1059,9 @@ export class ProductService {
     };
   }
 
-  async listProductsForUser(query: GetAllProductUserDto): Promise<UserProductResponse[] | []> {
+  async listProductsForUser(
+    query: GetAllProductUserDto,
+  ): Promise<PaginationResult<UserProductResponse>> {
     const dto = plainToInstance(GetAllProductUserDto, query);
     await validateOrReject(dto);
 
@@ -1075,7 +1085,10 @@ export class ProductService {
     );
 
     if (products.items.length === 0) {
-      return [];
+      return {
+        items: [],
+        paginations: products.paginations,
+      };
     }
 
     const result = (products.items as ProductWithIncludes[]).map((product) => {
@@ -1097,7 +1110,10 @@ export class ProductService {
       } as UserProductResponse;
     });
 
-    return result;
+    return {
+      items: result,
+      paginations: products.paginations,
+    };
   }
 
   private buildUserProductWhereClause(query: GetAllProductUserDto) {
@@ -1143,11 +1159,9 @@ export class ProductService {
     return where;
   }
 
-  async getProductDetailForUser(
-    skuId: DeleteProductDto,
-  ): Promise<UserProductDetailResponse | null> {
+  async getProductDetailForUser(skuId: skuIdProductDto): Promise<UserProductDetailResponse | null> {
     try {
-      const dto = plainToInstance(DeleteProductDto, skuId);
+      const dto = plainToInstance(skuIdProductDto, skuId);
       await validateOrReject(dto);
 
       const product = await this.prismaService.client.product.findUnique({
@@ -1222,6 +1236,207 @@ export class ProductService {
         error instanceof Error ? error.message : String(error),
         error instanceof Error ? error.stack : undefined,
       );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async createReview(
+    skuId: string,
+    createReviewData: CreateReviewDto,
+    userId: number,
+  ): Promise<CreateReviewResponse> {
+    try {
+      const validationData = plainToInstance(CreateReviewDto, createReviewData);
+      await validateOrReject(validationData);
+
+      const product = await this.prismaService.client.product.findFirst({
+        where: {
+          skuId: skuId,
+          deletedAt: null,
+        },
+      });
+
+      if (!product) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.error.productNotFound',
+        });
+      }
+
+      const existingReview = await this.prismaService.client.review.findFirst({
+        where: {
+          userId: userId,
+          productId: product.id,
+        },
+      });
+
+      if (existingReview) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.review.error.alreadyReviewed',
+        });
+      }
+
+      const newReview = await this.prismaService.client.review.create({
+        data: {
+          rating: new Decimal(validationData.rating),
+          comment: validationData.comment,
+          userId: userId,
+          productId: product.id,
+        },
+      });
+
+      return {
+        id: newReview.id,
+        rating: parseFloat(newReview.rating.toString()),
+        comment: newReview.comment || undefined,
+        createdAt: newReview.createdAt,
+        userId: newReview.userId,
+        productId: newReview.productId,
+      };
+    } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      this.loggerService.error(
+        'CreateReview',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async getProductReviews(
+    skuId: string,
+    getReviewsData: GetProductReviewsDto,
+  ): Promise<PaginationResult<ReviewResponse>> {
+    try {
+      const validationData = plainToInstance(GetProductReviewsDto, getReviewsData);
+      await validateOrReject(validationData);
+
+      const product = await this.prismaService.client.product.findFirst({
+        where: {
+          skuId: skuId,
+          deletedAt: null,
+        },
+      });
+
+      if (!product) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.product.error.productNotFound',
+        });
+      }
+
+      const { page, pageSize } = validationData;
+
+      const reviews = await this.paginationService.queryWithPagination(
+        this.prismaService.client.review,
+        { page, pageSize },
+        {
+          where: {
+            productId: product.id,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+      );
+
+      // Transform reviews to response format
+      const reviewResponses: ReviewResponse[] = reviews.items.map((review) => ({
+        id: review.id,
+        rating: review.rating.toNumber(),
+        comment: review.comment || '',
+        userId: review.userId,
+        productId: review.productId,
+        createdAt: review.createdAt,
+        updatedAt: review.updatedAt || undefined,
+      }));
+
+      const paginationResult: PaginationResult<ReviewResponse> = {
+        items: reviewResponses,
+        paginations: reviews.paginations,
+      };
+
+      return paginationResult;
+    } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      this.loggerService.error(
+        'GetProductReviews',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async deleteReview(deleteReviewData: DeleteReviewDto): Promise<DeleteReviewResponse> {
+    try {
+      const validationData = plainToInstance(DeleteReviewDto, deleteReviewData);
+      await validateOrReject(validationData);
+
+      const existingReview = await this.prismaService.client.review.findFirst({
+        where: {
+          id: validationData.reviewId,
+          userId: validationData.userId,
+          deletedAt: null,
+        },
+      });
+
+      if (!existingReview) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.review.errors.reviewNotFound',
+        });
+      }
+
+      const deletedReview = await this.prismaService.client.review.update({
+        where: {
+          id: existingReview.id,
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
+
+      return {
+        id: deletedReview.id,
+        rating: parseFloat(deletedReview.rating.toString()),
+        comment: deletedReview.comment ?? '',
+        createdAt: deletedReview.createdAt,
+        updatedAt: deletedReview.updatedAt ?? null,
+        deletedAt: deletedReview.deletedAt as Date,
+        userId: deletedReview.userId,
+        productId: deletedReview.productId,
+      };
+    } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      this.loggerService.error(
+        'DeleteReview',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+
       throw new TypedRpcException({
         code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
         message: 'common.errors.internalServerError',

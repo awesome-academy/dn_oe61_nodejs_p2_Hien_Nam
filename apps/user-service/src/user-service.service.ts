@@ -1,10 +1,16 @@
 import { CreateUserDto } from '@app/common/dto/user/create-user.dto';
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
+import { GetUserProfileRequest } from '@app/common/dto/user/requests/get-user-profile.request';
+import { UpdatePasswordRequest } from '@app/common/dto/user/requests/update-password.request';
+import { UpdateUserProfileRequest } from '@app/common/dto/user/requests/update-user-profile.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
 import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
+import { UpdatePasswordResponse } from '@app/common/dto/user/responses/update-password.response';
+import { UpdateUserProfileResponse } from '@app/common/dto/user/responses/update-user-profile.response';
 import { UserCreationResponse } from '@app/common/dto/user/responses/user-creation.response';
+import { UserProfileResponse } from '@app/common/dto/user/responses/user-profile.response';
 import { UserSummaryResponse } from '@app/common/dto/user/responses/user-summary.response';
 import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
@@ -399,8 +405,12 @@ export class UserService {
 
       return result;
     } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
       this.loggerService.error(
-        'Create User',
+        'createUser',
         error instanceof Error ? error.message : String(error),
         error instanceof Error ? error.stack : undefined,
       );
@@ -660,6 +670,328 @@ export class UserService {
       return handlePrismaError(error, UserService.name, 'softdeleteUser', this.loggerService);
     }
   }
+  async getUserProfile(dto: GetUserProfileRequest): Promise<UserProfileResponse> {
+    await validateOrReject(Object.assign(new GetUserProfileRequest(), dto));
+
+    try {
+      const user = await this.prismaService.client.user.findUnique({
+        where: {
+          id: dto.userId,
+          deletedAt: null,
+        },
+        include: {
+          role: true,
+          profile: true,
+          authProviders: {
+            select: {
+              id: true,
+              provider: true,
+              providerId: true,
+              password: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.user.notFound',
+        });
+      }
+
+      const userProfileResponse: UserProfileResponse = {
+        id: user.id,
+        name: user.name,
+        userName: user.userName,
+        email: user.email,
+        imageUrl: user.imageUrl,
+        isActive: user.isActive,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        role: {
+          id: user.role.id,
+          name: user.role.name,
+        },
+        profile: user.profile
+          ? {
+              id: user.profile.id,
+              address: user.profile.address,
+              phoneNumber: user.profile.phoneNumber,
+              dateOfBirth: user.profile.dob,
+              createdAt: user.profile.createdAt,
+              updatedAt: user.profile.updatedAt,
+            }
+          : null,
+        authProviders: user.authProviders.map((provider) => ({
+          id: provider.id,
+          provider: provider.provider,
+          providerId: provider.providerId,
+          hasPassword: !!provider.password,
+          createdAt: provider.createdAt,
+        })),
+      };
+
+      return userProfileResponse;
+    } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      this.loggerService.error(
+        'getUserProfile',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async updateUserProfile(dto: UpdateUserProfileRequest): Promise<UpdateUserProfileResponse> {
+    await validateOrReject(Object.assign(new UpdateUserProfileRequest(), dto));
+
+    try {
+      const existingUser = await this.prismaService.client.user.findUnique({
+        where: {
+          id: dto.userId,
+          deletedAt: null,
+        },
+        include: {
+          profile: true,
+        },
+      });
+
+      if (!existingUser) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.user.notFound',
+        });
+      }
+
+      if (dto.email && dto.email !== existingUser.email) {
+        const emailExists = await this.prismaService.client.user.findFirst({
+          where: {
+            email: dto.email,
+            id: { not: dto.userId },
+            deletedAt: null,
+          },
+        });
+
+        if (emailExists) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.CONFLICT,
+            message: 'common.user.emailExist',
+          });
+        }
+      }
+
+      if (dto.userName && dto.userName !== existingUser.userName) {
+        const userNameExists = await this.prismaService.client.user.findFirst({
+          where: {
+            userName: dto.userName,
+            id: { not: dto.userId },
+            deletedAt: null,
+          },
+        });
+
+        if (userNameExists) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.CONFLICT,
+            message: 'common.user.userNameExist',
+          });
+        }
+      }
+
+      if (dto.phoneNumber && dto.phoneNumber !== existingUser.profile?.phoneNumber) {
+        const phoneExists = await this.prismaService.client.userProfile.findFirst({
+          where: {
+            phoneNumber: dto.phoneNumber,
+            userId: { not: dto.userId },
+            deletedAt: null,
+          },
+        });
+
+        if (phoneExists) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.CONFLICT,
+            message: 'common.user.phoneNumberExist',
+          });
+        }
+      }
+
+      const updatedUser = await this.prismaService.client.$transaction(async (tx) => {
+        const userUpdateData: Prisma.UserUpdateInput = {};
+        if (dto.name !== undefined) userUpdateData.name = dto.name;
+        if (dto.userName !== undefined) userUpdateData.userName = dto.userName;
+        if (dto.email !== undefined) userUpdateData.email = dto.email;
+        if (dto.imageUrl !== undefined) userUpdateData.imageUrl = dto.imageUrl;
+
+        const updatedUser = await tx.user.update({
+          where: { id: dto.userId },
+          data: userUpdateData,
+        });
+
+        let updatedProfile: UserProfile | null = null;
+        if (
+          dto.address !== undefined ||
+          dto.phoneNumber !== undefined ||
+          dto.dateOfBirth !== undefined
+        ) {
+          const profileUpdateData: Prisma.UserProfileUpsertArgs['update'] = {};
+          if (dto.address !== undefined) profileUpdateData.address = dto.address;
+          if (dto.phoneNumber !== undefined) profileUpdateData.phoneNumber = dto.phoneNumber;
+          if (dto.dateOfBirth !== undefined) {
+            profileUpdateData.dob = dto.dateOfBirth ? new Date(dto.dateOfBirth) : null;
+          }
+
+          updatedProfile = await tx.userProfile.upsert({
+            where: { userId: dto.userId! },
+            update: profileUpdateData,
+            create: {
+              userId: dto.userId!,
+              address: dto.address || null,
+              phoneNumber: dto.phoneNumber || null,
+              dob: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+            },
+          });
+        } else if (existingUser.profile) {
+          updatedProfile = existingUser.profile;
+        }
+
+        return { user: updatedUser, profile: updatedProfile };
+      });
+
+      const updateResponse: UpdateUserProfileResponse = {
+        id: updatedUser.user.id,
+        name: updatedUser.user.name,
+        userName: updatedUser.user.userName,
+        email: updatedUser.user.email,
+        imageUrl: updatedUser.user.imageUrl,
+        updatedAt: updatedUser.user.updatedAt,
+        profile: updatedUser.profile
+          ? {
+              id: updatedUser.profile.id,
+              address: updatedUser.profile.address,
+              phoneNumber: updatedUser.profile.phoneNumber,
+              dateOfBirth: updatedUser.profile.dob,
+              updatedAt: updatedUser.profile.updatedAt,
+            }
+          : null,
+      };
+
+      return updateResponse;
+    } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      this.loggerService.error(
+        'updateUserProfile',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async updatePassword(dto: UpdatePasswordRequest): Promise<UpdatePasswordResponse> {
+    await validateOrReject(Object.assign(new UpdatePasswordRequest(), dto));
+
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.validation.passwordMismatch',
+      });
+    }
+
+    try {
+      const user = await this.prismaService.client.user.findUnique({
+        where: {
+          id: dto.userId,
+          deletedAt: null,
+        },
+        include: {
+          authProviders: {
+            where: { provider: Provider.LOCAL },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.user.notFound',
+        });
+      }
+
+      const localAuthProvider = user.authProviders.find(
+        (provider) => provider.provider === Provider.LOCAL,
+      );
+      if (!localAuthProvider || !localAuthProvider.password) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.user.noLocalPassword',
+        });
+      }
+
+      const isCurrentPasswordValid = await bcrypt.compare(
+        dto.currentPassword,
+        localAuthProvider.password,
+      );
+      if (!isCurrentPasswordValid) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.UNAUTHORIZED,
+          message: 'common.user.invalidCurrentPassword',
+        });
+      }
+
+      const saltRounds = 10;
+      const hashedNewPassword = await bcrypt.hash(dto.newPassword, saltRounds);
+
+      await this.prismaService.client.authProvider.update({
+        where: { id: localAuthProvider.id },
+        data: { password: hashedNewPassword },
+      });
+
+      const updatedUser = await this.prismaService.client.user.update({
+        where: { id: dto.userId },
+        data: { updatedAt: new Date() },
+      });
+
+      const passwordResponse: UpdatePasswordResponse = {
+        id: updatedUser.id,
+        userName: updatedUser.userName,
+        email: updatedUser.email,
+        updatedAt: updatedUser.updatedAt,
+        message: 'common.user.passwordUpdatedSuccessfully',
+      };
+
+      return passwordResponse;
+    } catch (error) {
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      this.loggerService.error(
+        'updatePassword',
+        error instanceof Error ? error.message : String(error),
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
   private mapToUserSummaryResponse(
     data: User & { role: Role; profile: UserProfile | null },
   ): UserSummaryResponse {

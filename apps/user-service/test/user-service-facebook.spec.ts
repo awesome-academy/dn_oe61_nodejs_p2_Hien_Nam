@@ -14,7 +14,6 @@ import { ConfigService } from '@nestjs/config';
 import { ProductProducer } from '../src/producer/product.producer';
 import { assertRpcException } from '@app/common/helpers/test.helper';
 import { UserStatus } from '@app/common/enums/user-status.enum';
-
 describe('UserService – Facebook login', () => {
   let service: UserService;
   let moduleRef: TestingModule;

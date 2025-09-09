@@ -51,7 +51,7 @@ model UserProfile {
 model AuthProvider {
   id         Int       @id @default(autoincrement())
   userId     Int
-  provider   Provider
+  provider   Provider  @default(LOCAL)
   providerId String?   @unique @db.VarChar(255)
   password   String?   @db.VarChar(255)
   createdAt  DateTime  @default(now())

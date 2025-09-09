@@ -144,7 +144,7 @@ describe('ProductService - deleteProductImages', () => {
         mockDeleteProductImagesDto,
       );
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {
@@ -184,7 +184,7 @@ describe('ProductService - deleteProductImages', () => {
         singleImageDto,
       );
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {
@@ -248,7 +248,7 @@ describe('ProductService - deleteProductImages', () => {
 
       // Assert
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {
@@ -272,7 +272,7 @@ describe('ProductService - deleteProductImages', () => {
         'Microservice timeout',
       );
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {
@@ -351,7 +351,7 @@ describe('ProductService - deleteProductImages', () => {
         emptyDto,
       );
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {
@@ -447,7 +447,7 @@ describe('ProductService - deleteProductImages', () => {
       // Assert
       expect(mockCallMicroservice).toHaveBeenCalledTimes(1);
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {
@@ -500,8 +500,8 @@ describe('ProductService - deleteProductImages', () => {
 
     it('should handle false result and throw BadRequestException', async () => {
       // Arrange
-      mockProductClient.send.mockReturnValue(of(false as any));
-      mockCallMicroservice.mockResolvedValue(false as any);
+      mockProductClient.send.mockReturnValue(of(false));
+      mockCallMicroservice.mockResolvedValue(false);
       mockI18nService.translate.mockReturnValue('Product not found');
 
       // Act & Assert
@@ -515,8 +515,8 @@ describe('ProductService - deleteProductImages', () => {
 
     it('should handle 0 result and throw BadRequestException', async () => {
       // Arrange
-      mockProductClient.send.mockReturnValue(of(0 as any));
-      mockCallMicroservice.mockResolvedValue(0 as any);
+      mockProductClient.send.mockReturnValue(of(0));
+      mockCallMicroservice.mockResolvedValue(0);
       mockI18nService.translate.mockReturnValue('Product not found');
 
       // Act & Assert
@@ -530,8 +530,8 @@ describe('ProductService - deleteProductImages', () => {
 
     it('should handle empty string result and throw BadRequestException', async () => {
       // Arrange
-      mockProductClient.send.mockReturnValue(of('' as any));
-      mockCallMicroservice.mockResolvedValue('' as any);
+      mockProductClient.send.mockReturnValue(of(''));
+      mockCallMicroservice.mockResolvedValue('');
       mockI18nService.translate.mockReturnValue('Product not found');
 
       // Act & Assert
@@ -545,8 +545,8 @@ describe('ProductService - deleteProductImages', () => {
 
     it('should handle NaN result and throw BadRequestException', async () => {
       // Arrange
-      mockProductClient.send.mockReturnValue(of(NaN as any));
-      mockCallMicroservice.mockResolvedValue(NaN as any);
+      mockProductClient.send.mockReturnValue(of(NaN));
+      mockCallMicroservice.mockResolvedValue(NaN);
       mockI18nService.translate.mockReturnValue('Product not found');
 
       // Act & Assert
@@ -569,7 +569,7 @@ describe('ProductService - deleteProductImages', () => {
 
       // Assert - Verify all parameters are passed correctly to callMicroservice
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {
@@ -597,7 +597,7 @@ describe('ProductService - deleteProductImages', () => {
         'Microservice call failed',
       );
       expect(mockCallMicroservice).toHaveBeenCalledWith(
-        expect.anything(),
+        expect.objectContaining({}),
         PRODUCT_SERVICE,
         loggerService,
         {

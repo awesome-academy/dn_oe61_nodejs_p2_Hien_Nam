@@ -675,5 +675,39 @@ describe('ProductService - deleteProductImages', () => {
 
       expect(mockPrismaService.client.$transaction).toHaveBeenCalled();
     });
+
+    it('should handle null deletedAt field in response mapping', async () => {
+      const mockImagesWithNullDeletedAt: MockProductImage[] = [
+        {
+          id: 1,
+          url: 'https://example.com/image1.jpg',
+          productId: 100,
+          createdAt: new Date('2024-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2024-01-02T00:00:00.000Z'),
+          deletedAt: null, // This will trigger the || null fallback
+        },
+      ];
+
+      mockPrismaService.client.$transaction.mockImplementation(
+        async (callback: DeleteImagesTransactionCallback) => {
+          const prismaMock: MockPrismaTransactionForDeleteImages = {
+            productImage: {
+              findMany: jest
+                .fn()
+                .mockResolvedValueOnce([mockImagesWithNullDeletedAt[0]])
+                .mockResolvedValueOnce(mockImagesWithNullDeletedAt),
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+          };
+          return await callback(prismaMock);
+        },
+      );
+
+      const result = await service.deleteProductImages({ productImageIds: [1] });
+
+      expect(result).toHaveLength(1);
+      expect(result[0].deletedAt).toBeNull();
+      expect(mockPrismaService.client.$transaction).toHaveBeenCalled();
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
-import { Logger, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as path from 'path';
 import configuration from '../configuration';
@@ -10,6 +10,9 @@ import { NotificationServiceController } from './notification-service.controller
 import { BullModule } from '@nestjs/bull';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { PugAdapter } from '@nestjs-modules/mailer/dist/adapters/pug.adapter';
+import { ClientsModule, Transport } from '@nestjs/microservices';
+import { PRODUCT_SERVICE } from '@app/common';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 
 @Module({
   imports: [
@@ -53,6 +56,19 @@ import { PugAdapter } from '@nestjs-modules/mailer/dist/adapters/pug.adapter';
       }),
       inject: [ConfigService],
     }),
+    ClientsModule.registerAsync([
+      {
+        name: PRODUCT_SERVICE,
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.REDIS,
+          options: {
+            host: configService.get<string>('REDIS_HOST'),
+            port: configService.get<number>('REDIS_PORT'),
+          },
+        }),
+        inject: [ConfigService],
+      },
+    ]),
     MailQueueModule,
   ],
   providers: [
@@ -61,7 +77,7 @@ import { PugAdapter } from '@nestjs-modules/mailer/dist/adapters/pug.adapter';
       useClass: I18nRpcValidationPipe,
     },
     NotificationService,
-    Logger,
+    CustomLogger,
   ],
   controllers: [NotificationServiceController],
 })

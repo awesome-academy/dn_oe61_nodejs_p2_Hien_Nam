@@ -14,4 +14,10 @@ export default () => ({
     pass: process.env.MAIL_PASSWORD,
     from: process.env.MAIL_FROM,
   },
+  facebook: {
+    appID: process.env.FACEBOOK_APP_ID,
+    sharePostUrl: process.env.SHARE_FACEBOOK_POST_URL,
+    shareMessengerUrl: process.env.SHARE_MESSENGER_URL,
+  },
+  frontendUrl: process.env.FRONTEND_URL,
 });

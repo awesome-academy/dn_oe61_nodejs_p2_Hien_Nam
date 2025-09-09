@@ -11,4 +11,7 @@ export enum UserMsgPattern {
   ADMIN_UPDATE_ROLE = 'admin.user.updateRole',
   ADMIN_UPDATE_STATUS = 'admin.user.updateStatus',
   ADMIN_DELETE_USER = 'admin.user.deleteUser',
+  GET_USER_PROFILE = 'user.getUserProfile',
+  UPDATE_USER_PROFILE = 'user.updateUserProfile',
+  UPDATE_PASSWORD = 'user.updatePassword',
 }

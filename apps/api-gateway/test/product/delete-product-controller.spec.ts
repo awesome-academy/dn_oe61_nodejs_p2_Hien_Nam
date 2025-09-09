@@ -5,7 +5,7 @@ import { I18nService } from 'nestjs-i18n';
 import { RolesGuard } from '../../src/auth/guards/roles.guard';
 import { ProductController } from '../../src/product/admin/product.controller';
 import { ProductService } from '../../src/product/admin/product.service';
-import { DeleteProductDto } from '@app/common/dto/product/delete-product.dto';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { StatusKey } from '@app/common/enums/status-key.enum';
@@ -68,7 +68,7 @@ describe('ProductController - Delete Product', () => {
   });
 
   describe('delete', () => {
-    const validDeleteProductDto: DeleteProductDto = {
+    const validskuIdProductDto: skuIdProductDto = {
       skuId: 'TEST-SKU-001',
     };
 
@@ -95,10 +95,10 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockResolvedValue(mockSuccessResponse);
 
         // Act
-        const result = await controller.delete(validDeleteProductDto);
+        const result = await controller.delete(validskuIdProductDto);
 
         // Assert
-        expect(mockProductService.delete).toHaveBeenCalledWith(validDeleteProductDto);
+        expect(mockProductService.delete).toHaveBeenCalledWith(validskuIdProductDto);
         expect(mockProductService.delete).toHaveBeenCalledTimes(1);
         expect(result).toEqual(mockSuccessResponse);
         expect(result.statusKey).toBe(StatusKey.SUCCESS);
@@ -107,7 +107,7 @@ describe('ProductController - Delete Product', () => {
 
       it('should handle deletion of product with different skuId format', async () => {
         // Arrange
-        const differentSkuDto: DeleteProductDto = {
+        const differentSkuDto: skuIdProductDto = {
           skuId: 'PROD-2023-ABC123',
         };
         const differentProductResponse: ProductResponse = {
@@ -138,9 +138,9 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockRejectedValue(notFoundError);
 
         // Act & Assert
-        await expect(controller.delete(validDeleteProductDto)).rejects.toThrow(BadRequestException);
-        await expect(controller.delete(validDeleteProductDto)).rejects.toThrow('Product not found');
-        expect(mockProductService.delete).toHaveBeenCalledWith(validDeleteProductDto);
+        await expect(controller.delete(validskuIdProductDto)).rejects.toThrow(BadRequestException);
+        await expect(controller.delete(validskuIdProductDto)).rejects.toThrow('Product not found');
+        expect(mockProductService.delete).toHaveBeenCalledWith(validskuIdProductDto);
       });
 
       it('should throw BadRequestException when product is in order', async () => {
@@ -149,11 +149,11 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockRejectedValue(productInOrderError);
 
         // Act & Assert
-        await expect(controller.delete(validDeleteProductDto)).rejects.toThrow(BadRequestException);
-        await expect(controller.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(controller.delete(validskuIdProductDto)).rejects.toThrow(BadRequestException);
+        await expect(controller.delete(validskuIdProductDto)).rejects.toThrow(
           'Product already exists in order',
         );
-        expect(mockProductService.delete).toHaveBeenCalledWith(validDeleteProductDto);
+        expect(mockProductService.delete).toHaveBeenCalledWith(validskuIdProductDto);
       });
 
       it('should handle service timeout error', async () => {
@@ -162,8 +162,8 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockRejectedValue(timeoutError);
 
         // Act & Assert
-        await expect(controller.delete(validDeleteProductDto)).rejects.toThrow('Service timeout');
-        expect(mockProductService.delete).toHaveBeenCalledWith(validDeleteProductDto);
+        await expect(controller.delete(validskuIdProductDto)).rejects.toThrow('Service timeout');
+        expect(mockProductService.delete).toHaveBeenCalledWith(validskuIdProductDto);
       });
 
       it('should handle microservice communication error', async () => {
@@ -172,10 +172,10 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockRejectedValue(communicationError);
 
         // Act & Assert
-        await expect(controller.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(controller.delete(validskuIdProductDto)).rejects.toThrow(
           'Microservice communication failed',
         );
-        expect(mockProductService.delete).toHaveBeenCalledWith(validDeleteProductDto);
+        expect(mockProductService.delete).toHaveBeenCalledWith(validskuIdProductDto);
       });
 
       it('should handle generic service error', async () => {
@@ -184,17 +184,17 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockRejectedValue(genericError);
 
         // Act & Assert
-        await expect(controller.delete(validDeleteProductDto)).rejects.toThrow(
+        await expect(controller.delete(validskuIdProductDto)).rejects.toThrow(
           'Internal server error',
         );
-        expect(mockProductService.delete).toHaveBeenCalledWith(validDeleteProductDto);
+        expect(mockProductService.delete).toHaveBeenCalledWith(validskuIdProductDto);
       });
     });
 
     describe('Input validation', () => {
       it('should handle empty skuId', async () => {
         // Arrange
-        const emptySkuDto: DeleteProductDto = {
+        const emptySkuDto: skuIdProductDto = {
           skuId: '',
         };
         const validationError = new BadRequestException('SkuId cannot be empty');
@@ -207,7 +207,7 @@ describe('ProductController - Delete Product', () => {
 
       it('should handle whitespace-only skuId', async () => {
         // Arrange
-        const whitespaceSkuDto: DeleteProductDto = {
+        const whitespaceSkuDto: skuIdProductDto = {
           skuId: '   ',
         };
         const validationError = new BadRequestException('SkuId cannot be whitespace');
@@ -220,7 +220,7 @@ describe('ProductController - Delete Product', () => {
 
       it('should handle very long skuId', async () => {
         // Arrange
-        const longSkuDto: DeleteProductDto = {
+        const longSkuDto: skuIdProductDto = {
           skuId: 'A'.repeat(100), // Very long skuId
         };
         const validationError = new BadRequestException('SkuId too long');
@@ -233,7 +233,7 @@ describe('ProductController - Delete Product', () => {
 
       it('should handle special characters in skuId', async () => {
         // Arrange
-        const specialCharSkuDto: DeleteProductDto = {
+        const specialCharSkuDto: skuIdProductDto = {
           skuId: 'TEST@#$%^&*()',
         };
         mockProductService.delete.mockResolvedValue(mockSuccessResponse);
@@ -253,7 +253,7 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockResolvedValue(mockSuccessResponse);
 
         // Act
-        const result = await controller.delete(validDeleteProductDto);
+        const result = await controller.delete(validskuIdProductDto);
 
         // Assert
         expect(result).toHaveProperty('statusKey');
@@ -261,7 +261,7 @@ describe('ProductController - Delete Product', () => {
         expect(result).toHaveProperty('data');
         expect(result.statusKey).toBe(StatusKey.SUCCESS);
         expect(result.data).toBeDefined();
-        expect(result.data?.skuId).toBe(validDeleteProductDto.skuId);
+        expect(result.data?.skuId).toBe(validskuIdProductDto.skuId);
       });
 
       it('should handle undefined data in response', async () => {
@@ -273,7 +273,7 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockResolvedValue(undefinedDataResponse);
 
         // Act
-        const result = await controller.delete(validDeleteProductDto);
+        const result = await controller.delete(validskuIdProductDto);
 
         // Assert
         expect(result.data).toBeUndefined();
@@ -282,7 +282,7 @@ describe('ProductController - Delete Product', () => {
     });
 
     describe('Method signature and types', () => {
-      it('should accept DeleteProductDto parameter', () => {
+      it('should accept skuIdProductDto parameter', () => {
         // This test ensures the method signature is correct
         const methodExists = typeof controller.delete === 'function';
         expect(methodExists).toBe(true);
@@ -293,7 +293,7 @@ describe('ProductController - Delete Product', () => {
         mockProductService.delete.mockResolvedValue(mockSuccessResponse);
 
         // Act
-        const result = controller.delete(validDeleteProductDto);
+        const result = controller.delete(validskuIdProductDto);
 
         // Assert
         expect(result).toBeInstanceOf(Promise);

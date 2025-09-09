@@ -4,8 +4,12 @@ import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationService } from '../src/notification-service.service';
 import { MailQueueService } from '../src/mail/mail-queue.service';
-import { Logger } from '@nestjs/common';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { RpcException } from '@nestjs/microservices';
+import { PRODUCT_SERVICE } from '@app/common';
+import { UserProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
+import { Decimal } from '@prisma/client/runtime/library';
+import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 
 describe('NotificationService', () => {
   let service: NotificationService;
@@ -18,10 +22,19 @@ describe('NotificationService', () => {
 
   const mockLogger = {
     error: jest.fn(),
+    log: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    verbose: jest.fn(),
+    write: jest.fn(),
   };
 
   const mockConfigService = {
     get: jest.fn(),
+  };
+
+  const mockProductServiceClient = {
+    send: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -33,12 +46,16 @@ describe('NotificationService', () => {
           useValue: mockMailQueueService,
         },
         {
-          provide: Logger,
+          provide: CustomLogger,
           useValue: mockLogger,
         },
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: PRODUCT_SERVICE,
+          useValue: mockProductServiceClient,
         },
       ],
     }).compile();
@@ -95,6 +112,113 @@ describe('NotificationService', () => {
 
       await expect(service.sendEmailComplete(mockPayload)).rejects.toThrow(RpcException);
       expect(mockLogger.error).toHaveBeenCalled();
+    });
+  });
+
+  describe('getShareProduct', () => {
+    const createMockProduct = (): UserProductDetailResponse => ({
+      id: 1,
+      name: 'Test Product',
+      skuId: 'SKU123',
+      description: 'Test Description',
+      status: StatusProduct.IN_STOCK,
+      basePrice: new Decimal(25.99),
+      quantity: 100,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: undefined,
+      images: [],
+      variants: [],
+      categories: [],
+      reviews: [],
+    });
+
+    beforeEach(() => {
+      mockConfigService.get.mockImplementation((key: string) => {
+        switch (key) {
+          case 'frontendUrl':
+            return 'http://localhost:3000';
+          case 'facebook.appID':
+            return '123456789';
+          case 'facebook.sharePostUrl':
+            return 'https://www.facebook.com/dialog/share';
+          case 'facebook.shareMessengerUrl':
+            return 'https://www.facebook.com/dialog/send';
+          default:
+            return undefined;
+        }
+      });
+    });
+
+    it('should throw TypedRpcException if product is null', () => {
+      expect(() => service.getShareProduct(null as unknown as UserProductDetailResponse)).toThrow(
+        TypedRpcException,
+      );
+    });
+
+    it('should throw TypedRpcException if product is undefined', () => {
+      expect(() =>
+        service.getShareProduct(undefined as unknown as UserProductDetailResponse),
+      ).toThrow(TypedRpcException);
+    });
+
+    it('should return share URLs successfully', () => {
+      const mockProduct = createMockProduct();
+      const result = service.getShareProduct(mockProduct);
+
+      expect(result).toHaveProperty('messengerShare');
+      expect(result).toHaveProperty('facebookShare');
+      expect(result).toHaveProperty('productUrl');
+      expect(result.productUrl).toContain('/user/products/SKU123');
+    });
+
+    it('should return URLs even with empty config (no validation in current implementation)', () => {
+      // Mock config to return empty strings
+      mockConfigService.get.mockImplementation((key: string) => {
+        switch (key) {
+          case 'frontendUrl':
+            return '';
+          case 'facebook.appID':
+            return '';
+          case 'facebook.sharePostUrl':
+            return '';
+          case 'facebook.shareMessengerUrl':
+            return '';
+          default:
+            return '';
+        }
+      });
+
+      const mockProduct = createMockProduct();
+      const result = service.getShareProduct(mockProduct);
+
+      // Current implementation doesn't validate empty URLs, just returns them
+      expect(result).toHaveProperty('messengerShare');
+      expect(result).toHaveProperty('facebookShare');
+      expect(result).toHaveProperty('productUrl');
+    });
+
+    it('should generate correct URLs with product information', () => {
+      const mockProduct = createMockProduct();
+      mockProduct.name = 'Special Product';
+      mockProduct.basePrice = new Decimal(99.99);
+
+      const result = service.getShareProduct(mockProduct);
+
+      expect(result.facebookShare).toContain('quote=');
+      expect(result.messengerShare).toContain('facebook.com/dialog/send');
+      expect(result.facebookShare).toContain('facebook.com/dialog/share');
+    });
+
+    it('should handle products with special characters in name', () => {
+      const mockProduct = createMockProduct();
+      mockProduct.name = 'Product & Special "Chars"';
+
+      const result = service.getShareProduct(mockProduct);
+
+      expect(result).toHaveProperty('messengerShare');
+      expect(result).toHaveProperty('facebookShare');
+      expect(result).toHaveProperty('productUrl');
     });
   });
 });
