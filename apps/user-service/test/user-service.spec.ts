@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
@@ -51,6 +51,7 @@ describe('UserService', () => {
                 findFirst: jest.fn(),
                 update: jest.fn(),
                 findMany: jest.fn(),
+                updateMany: jest.fn(),
               },
               role: { findUnique: jest.fn() },
               userProfile: { findUnique: jest.fn(), findFirst: jest.fn() },
@@ -2979,6 +2980,504 @@ describe('UserService', () => {
         expect(result).toBeDefined();
         expect(typeof result).toBe('object');
       });
+    });
+  });
+
+  describe('cleanupInactiveUsers', () => {
+    const mockNow = new Date('2024-01-15T10:00:00.000Z');
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(mockNow);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      jest.restoreAllMocks();
+    });
+
+    it('should successfully cleanup inactive users', async () => {
+      // Arrange
+      const mockInactiveUsers = [
+        {
+          id: 1,
+          name: 'User 1',
+          email: 'user1@example.com',
+          createdAt: new Date('2024-01-12T10:00:00.000Z'),
+        },
+        {
+          id: 2,
+          name: 'User 2',
+          email: 'user2@example.com',
+          createdAt: new Date('2024-01-11T10:00:00.000Z'),
+        },
+      ];
+
+      const mockDeleteResult = { count: 2 };
+
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue(mockInactiveUsers);
+      mockClient.user.updateMany.mockResolvedValue(mockDeleteResult);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const logSpy = jest.spyOn(loggerService, 'log');
+
+      // Act
+      const result = await service.cleanupInactiveUsers();
+
+      // Assert
+      expect(result).toEqual({
+        deletedCount: 2,
+        message:
+          'Đã xóa 2 user hết hạn khỏi bảng. Chi tiết: ID: 1, Email: user1@example.com, Tạo lúc: 2024-01-12T10:00:00.000Z; ID: 2, Email: user2@example.com, Tạo lúc: 2024-01-11T10:00:00.000Z',
+      });
+
+      expect(mockClient.user.findMany).toHaveBeenCalledWith({
+        where: {
+          isActive: false,
+          createdAt: {
+            lt: expect.any(Date),
+          },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+      });
+
+      expect(mockClient.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: {
+            in: [1, 2],
+          },
+        },
+        data: {
+          deletedAt: mockNow,
+        },
+      });
+
+      expect(logSpy).toHaveBeenCalledWith(
+        '🔄 Cleanup inactive users bắt đầu chạy lúc: ' + mockNow.toISOString(),
+      );
+      expect(logSpy).toHaveBeenCalledWith(
+        'Đã xóa 2 user hết hạn khỏi bảng. Chi tiết: ID: 1, Email: user1@example.com, Tạo lúc: 2024-01-12T10:00:00.000Z; ID: 2, Email: user2@example.com, Tạo lúc: 2024-01-11T10:00:00.000Z',
+      );
+    });
+
+    it('should handle case when no inactive users found', async () => {
+      // Arrange
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue([]);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const logSpy = jest.spyOn(loggerService, 'log');
+
+      // Act
+      const result = await service.cleanupInactiveUsers();
+
+      // Assert
+      expect(result).toEqual({
+        deletedCount: 0,
+        message: 'Không có user nào cần xóa.',
+      });
+
+      expect(mockClient.user.findMany).toHaveBeenCalledWith({
+        where: {
+          isActive: false,
+          createdAt: {
+            lt: expect.any(Date),
+          },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+      });
+
+      expect(mockClient.user.updateMany).not.toHaveBeenCalled();
+
+      expect(logSpy).toHaveBeenCalledWith(
+        '🔄 Cleanup inactive users bắt đầu chạy lúc: ' + mockNow.toISOString(),
+      );
+      expect(logSpy).toHaveBeenCalledWith('Không có user nào cần xóa.');
+    });
+
+    it('should handle users with null email', async () => {
+      // Arrange
+      const mockInactiveUsers = [
+        {
+          id: 1,
+          name: 'User 1',
+          email: null,
+          createdAt: new Date('2024-01-12T10:00:00.000Z'),
+        },
+        {
+          id: 2,
+          name: 'User 2',
+          email: 'user2@example.com',
+          createdAt: new Date('2024-01-11T10:00:00.000Z'),
+        },
+      ];
+
+      const mockDeleteResult = { count: 2 };
+
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue(mockInactiveUsers);
+      mockClient.user.updateMany.mockResolvedValue(mockDeleteResult);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const logSpy = jest.spyOn(loggerService, 'log');
+
+      // Act
+      const result = await service.cleanupInactiveUsers();
+
+      // Assert
+      expect(result).toEqual({
+        deletedCount: 2,
+        message:
+          'Đã xóa 2 user hết hạn khỏi bảng. Chi tiết: ID: 1, Email: N/A, Tạo lúc: 2024-01-12T10:00:00.000Z; ID: 2, Email: user2@example.com, Tạo lúc: 2024-01-11T10:00:00.000Z',
+      });
+
+      expect(logSpy).toHaveBeenCalledWith(
+        'Đã xóa 2 user hết hạn khỏi bảng. Chi tiết: ID: 1, Email: N/A, Tạo lúc: 2024-01-12T10:00:00.000Z; ID: 2, Email: user2@example.com, Tạo lúc: 2024-01-11T10:00:00.000Z',
+      );
+    });
+
+    it('should handle single user cleanup', async () => {
+      // Arrange
+      const mockInactiveUsers = [
+        {
+          id: 1,
+          name: 'User 1',
+          email: 'user1@example.com',
+          createdAt: new Date('2024-01-12T10:00:00.000Z'),
+        },
+      ];
+
+      const mockDeleteResult = { count: 1 };
+
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue(mockInactiveUsers);
+      mockClient.user.updateMany.mockResolvedValue(mockDeleteResult);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const logSpy = jest.spyOn(loggerService, 'log');
+
+      // Act
+      const result = await service.cleanupInactiveUsers();
+
+      // Assert
+      expect(result).toEqual({
+        deletedCount: 1,
+        message:
+          'Đã xóa 1 user hết hạn khỏi bảng. Chi tiết: ID: 1, Email: user1@example.com, Tạo lúc: 2024-01-12T10:00:00.000Z',
+      });
+
+      expect(mockClient.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: {
+            in: [1],
+          },
+        },
+        data: {
+          deletedAt: mockNow,
+        },
+      });
+
+      expect(logSpy).toHaveBeenCalledWith(
+        'Đã xóa 1 user hết hạn khỏi bảng. Chi tiết: ID: 1, Email: user1@example.com, Tạo lúc: 2024-01-12T10:00:00.000Z',
+      );
+    });
+
+    it('should handle large number of users', async () => {
+      // Arrange
+      const mockInactiveUsers = Array.from({ length: 100 }, (_, index) => ({
+        id: index + 1,
+        name: `User ${index + 1}`,
+        email: `user${index + 1}@example.com`,
+        createdAt: new Date('2024-01-12T10:00:00.000Z'),
+      }));
+
+      const mockDeleteResult = { count: 100 };
+
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue(mockInactiveUsers);
+      mockClient.user.updateMany.mockResolvedValue(mockDeleteResult);
+
+      // Act
+      const result = await service.cleanupInactiveUsers();
+
+      // Assert
+      expect(result.deletedCount).toBe(100);
+      expect(result.message).toContain('Đã xóa 100 user hết hạn khỏi bảng');
+
+      const expectedUserIds = Array.from({ length: 100 }, (_, index) => index + 1);
+      expect(mockClient.user.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: {
+            in: expectedUserIds,
+          },
+        },
+        data: {
+          deletedAt: mockNow,
+        },
+      });
+    });
+
+    it('should handle database error during findMany', async () => {
+      // Arrange
+      const mockError = new Error('Database connection failed');
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockRejectedValue(mockError);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const errorSpy = jest.spyOn(loggerService, 'error');
+
+      // Act & Assert
+      await expect(service.cleanupInactiveUsers()).rejects.toThrow(TypedRpcException);
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Lỗi khi xóa user hết hạn:',
+        'Error: Database connection failed',
+      );
+
+      try {
+        await service.cleanupInactiveUsers();
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        const rpcError = error as TypedRpcException;
+        expect(rpcError.getError()).toEqual({
+          code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+          message: 'common.errors.internalServerError',
+        });
+      }
+    });
+
+    it('should handle database error during updateMany', async () => {
+      // Arrange
+      const mockInactiveUsers = [
+        {
+          id: 1,
+          name: 'User 1',
+          email: 'user1@example.com',
+          createdAt: new Date('2024-01-12T10:00:00.000Z'),
+        },
+      ];
+
+      const mockError = new Error('Update operation failed');
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue(mockInactiveUsers);
+      mockClient.user.updateMany.mockRejectedValue(mockError);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const errorSpy = jest.spyOn(loggerService, 'error');
+
+      // Act & Assert
+      await expect(service.cleanupInactiveUsers()).rejects.toThrow(TypedRpcException);
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Lỗi khi xóa user hết hạn:',
+        'Error: Update operation failed',
+      );
+    });
+
+    it('should handle non-Error exception', async () => {
+      // Arrange
+      const mockError = 'String error message';
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockRejectedValue(mockError);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const errorSpy = jest.spyOn(loggerService, 'error');
+
+      // Act & Assert
+      await expect(service.cleanupInactiveUsers()).rejects.toThrow(TypedRpcException);
+
+      expect(errorSpy).toHaveBeenCalledWith('Lỗi khi xóa user hết hạn:', 'String error message');
+    });
+
+    it('should handle null error', async () => {
+      // Arrange
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockRejectedValue(null);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const errorSpy = jest.spyOn(loggerService, 'error');
+
+      // Act & Assert
+      await expect(service.cleanupInactiveUsers()).rejects.toThrow(TypedRpcException);
+
+      expect(errorSpy).toHaveBeenCalledWith('Lỗi khi xóa user hết hạn:', 'null');
+    });
+
+    it('should handle undefined error', async () => {
+      // Arrange
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockRejectedValue(undefined);
+
+      const loggerService = moduleRef.get(CustomLogger);
+      const errorSpy = jest.spyOn(loggerService, 'error');
+
+      // Act & Assert
+      await expect(service.cleanupInactiveUsers()).rejects.toThrow(TypedRpcException);
+
+      expect(errorSpy).toHaveBeenCalledWith('Lỗi khi xóa user hết hạn:', 'undefined');
+    });
+
+    it('should use correct date calculation for two days ago', async () => {
+      // Arrange
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue([]);
+
+      // Act
+      await service.cleanupInactiveUsers();
+
+      // Assert
+      const expectedTwoDaysAgo = new Date(mockNow.getTime() - 2 * 24 * 60 * 60 * 1000);
+      expect(mockClient.user.findMany).toHaveBeenCalledWith({
+        where: {
+          isActive: false,
+          createdAt: {
+            lt: expectedTwoDaysAgo,
+          },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+      });
+    });
+
+    it('should handle users with different creation dates', async () => {
+      // Arrange
+      const mockInactiveUsers = [
+        {
+          id: 1,
+          name: 'User 1',
+          email: 'user1@example.com',
+          createdAt: new Date('2024-01-10T08:30:15.123Z'),
+        },
+        {
+          id: 2,
+          name: 'User 2',
+          email: 'user2@example.com',
+          createdAt: new Date('2024-01-09T23:59:59.999Z'),
+        },
+      ];
+
+      const mockDeleteResult = { count: 2 };
+
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue(mockInactiveUsers);
+      mockClient.user.updateMany.mockResolvedValue(mockDeleteResult);
+
+      // Act
+      const result = await service.cleanupInactiveUsers();
+
+      // Assert
+      expect(result.message).toContain(
+        'ID: 1, Email: user1@example.com, Tạo lúc: 2024-01-10T08:30:15.123Z',
+      );
+      expect(result.message).toContain(
+        'ID: 2, Email: user2@example.com, Tạo lúc: 2024-01-09T23:59:59.999Z',
+      );
+    });
+
+    it('should verify return type structure', async () => {
+      // Arrange
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue([]);
+
+      // Act
+      const result = await service.cleanupInactiveUsers();
+
+      // Assert
+      expect(result).toHaveProperty('deletedCount');
+      expect(result).toHaveProperty('message');
+      expect(typeof result.deletedCount).toBe('number');
+      expect(typeof result.message).toBe('string');
+      expect(Object.keys(result)).toHaveLength(2);
+    });
+
+    it('should handle concurrent cleanup operations', async () => {
+      // Arrange
+      const mockInactiveUsers = [
+        {
+          id: 1,
+          name: 'User 1',
+          email: 'user1@example.com',
+          createdAt: new Date('2024-01-12T10:00:00.000Z'),
+        },
+      ];
+
+      const mockDeleteResult = { count: 1 };
+
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue(mockInactiveUsers);
+      mockClient.user.updateMany.mockResolvedValue(mockDeleteResult);
+
+      // Act - Run multiple cleanup operations concurrently
+      const promises = [
+        service.cleanupInactiveUsers(),
+        service.cleanupInactiveUsers(),
+        service.cleanupInactiveUsers(),
+      ];
+
+      const results = await Promise.all(promises);
+
+      // Assert
+      results.forEach((result) => {
+        expect(result).toEqual({
+          deletedCount: 1,
+          message:
+            'Đã xóa 1 user hết hạn khỏi bảng. Chi tiết: ID: 1, Email: user1@example.com, Tạo lúc: 2024-01-12T10:00:00.000Z',
+        });
+      });
+
+      expect(mockClient.user.findMany).toHaveBeenCalledTimes(3);
+      expect(mockClient.user.updateMany).toHaveBeenCalledTimes(3);
+    });
+
+    it('should verify method signature and return type', async () => {
+      // Arrange
+      const mockPrismaService = moduleRef.get(PrismaService);
+      const mockClient = mockPrismaService.client as any;
+      mockClient.user.findMany.mockResolvedValue([]);
+
+      // Act
+      const methodResult = service.cleanupInactiveUsers();
+
+      // Assert
+      expect(methodResult).toBeInstanceOf(Promise);
+
+      const result = await methodResult;
+      expect(result).toBeDefined();
+      expect(typeof result).toBe('object');
+      expect(result).toHaveProperty('deletedCount');
+      expect(result).toHaveProperty('message');
     });
   });
 });

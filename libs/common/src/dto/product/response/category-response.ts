@@ -7,12 +7,16 @@ export class RootCategory {
   id: number;
   name: string;
   parent: number | '';
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
 }
 
 export class ChildCategories {
   id: number;
   name: string;
   parent: number | '';
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
 }
 
 export class CategoriesResponse {

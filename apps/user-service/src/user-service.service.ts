@@ -1016,4 +1016,66 @@ export class UserService {
       role: data.role.name,
     };
   }
+
+  async cleanupInactiveUsers(): Promise<{ deletedCount: number; message: string }> {
+    this.loggerService.log(
+      '🔄 Cleanup inactive users bắt đầu chạy lúc: ' + new Date().toISOString(),
+    );
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+
+    try {
+      const inactiveUsers = await this.prismaService.client.user.findMany({
+        where: {
+          isActive: false,
+          createdAt: {
+            lt: twoDaysAgo,
+          },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+        },
+      });
+
+      if (inactiveUsers.length === 0) {
+        const message = 'Không có user nào cần xóa.';
+        this.loggerService.log(message);
+        return { deletedCount: 0, message };
+      }
+
+      const userIds = inactiveUsers.map((user) => user.id);
+
+      const deleteResult = await this.prismaService.client.user.updateMany({
+        where: {
+          id: {
+            in: userIds,
+          },
+        },
+        data: {
+          deletedAt: now,
+        },
+      });
+
+      const message = `Đã xóa ${deleteResult.count} user hết hạn khỏi bảng. Chi tiết: ${inactiveUsers
+        .map(
+          (user) =>
+            `ID: ${user.id}, Email: ${user.email || 'N/A'}, Tạo lúc: ${user.createdAt.toISOString()}`,
+        )
+        .join('; ')}`;
+
+      this.loggerService.log(message);
+
+      return { deletedCount: deleteResult.count, message };
+    } catch (error) {
+      this.loggerService.error('Lỗi khi xóa user hết hạn:', String(error));
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
 }

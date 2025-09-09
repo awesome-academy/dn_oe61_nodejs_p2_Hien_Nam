@@ -20,6 +20,29 @@ export function ApiResponseCreateReview() {
     ApiBody({
       type: CreateReviewDto,
       description: 'Thông tin đánh giá',
+      examples: {
+        'Đánh giá tích cực': {
+          summary: 'Đánh giá 5 sao với bình luận tích cực',
+          value: {
+            rating: 5,
+            comment: 'Sản phẩm rất tuyệt vời! Chất lượng tốt, giao hàng nhanh. Tôi sẽ mua lại.',
+          },
+        },
+        'Đánh giá trung bình': {
+          summary: 'Đánh giá 3 sao với bình luận trung tính',
+          value: {
+            rating: 3,
+            comment: 'Sản phẩm ổn, không có gì đặc biệt. Giá cả hợp lý.',
+          },
+        },
+        'Đánh giá ngắn gọn': {
+          summary: 'Đánh giá 4 sao với bình luận ngắn',
+          value: {
+            rating: 4,
+            comment: 'Tốt!',
+          },
+        },
+      },
     }),
 
     ApiResponse({

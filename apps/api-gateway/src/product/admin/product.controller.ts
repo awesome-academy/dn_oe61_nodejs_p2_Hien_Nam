@@ -86,7 +86,7 @@ export class ProductController {
   @AuthRoles(Role.ADMIN)
   @Get('')
   async getAll(
-    @Query() query: { page: number; limit: number },
+    @Query() query: { page: number; pageSize: number },
   ): Promise<BaseResponse<ProductResponse[]>> {
     return await this.productService.getAll(query);
   }

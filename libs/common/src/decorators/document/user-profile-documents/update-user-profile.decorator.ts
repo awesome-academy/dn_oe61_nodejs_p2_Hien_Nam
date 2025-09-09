@@ -49,11 +49,10 @@ export function ApiResponseUpdateUserProfile() {
             description: 'Ngày sinh',
             example: '1990-01-01',
           },
-          imageUrl: {
+          image: {
             type: 'string',
             format: 'binary',
             description: 'Ảnh đại diện (tùy chọn)',
-            example: 'https://example.com/avatar.jpg',
           },
         },
       },

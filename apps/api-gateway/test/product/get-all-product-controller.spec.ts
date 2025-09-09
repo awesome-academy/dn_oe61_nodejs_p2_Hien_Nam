@@ -39,7 +39,7 @@ describe('ProductController - getAll', () => {
   });
 
   describe('getAll', () => {
-    const validQuery = { page: 1, limit: 10 };
+    const validQuery = { page: 1, pageSize: 10 };
 
     it('should return products successfully with valid query', async () => {
       // Arrange
@@ -64,7 +64,7 @@ describe('ProductController - getAll', () => {
 
     it('should handle page parameter correctly', async () => {
       // Arrange
-      const queryWithDifferentPage = { page: 2, limit: 5 };
+      const queryWithDifferentPage = { page: 2, pageSize: 5 };
       mockProductService.getAll.mockResolvedValue(mockSuccessResponse);
 
       // Act
@@ -76,7 +76,7 @@ describe('ProductController - getAll', () => {
 
     it('should handle limit parameter correctly', async () => {
       // Arrange
-      const queryWithDifferentLimit = { page: 1, limit: 20 };
+      const queryWithDifferentLimit = { page: 1, pageSize: 20 };
       mockProductService.getAll.mockResolvedValue(mockSuccessResponse);
 
       // Act
@@ -88,7 +88,7 @@ describe('ProductController - getAll', () => {
 
     it('should handle zero page parameter', async () => {
       // Arrange
-      const queryWithZeroPage = { page: 0, limit: 10 };
+      const queryWithZeroPage = { page: 0, pageSize: 10 };
       mockProductService.getAll.mockResolvedValue(mockSuccessResponse);
 
       // Act
@@ -100,7 +100,7 @@ describe('ProductController - getAll', () => {
 
     it('should handle zero limit parameter', async () => {
       // Arrange
-      const queryWithZeroLimit = { page: 1, limit: 0 };
+      const queryWithZeroLimit = { page: 1, pageSize: 0 };
       mockProductService.getAll.mockResolvedValue(mockSuccessResponse);
 
       // Act
@@ -168,7 +168,7 @@ describe('ProductController - getAll', () => {
 
     it('should handle negative page numbers', async () => {
       // Arrange
-      const queryWithNegativePage = { page: -1, limit: 10 };
+      const queryWithNegativePage = { page: -1, pageSize: 10 };
       mockProductService.getAll.mockResolvedValue(mockSuccessResponse);
 
       // Act
@@ -180,7 +180,7 @@ describe('ProductController - getAll', () => {
 
     it('should handle negative limit numbers', async () => {
       // Arrange
-      const queryWithNegativeLimit = { page: 1, limit: -5 };
+      const queryWithNegativeLimit = { page: 1, pageSize: -5 };
       mockProductService.getAll.mockResolvedValue(mockSuccessResponse);
 
       // Act

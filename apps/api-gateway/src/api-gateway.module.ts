@@ -14,7 +14,7 @@ import {
 } from '@app/common/constant/service.constant';
 import { TransformDataInterceptor } from '@app/common/interceptors/transform-data.interceptor';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { GlobalExceptionFilter } from '@app/common/filters/global-exceptions.filter';
+import { UnifiedExceptionFilter } from '@app/common/filters/unified-exception.filter';
 import { I18nHttpValidationPipe } from '@app/common/pipes/http-validation-pipe';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -41,10 +41,15 @@ import { OrderService } from './order/order.service';
 import { OrderController } from './order/order.controller';
 import { PaymentController } from './payment/paymet.controller';
 import { PaymentService } from './payment/payment.service';
+import { GraphQLAppModule } from './graphql/graphql.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { UserCleanupService } from './cron/user-cleanup.service';
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     CloudinaryConsoleModule,
+    GraphQLAppModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: path.resolve(process.cwd(), 'apps/api-gateway/.env'),
@@ -138,9 +143,10 @@ import { PaymentService } from './payment/payment.service';
     UserProfileService,
     OrderService,
     PaymentService,
+    UserCleanupService,
     {
       provide: APP_FILTER,
-      useClass: GlobalExceptionFilter,
+      useClass: UnifiedExceptionFilter,
     },
     {
       provide: APP_INTERCEPTOR,

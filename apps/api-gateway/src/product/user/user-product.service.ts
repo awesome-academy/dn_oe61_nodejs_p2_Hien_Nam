@@ -152,7 +152,7 @@ export class UserProductService {
     }
 
     const shareUrls = await callMicroservice<ShareUrlProductResponse>(
-      this.notificationClient.send(Notifications.GET_SHARE_INFO, { skuId: product.data }),
+      this.notificationClient.send(Notifications.GET_SHARE_INFO, product.data),
       NOTIFICATION_SERVICE,
       this.loggerService,
       {

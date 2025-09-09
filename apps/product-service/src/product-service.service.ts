@@ -6,6 +6,7 @@ import { PrismaService } from '@app/prisma';
 import {
   Cart,
   CartItem,
+  Category,
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
@@ -39,6 +40,7 @@ import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.reques
 import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
 import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
 import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
+import { GraphQLCateroryInput } from '@app/common/types/graphql/arg-type/create-category.type';
 import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import {
   ProductResponse,
@@ -57,8 +59,8 @@ import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-orde
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import {
   CategoryResponse,
-  ChildCategories,
   RootCategory,
+  ChildCategories,
 } from '@app/common/dto/product/response/category-response';
 import {
   OrderResponse,
@@ -107,6 +109,16 @@ import { ConfirmOrderRequest } from '@app/common/dto/product/requests/confirm-or
 import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
 import { I18nService } from 'nestjs-i18n';
 import * as crypto from 'crypto';
+import { PaginationArgs } from '@app/common/types/graphql/arg-type/pagination.type';
+import { GraphQLUpdateCateroryInput } from '@app/common/types/graphql/arg-type/update-category.typ';
+import { from } from 'rxjs';
+import {
+  CategoryGroupGraphQL,
+  CategoryType,
+  ChildCategoryGraphQL,
+  RootCategoryGraphQL,
+} from '@app/common/types/graphql/caterories.type';
+
 @Injectable()
 export class ProductService {
   constructor(
@@ -1149,7 +1161,7 @@ export class ProductService {
       if (existingReview) {
         throw new TypedRpcException({
           code: HTTP_ERROR_CODE.BAD_REQUEST,
-          message: 'common.review.error.alreadyReviewed',
+          message: 'common.review.errors.alreadyReviewed',
         });
       }
 
@@ -2380,5 +2392,210 @@ export class ProductService {
       lang: lang,
     };
     return payload;
+  }
+
+  async getAllCategories(payLoad: PaginationArgs): Promise<PaginationResult<CategoryGroupGraphQL>> {
+    try {
+      const dto = plainToInstance(PaginationArgs, payLoad);
+      await validateOrReject(dto);
+
+      const categories = await this.paginationService.queryWithPagination(
+        this.prismaService.client.category,
+        {
+          page: dto.page,
+          pageSize: dto.pageSize,
+        },
+        {
+          orderBy: { createdAt: 'asc' },
+        },
+      );
+
+      if (categories.items.length === 0) {
+        return {
+          items: [],
+          paginations: categories.paginations,
+        };
+      }
+
+      const rootCategory: Category[] = categories.items.filter(
+        (category) => category.parentId === null,
+      );
+
+      const categoriesWithChildren: CategoryGroupGraphQL[] = rootCategory.map((root) => {
+        const childrenCategory: ChildCategoryGraphQL[] = categories.items
+          .filter((category) => category.parentId === root.id)
+          .map((child) => ({
+            id: child.id,
+            name: child.name,
+            parent: child.parentId?.toString() ?? '',
+            createdAt: child.createdAt ?? null,
+            updatedAt: child.updatedAt ?? null,
+          }));
+
+        const rootCategoryData: RootCategoryGraphQL = {
+          id: root.id,
+          name: root.name,
+          parent: root.parentId?.toString() ?? '',
+          createdAt: root.createdAt ?? null,
+          updatedAt: root.updatedAt ?? null,
+        };
+
+        return {
+          rootCategory: rootCategoryData,
+          childCategories: childrenCategory,
+        };
+      });
+
+      return {
+        items: categoriesWithChildren,
+        paginations: categories.paginations,
+      };
+    } catch (error) {
+      this.loggerService.error(
+        'Error in getAllCategories:',
+        error instanceof Error ? error.message : 'Unknown error',
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async createCategory(createCategoryData: GraphQLCateroryInput): Promise<CategoryType> {
+    try {
+      const dto = plainToInstance(GraphQLCateroryInput, createCategoryData);
+
+      if (dto.parentId) {
+        const parentCategory = await this.prismaService.client.category.findUnique({
+          where: { id: dto.parentId },
+        });
+
+        if (!parentCategory) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.BAD_REQUEST,
+            message: 'common.category.parentNotFound',
+          });
+        }
+      }
+
+      const existingCategory = await this.prismaService.client.category.findFirst({
+        where: {
+          name: dto.name,
+          parentId: dto.parentId || null,
+        },
+      });
+
+      if (existingCategory) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.CONFLICT,
+          message: 'common.category.nameExists',
+        });
+      }
+
+      const newCategory = await this.prismaService.client.category.create({
+        data: {
+          name: dto.name,
+          parentId: dto.parentId || null,
+        },
+      });
+
+      return {
+        id: newCategory.id,
+        name: newCategory.name,
+        parentId: newCategory.parentId || '',
+        createdAt: newCategory.createdAt,
+        updatedAt: newCategory.updatedAt,
+      };
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.CONFLICT,
+          message: 'common.category.nameExists',
+        });
+      }
+
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
+  }
+
+  async updateCategory(updateCategoryData: GraphQLUpdateCateroryInput): Promise<CategoryType> {
+    try {
+      const dto = plainToInstance(GraphQLUpdateCateroryInput, updateCategoryData);
+
+      if (dto.parentId === dto.id) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.category.parentCannotBeSelf',
+        });
+      }
+
+      const category = await this.prismaService.client.category.findUnique({
+        where: { id: dto.id },
+      });
+
+      if (!category) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.category.categoryNotFound',
+        });
+      }
+
+      if (dto.parentId !== undefined) {
+        const parentCategory = await this.prismaService.client.category.findUnique({
+          where: { id: dto.parentId },
+        });
+
+        if (!parentCategory) {
+          throw new TypedRpcException({
+            code: HTTP_ERROR_CODE.BAD_REQUEST,
+            message: 'common.category.parentNotFound',
+          });
+        }
+      }
+
+      if (dto.name !== undefined) category.name = dto.name;
+      if (dto.parentId !== undefined) category.parentId = dto.parentId;
+
+      const result = await this.prismaService.client.category.update({
+        where: { id: dto.id },
+        data: {
+          ...(dto.name !== undefined && { name: category.name }),
+          ...(dto.parentId !== undefined && { parentId: category.parentId }),
+        },
+      });
+
+      return {
+        id: result.id,
+        name: result.name || '',
+        parentId: result.parentId || '',
+        createdAt: result.createdAt || null,
+        updatedAt: result.updatedAt || null,
+      };
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.category.parentCannotBeSelf',
+        });
+      }
+
+      if (error instanceof TypedRpcException) {
+        throw error;
+      }
+
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+    }
   }
 }

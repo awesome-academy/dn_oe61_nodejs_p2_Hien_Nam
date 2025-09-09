@@ -63,11 +63,12 @@ export class UserProfileService {
       dto.imageUrl = uploadImage[0];
     }
 
+    if (userId) {
+      dto.userId = userId;
+    }
+
     const result = await callMicroservice(
-      this.userClient.send<UpdateUserProfileResponse>(UserMsgPattern.UPDATE_USER_PROFILE, {
-        userId,
-        ...dto,
-      }),
+      this.userClient.send<UpdateUserProfileResponse>(UserMsgPattern.UPDATE_USER_PROFILE, dto),
       USER_SERVICE,
       this.loggerService,
       {

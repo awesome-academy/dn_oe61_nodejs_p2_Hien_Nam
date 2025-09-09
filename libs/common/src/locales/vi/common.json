@@ -105,16 +105,25 @@
       }
     }
   },
-  "cart":{
-    "notFound":"Không tìm thấy giỏ hàng",
-    "action":{
-      "addProductCart":{
-        "success":"Thêm sản phẩm vào giỏ hàng thành công",
-        "failed":"Thêm sản phẩm vào giỏ hàng thất bại, vui lòng thử lại"
+  "category": {
+    "nameRequired": "Tên danh mục không được để trống",
+    "nameMinLength": "Tên danh mục phải có ít nhất 2 ký tự",
+    "nameMaxLength": "Tên danh mục không được quá 100 ký tự",
+    "parentIdMustBeNumber": "ID danh mục cha phải là số",
+    "parentNotFound": "Không tìm thấy danh mục cha",
+    "nameExists": "Tên danh mục đã tồn tại trong danh mục cha này",
+    "categoryNotFound": "Không tìm thấy danh mục",
+    "parentCannotBeSelf": "Parent category không thể trùng với chính nó"
+  },
+  "categoryresolver": {
+    "action": {
+      "createCategory": {
+        "success": "Tạo danh mục thành công",
+        "failed": "Tạo danh mục thất bại"
       },
-      "deleteProductCart":{
-        "success":"Xoá sản phẩm khỏi giỏ hàng thành công",
-        "failed":"Xoá sản phẩm khỏi giỏ hàng thất bại, vui lòng thử lại"
+      "getCategories": {
+        "success": "Lấy danh sách danh mục thành công",
+        "failed": "Lấy danh sách danh mục thất bại"
       },
       "getCart":{
         "success":"Lấy thông tin giỏ hàng thành công",
@@ -123,8 +132,29 @@
       "confirmOrder":{
         "success":"Xác nhận đơn hàng thành công",
         "failed":"Xác nhận đơn hàng thất bại, vui lòng thử lại"
+      },
+      "updateCategory": {
+        "success": "Cập nhật danh mục thành công",
+        "failed": "Cập nhật danh mục thất bại"
       }
-    }    
+    }
+  },
+  "cart": {
+    "notFound": "Không tìm thấy giỏ hàng",
+    "action": {
+      "addProductCart": {
+        "success": "Thêm sản phẩm vào giỏ hàng thành công",
+        "failed": "Thêm sản phẩm vào giỏ hàng thất bại, vui lòng thử lại"
+      },
+      "deleteProductCart": {
+        "success": "Xoá sản phẩm khỏi giỏ hàng thành công",
+        "failed": "Xoá sản phẩm khỏi giỏ hàng thất bại, vui lòng thử lại"
+      },
+      "getCart": {
+        "success": "Lấy thông tin giỏ hàng thành công",
+        "failed": "Lấy thông tin giỏ hàng thất bại"
+      }
+    }
   },
   "order":{
     "notFound":"Không tìm thấy đơn hàng",
@@ -196,8 +226,6 @@
         "failed": "Xoá sản phẩm khỏi giỏ hàng thất bại, vui lòng thử lại"
       }
     },
-  "cart": {
-    "notFound": "Không tìm thấy giỏ hàng",
     "userproduct": {
       "action": {
         "listProductsForUser": {
@@ -607,5 +635,4 @@
       "fileExists": "Tệp với tên '{fileName}' đã tồn tại."
     }
   }
-}
 }

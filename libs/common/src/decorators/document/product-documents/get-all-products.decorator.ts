@@ -14,13 +14,15 @@ export function ApiResponseGetAllProducts() {
       name: 'page',
       description: 'Số trang (bắt đầu từ 1)',
       example: 1,
+      type: Number,
       required: false,
     }),
 
     ApiQuery({
-      name: 'limit',
+      name: 'pageSize',
       description: 'Số lượng sản phẩm trên mỗi trang',
       example: 10,
+      type: Number,
       required: false,
     }),
 
