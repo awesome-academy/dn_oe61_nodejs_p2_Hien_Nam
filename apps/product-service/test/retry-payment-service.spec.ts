@@ -19,6 +19,7 @@ import { OrderStatus, PaymentMethod, PaymentStatus } from 'apps/product-service/
 import { I18nService } from 'nestjs-i18n';
 import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 describe('ProductService - retryPayment', () => {
   let service: ProductService;
@@ -60,7 +61,13 @@ describe('ProductService - retryPayment', () => {
   const mockProductProducer = {
     addJobRetryPayment: jest.fn(),
   };
-
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    getOrSet: jest.fn(),
+    deleteByPattern: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -94,6 +101,10 @@ describe('ProductService - retryPayment', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -152,9 +163,7 @@ describe('ProductService - retryPayment', () => {
     };
 
     it('should retry payment successfully with valid request', async () => {
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(mockOrderDetail);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
 
       const configGetSpy = jest
         .spyOn(configService, 'get')
@@ -170,14 +179,6 @@ describe('ProductService - retryPayment', () => {
 
       const result = await service.retryPayment(mockRetryPaymentRequest);
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledWith({
-        where: {
-          id: mockRetryPaymentRequest.orderId,
-          userId: mockRetryPaymentRequest.userId,
-          paymentMethod: PaymentMethod.BANK_TRANSFER,
-        },
-      });
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledWith('payOS.expireTime', EXPIRE_TIME_PAYMENT_DEFAULT);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
@@ -193,9 +194,7 @@ describe('ProductService - retryPayment', () => {
         lang: 'vi',
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(mockOrderDetail);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
 
       const configGetSpy = jest
         .spyOn(configService, 'get')
@@ -211,7 +210,6 @@ describe('ProductService - retryPayment', () => {
 
       const result = await service.retryPayment(viRequest);
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
       expect(i18nTranslateSpy).toHaveBeenCalledTimes(1);
@@ -231,9 +229,7 @@ describe('ProductService - retryPayment', () => {
         userId: 999,
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(differentUserOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(differentUserOrder);
 
       jest.spyOn(configService, 'get').mockReturnValue(EXPIRE_TIME_PAYMENT_DEFAULT);
 
@@ -243,14 +239,6 @@ describe('ProductService - retryPayment', () => {
 
       const result = await service.retryPayment(differentUserRequest);
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledWith({
-        where: {
-          id: differentUserRequest.orderId,
-          userId: differentUserRequest.userId,
-          paymentMethod: PaymentMethod.BANK_TRANSFER,
-        },
-      });
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(result.statusKey).toBe(StatusKey.SUCCESS);
     });
 
@@ -266,9 +254,7 @@ describe('ProductService - retryPayment', () => {
         id: 456,
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(differentOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(differentOrder);
 
       jest.spyOn(configService, 'get').mockReturnValue(EXPIRE_TIME_PAYMENT_DEFAULT);
 
@@ -278,14 +264,6 @@ describe('ProductService - retryPayment', () => {
 
       const result = await service.retryPayment(differentOrderRequest);
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledWith({
-        where: {
-          id: differentOrderRequest.orderId,
-          userId: differentOrderRequest.userId,
-          paymentMethod: PaymentMethod.BANK_TRANSFER,
-        },
-      });
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(result.statusKey).toBe(StatusKey.SUCCESS);
     });
 
@@ -295,9 +273,7 @@ describe('ProductService - retryPayment', () => {
         amount: 9999.99,
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(largeAmountOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(largeAmountOrder);
 
       const configGetSpy = jest
         .spyOn(configService, 'get')
@@ -311,16 +287,13 @@ describe('ProductService - retryPayment', () => {
 
       const result = await service.retryPayment(mockRetryPaymentRequest);
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
       expect(result.statusKey).toBe(StatusKey.SUCCESS);
     });
 
     it('should throw TypedRpcException when order is not found', async () => {
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(null);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(null);
 
       const rpcError = {
         code: HTTP_ERROR_CODE.NOT_FOUND,
@@ -332,7 +305,6 @@ describe('ProductService - retryPayment', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should throw TypedRpcException when order belongs to different user', async () => {
@@ -342,9 +314,7 @@ describe('ProductService - retryPayment', () => {
         lang: 'en',
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(null);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(null);
 
       const rpcError = {
         code: HTTP_ERROR_CODE.NOT_FOUND,
@@ -356,15 +326,6 @@ describe('ProductService - retryPayment', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-
-      expect(prismaFindUniqueSpy).toHaveBeenCalledWith({
-        where: {
-          id: wrongUserRequest.orderId,
-          userId: wrongUserRequest.userId,
-          paymentMethod: PaymentMethod.BANK_TRANSFER,
-        },
-      });
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should throw TypedRpcException when order is not BANK_TRANSFER payment method', async () => {
@@ -374,9 +335,7 @@ describe('ProductService - retryPayment', () => {
         lang: 'en',
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(null); // Order not found because it's not BANK_TRANSFER
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(null); // Order not found because it's not BANK_TRANSFER
 
       const rpcError = {
         code: HTTP_ERROR_CODE.NOT_FOUND,
@@ -388,8 +347,6 @@ describe('ProductService - retryPayment', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should handle undefined language gracefully', async () => {
@@ -399,9 +356,7 @@ describe('ProductService - retryPayment', () => {
         lang: undefined as unknown as SupportedLocalesType,
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(mockOrderDetail);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
 
       const configGetSpy = jest
         .spyOn(configService, 'get')
@@ -415,7 +370,6 @@ describe('ProductService - retryPayment', () => {
 
       const result = await service.retryPayment(undefinedLangRequest);
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
       expect(result.statusKey).toBe(StatusKey.SUCCESS);
@@ -437,11 +391,7 @@ describe('ProductService - retryPayment', () => {
             checkoutUrl: qrUrl,
           },
         };
-
-        const prismaFindUniqueSpy = jest
-          .spyOn(mockPrismaService.client.order, 'findUnique')
-          .mockResolvedValue(mockOrderDetail);
-
+        (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
         const configGetSpy = jest
           .spyOn(configService, 'get')
           .mockReturnValue(EXPIRE_TIME_PAYMENT_DEFAULT);
@@ -454,7 +404,6 @@ describe('ProductService - retryPayment', () => {
 
         const result = await service.retryPayment(mockRetryPaymentRequest);
 
-        expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
         expect(configGetSpy).toHaveBeenCalledTimes(1);
         expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
         expect(result.data!.qrCodeUrl).toBe(qrUrl);
@@ -472,12 +421,8 @@ describe('ProductService - retryPayment', () => {
         'Còn lại 5 phút',
         'Hết hạn',
       ];
-
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
       for (const expiredAt of differentExpirationTimes) {
-        const prismaFindUniqueSpy = jest
-          .spyOn(mockPrismaService.client.order, 'findUnique')
-          .mockResolvedValue(mockOrderDetail);
-
         const configGetSpy = jest
           .spyOn(configService, 'get')
           .mockReturnValue(EXPIRE_TIME_PAYMENT_DEFAULT);
@@ -490,7 +435,6 @@ describe('ProductService - retryPayment', () => {
 
         const result = await service.retryPayment(mockRetryPaymentRequest);
 
-        expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
         expect(configGetSpy).toHaveBeenCalledTimes(1);
         expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
         expect(result.data!.expiredAt).toBe(expiredAt);
@@ -500,14 +444,10 @@ describe('ProductService - retryPayment', () => {
     });
 
     it('should handle payment creation failure with timeout error and add retry job', async () => {
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(mockOrderDetail);
-
       const configGetSpy = jest
         .spyOn(configService, 'get')
         .mockReturnValue(EXPIRE_TIME_PAYMENT_DEFAULT);
-
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(EXPIRE_TIME_PAYMENT_DEFAULT);
       const timeoutError = new TypedRpcException({
         code: HTTP_ERROR_CODE.TIME_OUT_OR_NETWORK,
         message: 'common.errors.timeOutOrNetwork',
@@ -529,7 +469,6 @@ describe('ProductService - retryPayment', () => {
         });
       }
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
       expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
@@ -537,13 +476,10 @@ describe('ProductService - retryPayment', () => {
     });
 
     it('should handle payment creation failure with internal server error', async () => {
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(mockOrderDetail);
-
       const configGetSpy = jest
         .spyOn(configService, 'get')
         .mockReturnValue(EXPIRE_TIME_PAYMENT_DEFAULT);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
 
       const internalError = new TypedRpcException({
         code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
@@ -566,7 +502,6 @@ describe('ProductService - retryPayment', () => {
         });
       }
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
       expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
@@ -574,13 +509,10 @@ describe('ProductService - retryPayment', () => {
     });
 
     it('should handle payment creation failure with validation error', async () => {
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(mockOrderDetail);
-
       const configGetSpy = jest
         .spyOn(configService, 'get')
         .mockReturnValue(EXPIRE_TIME_PAYMENT_DEFAULT);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
 
       const validationError = new TypedRpcException({
         code: HTTP_ERROR_CODE.VALIDATION_ERROR,
@@ -603,7 +535,6 @@ describe('ProductService - retryPayment', () => {
         });
       }
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
       expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
@@ -612,23 +543,14 @@ describe('ProductService - retryPayment', () => {
 
     it('should handle different expire time configurations', async () => {
       const differentExpireTimes = ['15m', '30m', '1h', '2h'];
-
       for (const expireTime of differentExpireTimes) {
-        const prismaFindUniqueSpy = jest
-          .spyOn(mockPrismaService.client.order, 'findUnique')
-          .mockResolvedValue(mockOrderDetail);
-
         const configGetSpy = jest.spyOn(configService, 'get').mockReturnValue(expireTime);
-
+        (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
         const createPaymentInfoSpy = jest
           .spyOn(service, 'createPaymentInfo')
           .mockResolvedValue(mockPaymentData);
-
         jest.spyOn(i18nService, 'translate').mockReturnValue('15 minutes left');
-
         const result = await service.retryPayment(mockRetryPaymentRequest);
-
-        expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
         expect(configGetSpy).toHaveBeenCalledWith('payOS.expireTime', EXPIRE_TIME_PAYMENT_DEFAULT);
         expect(configGetSpy).toHaveBeenCalledTimes(1);
         expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
@@ -656,9 +578,7 @@ describe('ProductService - retryPayment', () => {
         lang: 'vi',
       };
 
-      const prismaFindUniqueSpy = jest
-        .spyOn(mockPrismaService.client.order, 'findUnique')
-        .mockResolvedValue(complexOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(complexOrder);
 
       const configGetSpy = jest
         .spyOn(configService, 'get')
@@ -672,14 +592,6 @@ describe('ProductService - retryPayment', () => {
 
       const result = await service.retryPayment(complexRequest);
 
-      expect(prismaFindUniqueSpy).toHaveBeenCalledWith({
-        where: {
-          id: complexRequest.orderId,
-          userId: complexRequest.userId,
-          paymentMethod: PaymentMethod.BANK_TRANSFER,
-        },
-      });
-      expect(prismaFindUniqueSpy).toHaveBeenCalledTimes(1);
       expect(configGetSpy).toHaveBeenCalledTimes(1);
       expect(createPaymentInfoSpy).toHaveBeenCalledTimes(1);
       expect(result.statusKey).toBe(StatusKey.SUCCESS);

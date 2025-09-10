@@ -11,10 +11,12 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -25,6 +27,7 @@ import { multerConfig } from 'libs/cloudinary/multer.config';
 import { UserService } from './user.service';
 import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { Public } from '@app/common/decorators/metadata.decorator';
+import { FilterGetUsersRequest } from '@app/common/dto/user/requests/filter-get-orders.request';
 
 @Controller('/admin/user')
 export class AdminUserController {
@@ -74,5 +77,10 @@ export class AdminUserController {
       userId: id,
     };
     return await this.userService.delete(payload);
+  }
+  @AuthRoles(Role.ADMIN)
+  @Get('')
+  async getUsers(@Query() filter: FilterGetUsersRequest) {
+    return await this.userService.getUsers(filter);
   }
 }

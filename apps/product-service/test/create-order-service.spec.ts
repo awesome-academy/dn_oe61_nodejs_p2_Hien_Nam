@@ -17,6 +17,7 @@ import { OrderStatus, PaymentMethod, PaymentStatus } from 'apps/product-service/
 import { I18nService } from 'nestjs-i18n';
 import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 describe('ProductService - createOrder', () => {
   let service: ProductService;
@@ -64,6 +65,11 @@ describe('ProductService - createOrder', () => {
   const mockProductProducer = {
     addJobRetryPayment: jest.fn(),
   };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
   interface MockPrismaTransaction {
     product: { updateMany: jest.Mock };
     order: { create: jest.Mock };
@@ -101,6 +107,10 @@ describe('ProductService - createOrder', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

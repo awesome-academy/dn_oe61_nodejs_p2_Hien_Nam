@@ -17,6 +17,8 @@ import { ProductService } from './product-service.service';
 import { ProductProcessor } from './product.processor';
 import { ProductProducer } from './product.producer';
 
+import { CacheModule } from '@app/common/cache/cache.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -67,6 +69,7 @@ import { ProductProducer } from './product.producer';
         },
       ],
     }),
+    CacheModule,
   ],
   controllers: [ProductServiceController],
   providers: [

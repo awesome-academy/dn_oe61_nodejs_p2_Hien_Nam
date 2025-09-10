@@ -1,21 +1,10 @@
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { PaginationService } from '@app/common/shared/pagination.shared';
 import { ProductWithIncludes } from '@app/common/types/product.type';
 import { PrismaService } from '@app/prisma';
-import { Test, TestingModule } from '@nestjs/testing';
-import { Decimal } from '@prisma/client/runtime/library';
-import { ProductStatus } from '../generated/prisma';
-import { ProductService } from '../src/product-service.service';
-
-// Mock nestjs-i18n
-jest.mock('nestjs-i18n', () => ({
-  i18nValidationMessage: () => 'mocked validation message',
-}));
 
 // Mock class-transformer
 jest.mock('class-transformer', () => ({
-  plainToInstance: jest.fn(),
+  plainToInstance: jest.fn().mockImplementation((_cls: unknown, obj: unknown) => obj),
   Type: () => () => {},
   Transform: () => () => {},
 }));
@@ -36,14 +25,22 @@ jest.mock('class-validator', () => ({
   ValidateNested: () => () => {},
   Min: () => () => {},
   Max: () => () => {},
+  IsDate: () => () => {},
 }));
 
-import { NOTIFICATION_SERVICE } from '@app/common';
-import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
-import { I18nService } from 'nestjs-i18n';
 import { ProductProducer } from '../src/product.producer';
+import { I18nService } from 'nestjs-i18n';
+import { CacheService } from '@app/common/cache/cache.service';
+import { ProductService } from '../src/product-service.service';
+import { Test, TestingModule } from '@nestjs/testing';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { ConfigService } from '@nestjs/config';
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { Decimal } from '@prisma/client/runtime/library';
+import { ProductStatus } from '../generated/prisma';
 
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
@@ -76,21 +73,28 @@ describe('ProductService - listProductsForUser', () => {
   const mockPaginationService = {
     queryWithPagination: jest.fn(),
   };
-
+  const mockLogger = {
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductService,
-        { provide: PrismaService, useValue: { client: mockPrismaService } },
+        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: CustomLogger, useValue: mockLogger },
         { provide: PaginationService, useValue: mockPaginationService },
-        { provide: CustomLogger, useValue: { log: jest.fn(), error: jest.fn() } },
+
         {
           provide: ConfigService,
           useValue: mockConfigService,
-        },
-        {
-          provide: NOTIFICATION_SERVICE,
-          useValue: mockNotificationClient,
         },
         {
           provide: I18nService,
@@ -100,16 +104,22 @@ describe('ProductService - listProductsForUser', () => {
           provide: ProductProducer,
           useValue: mockProductProducer,
         },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
       ],
     }).compile();
 
     service = module.get<ProductService>(ProductService);
   });
-
   afterEach(() => {
     jest.clearAllMocks();
   });
-
   describe('listProductsForUser', () => {
     const createMockProduct = (id: number, name: string): ProductWithIncludes => {
       const now = new Date();
