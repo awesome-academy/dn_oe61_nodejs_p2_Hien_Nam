@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { NOTIFICATION_SERVICE } from '@app/common';
 import { I18nService } from 'nestjs-i18n';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 // Mock dependencies
 jest.mock('class-transformer', () => ({
@@ -36,6 +37,7 @@ jest.mock('class-validator', () => ({
   Length: jest.fn(() => jest.fn()),
   IsDateString: jest.fn(() => jest.fn()),
   ArrayNotEmpty: jest.fn(() => jest.fn()),
+  IsDate: jest.fn(() => jest.fn()),
 }));
 
 // jest.mock('nestjs-i18n', () => ({
@@ -58,6 +60,11 @@ const mockI18nService = {
 const mockProductProducer = {
   addJobRetryPayment: jest.fn(),
 };
+const mockCacheService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
+} as unknown as CacheService;
 describe('ProductService', () => {
   let service: ProductService;
 
@@ -119,6 +126,10 @@ describe('ProductService', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

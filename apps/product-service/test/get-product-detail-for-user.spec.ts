@@ -14,6 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { NOTIFICATION_SERVICE } from '@app/common';
 import { I18nService } from 'nestjs-i18n';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 // Mock class-validator and class-transformer
 jest.mock('class-validator', () => {
@@ -49,6 +50,11 @@ const mockI18nService = {
 const mockProductProducer = {
   addJobRetryPayment: jest.fn(),
 };
+const mockCacheService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
+} as unknown as CacheService;
 // Type definitions for mock data
 interface MockProductImage {
   id: number;
@@ -268,6 +274,10 @@ describe('ProductService - getProductDetailForUser', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

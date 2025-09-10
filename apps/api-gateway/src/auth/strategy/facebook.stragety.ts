@@ -23,7 +23,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
     const options: StrategyOptions = {
       clientID: configService.get<string>('facebook.appID', ''),
       clientSecret: configService.get<string>('facebook.appSecret', ''),
-      callbackURL: 'http://localhost:3001/auth/facebook/callback',
+      callbackURL: 'http://localhost:3002/auths/facebook/callback',
       scope: 'email',
       profileFields: ['id', 'emails', 'name', 'picture.type(large)'],
     };

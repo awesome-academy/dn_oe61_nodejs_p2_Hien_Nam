@@ -84,7 +84,7 @@ export function SwaggerGetPaginatedResponse<T extends Type<unknown>>(
               payload: {
                 type: 'object',
                 properties: {
-                  data: {
+                  items: {
                     type: 'array',
                     items: { $ref: getSchemaPath(model) },
                   },
@@ -92,9 +92,9 @@ export function SwaggerGetPaginatedResponse<T extends Type<unknown>>(
                     type: 'object',
                     properties: {
                       totalItems: { type: 'number', example: 1 },
-                      itemCount: { type: 'number', example: 1 },
+                      pageSize: { type: 'number', example: 1 },
                       currentPage: { type: 'number', example: 1 },
-                      itemsPerPage: { type: 'number', example: 10 },
+                      itemsOnPage: { type: 'number', example: 10 },
                       totalPages: { type: 'number', example: 1 },
                     },
                   },
@@ -142,6 +142,31 @@ export function SwaggerUpdatedArrayResponse<T extends Type<unknown>>(
   return applyDecorators(
     ApiExtraModels(BaseResponseApi, model),
     ApiOkResponse({
+      description,
+      schema: {
+        allOf: [
+          { $ref: getSchemaPath(BaseResponseApi) },
+          {
+            properties: {
+              message: { type: 'string', example: message },
+              payload: { type: 'array', items: { $ref: getSchemaPath(model) } },
+            },
+            ...(example && { example }),
+          },
+        ],
+      },
+    }),
+  );
+}
+export function SwaggerCreatedArrayResponse<T extends Type<unknown>>(
+  model: T,
+  description = '',
+  message = '',
+  example?: Record<string, unknown>,
+) {
+  return applyDecorators(
+    ApiExtraModels(BaseResponseApi, model),
+    ApiCreatedResponse({
       description,
       schema: {
         allOf: [

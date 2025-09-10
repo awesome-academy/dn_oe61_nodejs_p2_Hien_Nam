@@ -20,6 +20,7 @@ import { UserStatus } from '@app/common/enums/user-status.enum';
 import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
 import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { SoftDeleteUserResponse } from '@app/common/dto/user/responses/soft-delete-user.response';
+import { CacheService } from '@app/common/cache/cache.service';
 
 jest.mock('@app/common/helpers/microservices');
 jest.mock('class-validator', () => {
@@ -43,7 +44,11 @@ function createMockLogger(): jest.Mocked<CustomLogger> {
     debug: jest.fn(),
   } as unknown as jest.Mocked<CustomLogger>;
 }
-
+const mockCacheService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
+} as unknown as CacheService;
 describe('UserService', () => {
   let service: UserService;
   let clientProxy: jest.Mocked<ClientProxy>;
@@ -57,6 +62,7 @@ describe('UserService', () => {
         UserService,
         { provide: 'user-service', useValue: clientProxy },
         { provide: CustomLogger, useValue: logger },
+        { provide: CacheService, useValue: mockCacheService },
       ],
     }).compile();
     service = module.get(UserService);

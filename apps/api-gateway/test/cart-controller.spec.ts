@@ -1,5 +1,5 @@
 import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
-import { AddProductPayload } from '@app/common/dto/product/requests/add-product-payload';
+import { AddProductCartPayload } from '@app/common/dto/product/requests/add-product-payload';
 import { DeleteProductCartPayload } from '@app/common/dto/product/requests/delete-product-cart-payload';
 import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
@@ -14,7 +14,19 @@ import { CartController } from '../src/cart/cart.controller';
 import { CartService } from '../src/cart/cart.service';
 import { assertRpcException } from '@app/common/helpers/test.helper';
 import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
+import { RolesGuard } from '../src/auth/guards/roles.guard';
+import { I18nService } from 'nestjs-i18n';
+import { Reflector } from '@nestjs/core';
+const mockI18nService = {
+  translate: jest.fn().mockReturnValue('Mock translation'),
+};
 
+const mockReflector = {
+  get: jest.fn(),
+  getAll: jest.fn(),
+  getAllAndMerge: jest.fn(),
+  getAllAndOverride: jest.fn(),
+};
 describe('CartController', () => {
   let controller: CartController;
   let service: CartService;
@@ -32,9 +44,19 @@ describe('CartController', () => {
             getCart: jest.fn(),
           },
         },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: Reflector,
+          useValue: mockReflector,
+        },
       ],
-    }).compile();
-
+    })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
     controller = module.get<CartController>(CartController);
     service = module.get<CartService>(CartService);
   });
@@ -47,7 +69,7 @@ describe('CartController', () => {
     const user = {
       id: 123,
     } as unknown as AccessTokenPayload;
-    const payload: AddProductPayload = {
+    const payload: AddProductCartPayload = {
       productVariantId: 10,
       quantity: 2,
     };

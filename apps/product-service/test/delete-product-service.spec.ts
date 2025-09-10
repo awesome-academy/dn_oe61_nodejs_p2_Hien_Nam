@@ -1,16 +1,17 @@
+import { NOTIFICATION_SERVICE } from '@app/common';
 import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
 import { PrismaService } from '@app/prisma';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Decimal } from '@prisma/client/runtime/library';
-import { ProductService } from '../src/product-service.service';
-import { ConfigService } from '@nestjs/config';
-import { NOTIFICATION_SERVICE } from '@app/common';
 import { I18nService } from 'nestjs-i18n';
+import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 // Mock interfaces
 interface MockProduct {
@@ -118,6 +119,12 @@ describe('ProductService - deleteProduct', () => {
     skuId: 'TEST-SKU-001',
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
+
   beforeEach(async () => {
     // Create mock transaction client
     mockTransactionClient = {
@@ -211,6 +218,10 @@ describe('ProductService - deleteProduct', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

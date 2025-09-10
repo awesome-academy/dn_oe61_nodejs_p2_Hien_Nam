@@ -1,88 +1,132 @@
-import { Injectable } from '@nestjs/common';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject } from 'class-validator';
-import { Decimal } from '@prisma/client/runtime/library';
-import { PrismaService } from '@app/prisma';
-import { Cart, CartItem, PrismaClient, Product, ProductStatus } from '../generated/prisma';
-import { MAX_IMAGES } from '@app/common/constant/cloudinary';
 import { NOTIFICATION_SERVICE } from '@app/common';
-import { EXPIRE_TIME_PAYMENT_DEFAULT } from '@app/common/constant/time.constant';
+import { CacheService } from '@app/common/cache/cache.service';
+import { ORDER_CACHE_PREFIX } from '@app/common/constant/cache-prefix.constant copy';
+import { DEFAULT_CACHE_TTL_1H, TTL_CACHE_NEW_ORDER_5m } from '@app/common/constant/cache.constant';
+import { MAX_IMAGES } from '@app/common/constant/cloudinary';
+import { DETAIL_CACHE, NEW_CACHE } from '@app/common/constant/end-prefix-cache.constant';
+import { SupportedLocalesType } from '@app/common/constant/locales.constant';
+import {
+  EXPIRE_TIME_PAYMENT_DEFAULT,
+  TIMEOUT_TRANSACTION_WITH_3RD,
+} from '@app/common/constant/time.constant';
 import { PaginationDto } from '@app/common/dto/pagination.dto';
 import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
 import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
 import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
-import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
 import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
 import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
-import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
+import { OrderCreatedPayload } from '@app/common/dto/product/payload/order-created.payload';
+import { PaymentPaidPayloadDto } from '@app/common/dto/product/payload/payment-paid.payload';
+import { PayOSPayloadDto } from '@app/common/dto/product/payload/payos-payload';
+import { PayOSPayloadPayoutDto } from '@app/common/dto/product/payload/payos-payload-payout';
 import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
+import { ConfirmOrderRequest } from '@app/common/dto/product/requests/confirm-order.request';
+import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
 import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
+import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
 import { DeleteSoftCartRequest } from '@app/common/dto/product/requests/delete-soft-cart.request';
 import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
-import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
-import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
-import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
+import { GetOrderRequest } from '@app/common/dto/product/requests/get-order.request';
 import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
-import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
-import {
-  ProductResponse,
-  UserProductResponse,
-} from '@app/common/dto/product/response/product-response';
-import {
-  ProductDetailResponse,
-  UserProductDetailResponse,
-} from '@app/common/dto/product/response/product-detail-reponse';
-import { OrderCreatedPayload } from '@app/common/dto/product/payload/order-created.payload';
-import { PayOSPayloadDto } from '@app/common/dto/product/payload/payos-payload';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
 import { OrderUpdatePaymentInfo } from '@app/common/dto/product/requests/order-update-payment-info.request';
 import { PaymentCreationRequestDto } from '@app/common/dto/product/requests/payment-creation.request';
+import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
+import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
+import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import {
   CategoryResponse,
   ChildCategories,
   RootCategory,
 } from '@app/common/dto/product/response/category-response';
+import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import {
   OrderResponse,
   PaymentInfoResponse,
 } from '@app/common/dto/product/response/order-response';
+import { OrderSummaryResponse } from '@app/common/dto/product/response/order-summary.response';
+import { PaymentPaidResponse } from '@app/common/dto/product/response/payment-paid.response';
+import { PayBalanceResponseDto } from '@app/common/dto/product/response/payos-balance.response';
 import { PayOSCreatePaymentResponseDto } from '@app/common/dto/product/response/payos-creation.response';
+import { PayOSPayoutPaymentResponseDto } from '@app/common/dto/product/response/payos-payout-creation.response';
+import { PayOSWebhookDTO } from '@app/common/dto/product/response/payos-webhook.dto';
 import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
+import {
+  ProductDetailResponse,
+  UserProductDetailResponse,
+} from '@app/common/dto/product/response/product-detail-reponse';
 import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
+import {
+  ProductResponse,
+  UserProductResponse,
+} from '@app/common/dto/product/response/product-response';
 import { ProductWithCategories } from '@app/common/dto/product/response/product-with-categories.interface';
-import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
-import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
-import { StatusProduct } from '@app/common/enums/product/product-status.enum';
-import { NotificationEvent } from '@app/common/enums/queue/order-event.enum';
-import { StatusKey } from '@app/common/enums/status-key.enum';
+import { RejectOrderResponse } from '@app/common/dto/product/response/reject-order.response';
 import {
   CreateReviewResponse,
   ReviewResponse,
 } from '@app/common/dto/product/response/review-response.dto';
+import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
+import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
+import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { REJECT_ORDER_STATUS } from '@app/common/enums/order.enum';
+import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
+import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { NotificationEvent } from '@app/common/enums/queue/order-event.enum';
+import { Role } from '@app/common/enums/roles/users.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
 import { PaymentCreationException } from '@app/common/exceptions/payment-creation-exception';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { buildKeyCache } from '@app/common/helpers/cache.helper';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { PaginationResult } from '@app/common/interfaces/pagination';
-import { ProductWithIncludes } from '@app/common/types/product.type';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
+import { ProductWithIncludes } from '@app/common/types/product.type';
 import { buildBaseResponse } from '@app/common/utils/data.util';
-import { handleServiceError } from '@app/common/utils/prisma-client-error';
 import { getRemainingTime, parseExpireTime } from '@app/common/utils/date.util';
-import { handlePrismaError } from '@app/common/utils/prisma-client-error';
-import { Inject } from '@nestjs/common';
+import { handlePrismaError, handleServiceError } from '@app/common/utils/prisma-client-error';
+import { PrismaService } from '@app/prisma';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClientProxy } from '@nestjs/microservices';
-import { OrderItemInputForNested, OrderWithItems } from 'apps/product-service/src/type/order.type';
+import { Decimal } from '@prisma/client/runtime/library';
+import {
+  OrderItemInputForNested,
+  OrderSummaryType,
+  OrderWithItems,
+} from 'apps/product-service/src/type/order.type';
 import axios, { AxiosResponse } from 'axios';
+import { instanceToPlain, plainToInstance } from 'class-transformer';
+import { validateOrReject } from 'class-validator';
 import * as crypto from 'crypto';
 import { I18nService } from 'nestjs-i18n';
-import { OrderStatus, PaymentMethod, PaymentStatus } from '../generated/prisma';
-import { INCLUDE_ORDER_RESPONSE } from './constants/include-order.response';
+import {
+  Cart,
+  CartItem,
+  Order,
+  OrderItem,
+  OrderStatus,
+  Payment,
+  PaymentMethod,
+  PaymentStatus,
+  PaymentType,
+  Prisma,
+  PrismaClient,
+  Product,
+  ProductStatus,
+} from '../generated/prisma';
+import {
+  INCLUDE_ORDER_RESPONSE,
+  INCLUDE_ORDER_SUMMARY_RESPONSE,
+} from './constants/include-order.response copy';
 import { ProductProducer } from './product.producer';
-import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
+import { NewOrderDataCache } from '@app/common/dto/product/response/new-order-data.cache';
+import { FilterGetOrdersRequest } from '@app/common/dto/product/requests/filter-get-orders.request';
+import { buildDataRange } from '@app/common/helpers/query.helper';
+import { SortDirection } from '@app/common/enums/query.enum';
 @Injectable()
 export class ProductService {
   constructor(
@@ -92,6 +136,7 @@ export class ProductService {
     private readonly configService: ConfigService,
     private readonly i18nService: I18nService,
     private readonly productProducer: ProductProducer,
+    private readonly cacheService: CacheService,
     @Inject(NOTIFICATION_SERVICE) private readonly notificationClient: ClientProxy,
   ) {}
 
@@ -892,7 +937,6 @@ export class ProductService {
 
     return result;
   }
-
   async deleteSoftCart(dto: DeleteSoftCartRequest): Promise<void> {
     try {
       const cartByUser = await this.prismaService.client.cart.findUnique({
@@ -914,7 +958,6 @@ export class ProductService {
       handleServiceError(error, ProductService.name, 'deleteSoftCart', this.loggerService);
     }
   }
-
   async listProductsForUser(
     query: GetAllProductUserDto,
   ): Promise<PaginationResult<UserProductResponse>> {
@@ -944,7 +987,6 @@ export class ProductService {
         paginations: products.paginations,
       };
     }
-
     const result = (products.items as ProductWithIncludes[]).map((product) => {
       return {
         id: product.id,
@@ -961,11 +1003,10 @@ export class ProductService {
         categories: product.categories?.length ? product.categories : [],
         variants: product.variants?.length ? product.variants : [],
         reviews: product.reviews?.length ? product.reviews : [],
-      } as UserProductResponse;
+      };
     });
-
     return {
-      items: result,
+      items: result as UserProductResponse[],
       paginations: products.paginations,
     };
   }
@@ -1288,7 +1329,7 @@ export class ProductService {
         error instanceof Error ? error.message : String(error),
         error instanceof Error ? error.stack : undefined,
       );
-      throw error;
+      handleServiceError(error, ProductService.name, 'deleteReview', this.loggerService);
     }
   }
   async addProductCart(dto: AddProductCartRequest): Promise<BaseResponse<CartSummaryResponse>> {
@@ -1536,12 +1577,12 @@ export class ProductService {
           userId: dto.userId,
           items: { create: orderItemsData },
         },
-        include: INCLUDE_ORDER_RESPONSE,
+        include: { ...INCLUDE_ORDER_RESPONSE },
       });
       return order;
     });
     const orderResponse = this.toOrderResponse(orderCreated);
-    if (orderCreated.paymentMethod === PaymentMethod.CASH) {
+    if (orderCreated.paymentMethod === PaymentMethodEnum.CASH) {
       const customerName = `CustomerId:${orderCreated.userId}`;
       const payload: OrderCreatedPayload = {
         orderId: orderCreated.id,
@@ -1554,7 +1595,7 @@ export class ProductService {
         lang: dto.lang,
       };
       this.notificationClient.emit(NotificationEvent.ORDER_CREATED, payload);
-    } else if (orderCreated.paymentMethod === PaymentMethod.BANK_TRANSFER) {
+    } else if (orderCreated.paymentMethod === PaymentMethodEnum.BANK_TRANSFER) {
       const expireTime = this.configService.get<string>(
         'payOS.expireTime',
         EXPIRE_TIME_PAYMENT_DEFAULT,
@@ -1575,6 +1616,7 @@ export class ProductService {
           expiredAt: getRemainingTime(expiredAt, dto.lang, this.i18nService),
         };
         orderResponse.paymentInfo = paymentInfoData;
+        await this.productProducer.addJobHandleExpiredPaymentOrder(orderCreated.id, expiredAt);
       } catch (error) {
         this.loggerService.error(
           `[Failed to create payment info]`,
@@ -1588,6 +1630,15 @@ export class ProductService {
         }
       }
     }
+    const newOrderData = this.toNewOrderDataCache(orderCreated);
+    console.log(`New Order data:: ${JSON.stringify(newOrderData)}`);
+    await this.cacheService.set(
+      buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderCreated.id }, NEW_CACHE),
+      newOrderData,
+      {
+        ttl: TTL_CACHE_NEW_ORDER_5m,
+      },
+    );
     return buildBaseResponse(StatusKey.SUCCESS, orderResponse);
   }
   async updateOrderPaymentInfo(dto: OrderUpdatePaymentInfo): Promise<OrderResponse> {
@@ -1597,6 +1648,9 @@ export class ProductService {
         data: { paymentStatus: PaymentStatus.PENDING },
         include: INCLUDE_ORDER_RESPONSE,
       });
+      await this.cacheService.deleteByPattern(
+        `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+      );
       return this.toOrderResponse(orderDetail);
     } catch (error) {
       handlePrismaError(error, ProductService.name, 'updateOrderPaymentInfo', this.loggerService);
@@ -1626,9 +1680,19 @@ export class ProductService {
     };
   }
   async createPaymentInfo(dto: PaymentCreationRequestDto): Promise<PayOSCreatePaymentResponseDto> {
-    const orderDetail = await this.prismaService.client.order.findUnique({
-      where: { id: dto.orderId },
-    });
+    const cacheKey = buildKeyCache(ORDER_CACHE_PREFIX, { orderId: dto.orderId }, NEW_CACHE);
+    const orderDetail = await this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const orderFound = await this.prismaService.client.order.findUnique({
+          where: { id: dto.orderId },
+        });
+        return orderFound;
+      },
+      {
+        ttl: TTL_CACHE_NEW_ORDER_5m,
+      },
+    );
     if (!orderDetail)
       throw new TypedRpcException({
         code: HTTP_ERROR_CODE.NOT_FOUND,
@@ -1644,7 +1708,7 @@ export class ProductService {
         cancelUrl: 'https://example.com/success',
       };
       const signature = this.signPayload(payload);
-      const endpoint = `${this.configService.get<string>('payOS.endpoint', '')}/payment-requests`;
+      const endpoint = `${this.configService.get<string>('payOS.endpoint', '')}/v2/payment-requests`;
       const clientId = this.configService.get<string>('payOS.clientId', '');
       const apiKey = this.configService.get<string>('payOS.apiKey', '');
       const data = {
@@ -1697,9 +1761,28 @@ export class ProductService {
     }
   }
   async retryPayment(dto: RetryPaymentRequest): Promise<BaseResponse<PaymentInfoResponse>> {
-    const orderDetail = await this.prismaService.client.order.findUnique({
-      where: { id: dto.orderId, userId: dto.userId, paymentMethod: PaymentMethod.BANK_TRANSFER },
-    });
+    const cacheKey = buildKeyCache(ORDER_CACHE_PREFIX, { orderId: dto.orderId }, NEW_CACHE);
+    const orderDetail = await this.cacheService.getOrSet(
+      cacheKey,
+      async () => {
+        const orderFound = await this.prismaService.client.order.findUnique({
+          where: {
+            id: dto.orderId,
+            userId: dto.userId,
+            paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
+          },
+        });
+        return orderFound;
+      },
+      {
+        ttl: TTL_CACHE_NEW_ORDER_5m,
+      },
+    );
+    if (!orderDetail)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      });
     // Chung 1 throw lỗi là not found -> không throw lỗi chi tiết có order với id mã này dù truy cập trái phép, không phải là order thanh toán bởi bank transfer
     if (!orderDetail)
       throw new TypedRpcException({
@@ -1762,6 +1845,662 @@ export class ProductService {
       createdAt: data.createdAt,
     };
   }
+  async handleWebhookCallbackPayment(
+    payload: PayOSWebhookDTO,
+  ): Promise<BaseResponse<PaymentPaidResponse>> {
+    // Fallback để trả set url fallback webhook mỗi khi ngrok 1 url mới
+    // if (payload.code == '00') {
+    //   return { code: '00', desc: 'success' };
+    // }
+    const plaintData = instanceToPlain(payload.data) as Record<string, unknown>;
+    const verified = this.isValidData(plaintData, payload.signature);
+    if (!verified)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'Invalid signatrue',
+      });
+    if (payload.success && payload.code === '00') {
+      console.log('Raw data response:: ', payload.data);
+      const paymentPaidPayload: PaymentPaidPayloadDto = {
+        orderId: payload.data.orderCode,
+        amount: payload.data.amount,
+        method: PaymentMethodEnum.BANK_TRANSFER,
+        accountNumber: payload.data.accountNumber,
+        reference: payload.data.reference,
+        counterAccountBankId: payload.data.counterAccountBankId,
+        counterAccounName: payload.data.counterAccountName,
+        counterAccountNumber: payload.data.counterAccountNumber,
+      };
+      console.log('Payment paid payload:: ', paymentPaidPayload);
+      this.loggerService.debug(`Booking ${payload.data.orderCode} thanh toán thành công`);
+      const { orderDetail, paymentDetail } = await this.handlePaymentPaid(paymentPaidPayload);
+      const paymentResponse: PaymentPaidResponse = {
+        status: PaymentStatus.PAID,
+        info: {
+          amount: Number(paymentDetail.amount),
+          referenceCode: paymentDetail.transactionCode,
+          paidAt: paymentDetail.createdAt,
+        },
+      };
+      const payloadNotifi = this.buildOrderCreatedPayload(
+        orderDetail,
+        PaymentMethod.BANK_TRANSFER,
+        paymentDetail.status,
+        'en',
+      );
+      await this.productProducer.clearScheduleHandleExpiredPayment(orderDetail.id);
+      this.notificationClient.emit(NotificationEvent.ORDER_CREATED, payloadNotifi);
+      await this.cacheService.deleteByPattern(
+        `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+      );
+      return buildBaseResponse(StatusKey.SUCCESS, paymentResponse);
+    } else {
+      this.loggerService.debug(`Booking ${payload.data.orderCode} thanh toán thất bại`);
+      const paymentResponse: PaymentPaidResponse = {
+        status: PaymentStatus.FAILED,
+      };
+      return buildBaseResponse(StatusKey.FAILED, paymentResponse);
+    }
+  }
+  async handlePaymentPaid(payload: PaymentPaidPayloadDto): Promise<{
+    orderDetail: Order;
+    paymentDetail: Payment;
+  }> {
+    try {
+      const orderDetail = await this.cacheService.getOrSet(
+        buildKeyCache(ORDER_CACHE_PREFIX, { orderId: payload.orderId }, NEW_CACHE),
+        async () => {
+          return await this.prismaService.client.order.findUnique({
+            where: {
+              id: payload.orderId,
+            },
+          });
+        },
+        {
+          ttl: TTL_CACHE_NEW_ORDER_5m,
+        },
+      );
+      if (!orderDetail)
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.order.notFound',
+        });
+      const paymentData: Prisma.PaymentCreateInput = {
+        order: {
+          connect: {
+            id: orderDetail.id,
+          },
+        },
+        amount: payload.amount,
+        transactionCode: payload.reference,
+        accountNumber: payload.counterAccountNumber,
+        bankCode: payload.counterAccountBankId,
+        paymentType: PaymentType.PAYIN,
+        status: PaymentStatus.PAID,
+      };
+      const paymentCreated = await this.prismaService.client.$transaction(async (tx) => {
+        await tx.order.update({
+          where: {
+            id: orderDetail.id,
+          },
+          data: {
+            paymentStatus: PaymentStatus.PAID,
+          },
+        });
+        return tx.payment.create({
+          data: paymentData,
+        });
+      });
+      await this.cacheService.deleteByPattern(
+        `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+      );
+      return {
+        orderDetail: orderDetail,
+        paymentDetail: paymentCreated,
+      };
+    } catch (error) {
+      handleServiceError(
+        error,
+        ProductService.name,
+        'handleWebhookCallbackPayment',
+        this.loggerService,
+      );
+    }
+  }
+  async handleExpirePaymentOrder(orderId: number) {
+    const orderDetail = await this.cacheService.getOrSet(
+      buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderId }, NEW_CACHE),
+      async () => {
+        const orderFound = await this.prismaService.client.order.findUnique({
+          where: {
+            id: orderId,
+          },
+          include: {
+            items: true,
+          },
+        });
+        return orderFound;
+      },
+      {
+        ttl: DEFAULT_CACHE_TTL_1H,
+      },
+    );
+    if (!orderDetail)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      });
+    if (orderDetail.status === OrderStatus.CANCELLED) {
+      this.loggerService.error(
+        `[Handle expired payment order (${orderId})] Failed`,
+        `Cause:: Order is cancelled`,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.order.cancelled',
+      });
+    }
+    try {
+      await this.prismaService.client.$transaction(async (tx) => {
+        await tx.payment.updateMany({
+          where: {
+            orderId: orderDetail.id,
+            paymentType: PaymentType.PAYIN,
+          },
+          data: {
+            status: PaymentStatus.CANCELLED,
+          },
+        });
+        await tx.order.update({
+          where: {
+            id: orderDetail.id,
+          },
+          data: {
+            paymentStatus: PaymentStatus.CANCELLED,
+            status: OrderStatus.CANCELLED,
+          },
+        });
+        for (const item of orderDetail.items) {
+          await tx.product.updateMany({
+            where: {
+              variants: {
+                some: {
+                  id: item.productVariantId,
+                },
+              },
+            },
+            data: {
+              quantity: {
+                increment: item.quantity,
+              },
+            },
+          });
+        }
+      });
+      await this.cacheService.deleteByPattern(
+        `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+      );
+    } catch (error) {
+      handleServiceError(
+        error,
+        ProductService.name,
+        'handleExpirePaymentOrder',
+        this.loggerService,
+      );
+    }
+  }
+  async rejectOrder(dto: RejectOrderRequest): Promise<BaseResponse<RejectOrderResponse>> {
+    const orderDetail = await this.cacheService.getOrSet(
+      buildKeyCache(ORDER_CACHE_PREFIX, { orderId: dto.orderId }, NEW_CACHE),
+      async () => {
+        const orderFound = await this.prismaService.client.order.findUnique({
+          where: {
+            id: dto.orderId,
+          },
+          include: {
+            ...INCLUDE_ORDER_RESPONSE,
+            items: true,
+          },
+        });
+        return orderFound;
+      },
+      {
+        ttl: TTL_CACHE_NEW_ORDER_5m,
+      },
+    );
+    if (!orderDetail)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      });
+    if (orderDetail.status === OrderStatus.CANCELLED) {
+      const response: RejectOrderResponse = {
+        status: REJECT_ORDER_STATUS.UNCHANGED,
+        description: 'Order has been rejected',
+        orderId: orderDetail.id,
+      };
+      await this.cacheService.deleteByPattern(
+        `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+      );
+      return buildBaseResponse(StatusKey.UNCHANGED, response);
+    }
+    if (orderDetail.paymentMethod === PaymentMethodEnum.CASH) {
+      try {
+        await this.prismaService.client.$transaction(async (tx) => {
+          for (const item of orderDetail.items) {
+            await tx.product.updateMany({
+              where: {
+                variants: {
+                  some: {
+                    id: item.productVariantId,
+                  },
+                },
+              },
+              data: {
+                quantity: {
+                  increment: item.quantity,
+                },
+              },
+            });
+          }
+          await tx.payment.updateMany({
+            where: {
+              orderId: orderDetail.id,
+              paymentType: PaymentType.PAYIN,
+            },
+            data: {
+              status: PaymentStatus.CANCELLED,
+            },
+          });
+          await tx.order.update({
+            where: {
+              id: orderDetail.id,
+            },
+            data: {
+              paymentStatus: PaymentStatus.CANCELLED,
+              status: OrderStatus.CANCELLED,
+            },
+          });
+        });
+        this.loggerService.log(
+          `[Reject order(${orderDetail.id}) successfully]`,
+          `Order rejected by Admin:${dto.userId}`,
+        );
+        const response: RejectOrderResponse = {
+          status: REJECT_ORDER_STATUS.SUCCESS,
+          orderId: orderDetail.id,
+          paymentMethod: PaymentMethodEnum.CASH,
+          rejectedAt: new Date(),
+        };
+        await this.cacheService.deleteByPattern(
+          `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+        );
+        return buildBaseResponse(StatusKey.SUCCESS, response);
+      } catch (error) {
+        handleServiceError(error, ProductService.name, 'rejectOrder', this.loggerService);
+      }
+    } else if (orderDetail.paymentMethod === PaymentMethodEnum.BANK_TRANSFER) {
+      if (orderDetail.paymentStatus === PaymentStatus.PENDING) {
+        console.log('Payment status:: ', JSON.stringify(orderDetail));
+        try {
+          await this.prismaService.client.$transaction(async (tx) => {
+            for (const item of orderDetail.items) {
+              await tx.product.updateMany({
+                where: {
+                  variants: {
+                    some: {
+                      id: item.productVariantId,
+                    },
+                  },
+                },
+                data: {
+                  quantity: {
+                    increment: item.quantity,
+                  },
+                },
+              });
+            }
+            await tx.payment.updateMany({
+              where: {
+                orderId: orderDetail.id,
+                paymentType: PaymentType.PAYIN,
+              },
+              data: {
+                status: PaymentStatus.CANCELLED,
+              },
+            });
+            await tx.order.update({
+              where: {
+                id: orderDetail.id,
+              },
+              data: {
+                paymentStatus: PaymentStatus.CANCELLED,
+                status: OrderStatus.CANCELLED,
+              },
+            });
+          });
+          this.loggerService.log(
+            `[Reject order(${orderDetail.id}) successfully]`,
+            `Order rejected by Admin:${dto.userId}`,
+          );
+          const response: RejectOrderResponse = {
+            status: REJECT_ORDER_STATUS.SUCCESS,
+            orderId: orderDetail.id,
+            paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
+            rejectedAt: new Date(),
+          };
+          await this.cacheService.deleteByPattern(
+            `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+          );
+          return buildBaseResponse(StatusKey.SUCCESS, response);
+        } catch (error) {
+          handleServiceError(error, ProductService.name, 'rejectOrder', this.loggerService);
+        }
+      }
+      try {
+        const paymentRefuned: PayOSPayoutPaymentResponseDto = await this.createPayoutOrder(
+          orderDetail.id,
+          orderDetail.items,
+        );
+        const payoutInfo = paymentRefuned.data.transactions[0];
+        const response: RejectOrderResponse = {
+          status: REJECT_ORDER_STATUS.SUCCESS,
+          orderId: orderDetail.id,
+          paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
+          rejectedAt: new Date(),
+          payoutInfo: {
+            bankCode: payoutInfo.toBin,
+            toAccountNumber: payoutInfo.toAccountNumber,
+            transactionCode: paymentRefuned.data.referenceId,
+            amountRefunded: payoutInfo.amount,
+            userId: dto.userId,
+            userRejectId: dto.userId,
+          },
+        };
+        await this.cacheService.deleteByPattern(
+          `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+        );
+        return buildBaseResponse(StatusKey.SUCCESS, response);
+      } catch (error) {
+        handleServiceError(error, ProductService.name, 'rejectOrder', this.loggerService);
+      }
+    } else {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.order.unSupportedPaymentMethod',
+      });
+    }
+  }
+  async confirmOrder(dto: ConfirmOrderRequest): Promise<BaseResponse<OrderResponse>> {
+    try {
+      const orderDetail = await this.cacheService.getOrSet(
+        buildKeyCache(ORDER_CACHE_PREFIX, { orderId: dto.orderId }, DETAIL_CACHE),
+        async () => {
+          const orderFound = await this.prismaService.client.order.findUnique({
+            where: { id: dto.orderId },
+            include: {
+              ...INCLUDE_ORDER_RESPONSE,
+            },
+          });
+          return orderFound;
+        },
+        {
+          ttl: DEFAULT_CACHE_TTL_1H,
+        },
+      );
+      if (!orderDetail)
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.NOT_FOUND,
+          message: 'common.order.notFound',
+        });
+      if (
+        orderDetail.paymentMethod === PaymentMethodEnum.BANK_TRANSFER &&
+        orderDetail.paymentStatus === PaymentStatus.PENDING
+      ) {
+        throw new TypedRpcException({
+          code: HTTP_ERROR_CODE.BAD_REQUEST,
+          message: 'common.order.orderPendingPayment',
+        });
+      }
+      if (orderDetail.status === OrderStatus.CONFIRMED)
+        return buildBaseResponse(StatusKey.UNCHANGED, this.toOrderResponse(orderDetail));
+      const orderUpdated = await this.prismaService.client.$transaction(async (tx) => {
+        if (orderDetail.paymentMethod === PaymentMethodEnum.CASH) {
+          const paymentData: Prisma.PaymentCreateInput = {
+            order: {
+              connect: {
+                id: orderDetail.id,
+              },
+            },
+            bankCode: '',
+            accountNumber: '',
+            transactionCode: '',
+            amount: orderDetail.amount,
+            paymentType: PaymentType.PAYIN,
+            status: PaymentStatus.UNPAID,
+          };
+          await tx.payment.create({
+            data: paymentData,
+          });
+        }
+        return await tx.order.update({
+          where: {
+            id: orderDetail.id,
+          },
+          data: {
+            status: OrderStatus.CONFIRMED,
+          },
+          include: {
+            ...INCLUDE_ORDER_RESPONSE,
+          },
+        });
+      });
+      this.loggerService.log(`[Order(${orderUpdated.id}) has confirmed by AdminId: ${dto.userId}]`);
+      await this.cacheService.deleteByPattern(
+        `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderDetail.id })}:*`,
+      );
+      return buildBaseResponse(StatusKey.SUCCESS, this.toOrderResponse(orderDetail));
+    } catch (error) {
+      handleServiceError(error, ProductService.name, 'confirmOrder', this.loggerService);
+    }
+  }
+  async createPayoutOrder(
+    orderId: number,
+    itemsProduct: OrderItem[],
+  ): Promise<PayOSPayoutPaymentResponseDto> {
+    const paymentDetail = await this.prismaService.client.payment.findFirst({
+      where: {
+        orderId: orderId,
+        status: PaymentStatus.PAID,
+      },
+    });
+    if (!paymentDetail)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.payment.notFound',
+      });
+    const paymentRefuned = await this.prismaService.client.payment.findFirst({
+      where: {
+        orderId: orderId,
+        transactionCode: paymentDetail.transactionCode,
+        paymentType: PaymentType.PAYOUT,
+      },
+    });
+    if (paymentRefuned)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.payment.refunded',
+      });
+    const idempotencyKey = `payout_${Date.now()}`;
+    const payload = {
+      referenceId: paymentDetail.transactionCode,
+      amount: parseInt(String(paymentDetail.amount), 10),
+      description: `REFUNED ORDER${paymentDetail.orderId}`,
+      toBin: paymentDetail.bankCode,
+      toAccountNumber: paymentDetail.accountNumber,
+    };
+    const signature = this.signPayloadPayout(payload);
+    const endpoint = this.configService.get<string>('payOS.endpoint', '');
+    const clientId = this.configService.get<string>('payOS.payout.clientId', '');
+    const apiKey = this.configService.get<string>('payOS.payout.apiKey', '');
+    const endpointPayout = `${endpoint}/v1/payouts`;
+    const endpointBalance = `${endpoint}/v1/payouts-account/balance`;
+    const balanceBank: AxiosResponse<PayBalanceResponseDto> = await axios.get(endpointBalance, {
+      headers: {
+        'x-client-id': clientId,
+        'x-api-key': apiKey,
+      },
+    });
+    if (!balanceBank.data.data) {
+      throw new PaymentCreationException(balanceBank.data.desc || 'Payment payout creation failed');
+    }
+    if (balanceBank.data.data.balance < Number(paymentDetail.amount)) {
+      this.loggerService.error(
+        'CreatePayoutOrder',
+        `Balance not enough: ${Number(paymentDetail.amount)}`,
+        `Order ID: ${orderId}`,
+      );
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.payment.balanceNotEnough',
+      });
+    }
+    const paymentDataPayout: Prisma.PaymentCreateInput = {
+      order: {
+        connect: {
+          id: orderId,
+        },
+      },
+      amount: Number(paymentDetail.amount),
+      transactionCode: paymentDetail.transactionCode,
+      accountNumber: paymentDetail.accountNumber,
+      bankCode: paymentDetail.bankCode,
+      paymentType: PaymentType.PAYOUT,
+      status: PaymentStatus.PAID,
+    };
+    const options = {
+      headers: {
+        'x-client-id': clientId,
+        'x-api-key': apiKey,
+        'x-idempotency-key': idempotencyKey,
+        'x-signature': signature,
+      },
+    };
+    return await this.prismaService.client.$transaction(
+      async (tx) => {
+        await tx.payment.create({
+          data: paymentDataPayout,
+        });
+        await tx.order.update({
+          where: {
+            id: orderId,
+          },
+          data: {
+            paymentStatus: PaymentStatus.REFUNDED,
+            status: OrderStatus.CANCELLED,
+          },
+        });
+        for (const item of itemsProduct) {
+          await tx.product.updateMany({
+            where: {
+              variants: {
+                some: {
+                  id: item.productVariantId,
+                },
+              },
+            },
+            data: {
+              quantity: {
+                increment: item.quantity,
+              },
+            },
+          });
+        }
+        const response: AxiosResponse<PayOSPayoutPaymentResponseDto> = await axios.post(
+          endpointPayout,
+          {
+            ...payload,
+          },
+          options,
+        );
+        if (!response.data.data) {
+          this.loggerService.error(
+            `[Create payout order failed]`,
+            `Detail:: ${response.data.desc}`,
+          );
+          throw new PaymentCreationException(
+            response.data.desc || 'Payment payout creation failed',
+          );
+        }
+        await this.cacheService.deleteByPattern(
+          `${buildKeyCache(ORDER_CACHE_PREFIX, { orderId: orderId })}:*`,
+        );
+        return response.data;
+      },
+      {
+        timeout: TIMEOUT_TRANSACTION_WITH_3RD,
+      },
+    );
+  }
+  async getOrder(dto: GetOrderRequest): Promise<BaseResponse<OrderSummaryResponse>> {
+    const orderDetail = await this.prismaService.client.order.findUnique({
+      where: {
+        id: dto.orderId,
+      },
+      include: INCLUDE_ORDER_SUMMARY_RESPONSE,
+    });
+    if (!orderDetail)
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      });
+    if (orderDetail.userId !== dto.userId && dto.role !== Role.ADMIN) {
+      throw new TypedRpcException({
+        code: HTTP_ERROR_CODE.FORBIDDEN,
+        message: 'common.errors.forbidden',
+      });
+    }
+    return buildBaseResponse(StatusKey.SUCCESS, this.toOrderSummaryResponse(orderDetail));
+  }
+  async getOrders(
+    filter: FilterGetOrdersRequest,
+  ): Promise<BaseResponse<PaginationResult<OrderResponse>>> {
+    const dto = plainToInstance(FilterGetOrdersRequest, filter);
+    await validateOrReject(dto);
+    const { page, pageSize } = filter;
+    const whereOptions = this.buildFilterOrders(filter);
+    const orderBy = { createdAt: SortDirection.DESC };
+    const querys = {
+      orderBy,
+      where: whereOptions,
+      include: INCLUDE_ORDER_RESPONSE,
+    };
+    const orders = await this.paginationService.queryWithPagination(
+      this.prismaService.client.order,
+      { page, pageSize },
+      querys,
+    );
+    const ordersResponse = orders.items.map((order: OrderWithItems) => this.toOrderResponse(order));
+    return buildBaseResponse(StatusKey.SUCCESS, {
+      items: ordersResponse,
+      paginations: orders.paginations,
+    });
+  }
+  private buildFilterOrders(filter: FilterGetOrdersRequest) {
+    const dateFilter = buildDataRange(filter.startDate, filter.endDate);
+    const paymentStatusesArray: PaymentStatus[] = this.getPaymentStatusesArrayByfilter(
+      filter.paymentStatuses,
+    );
+    const methodsArray: PaymentMethod[] = this.getMethodsArrayByFilter(filter.methods);
+    const orderStatusesArray: OrderStatus[] = this.getOrderStatusesArrayByfilter(filter.statuses);
+    const whereOptions = {
+      ...(dateFilter ? { createdAt: dateFilter } : {}),
+      ...(filter.paymentStatuses ? { paymentStatus: { in: paymentStatusesArray } } : {}),
+      ...(filter.methods ? { paymentMethod: { in: methodsArray } } : {}),
+      ...(filter.statuses ? { status: { in: orderStatusesArray } } : {}),
+    };
+    return whereOptions;
+  }
   private signPayload(payload: PayOSPayloadDto): string {
     const rawData =
       `amount=${payload.amount}` +
@@ -1774,5 +2513,145 @@ export class ProductService {
       .createHmac('sha256', this.configService.get<string>('payOS.checkSumKey', ''))
       .update(rawData)
       .digest('hex');
+  }
+  private signPayloadPayout(payload: PayOSPayloadPayoutDto): string {
+    const rawData =
+      `amount=${payload.amount}` +
+      `&description=${encodeURIComponent(payload.description)}` +
+      `&referenceId=${payload.referenceId}` +
+      `&toAccountNumber=${payload.toAccountNumber}` +
+      `&toBin=${payload.toBin}`;
+    this.loggerService.debug(`RawData:: ${rawData}`);
+    return crypto
+      .createHmac('sha256', this.configService.get<string>('payOS.payout.checkSumKey', ''))
+      .update(rawData)
+      .digest('hex');
+  }
+  public isValidData(data: Record<string, unknown>, currentSignature: string): boolean {
+    const sortedDataByKey = this.sortObjDataByKey(data);
+    const dataQueryStr = this.convertObjToQueryStr(sortedDataByKey);
+    const checkSumKey = this.configService.get<string>('payOS.checkSumKey', '');
+    const generatedSignature = crypto
+      .createHmac('sha256', checkSumKey)
+      .update(dataQueryStr)
+      .digest('hex');
+    return generatedSignature === currentSignature;
+  }
+  private sortObjDataByKey<T extends Record<string, unknown>>(object: T): Record<string, unknown> {
+    return Object.keys(object)
+      .sort()
+      .reduce<Record<string, unknown>>((obj, key) => {
+        obj[key] = object[key];
+        return obj;
+      }, {});
+  }
+  private convertObjToQueryStr(object: Record<string, unknown>): string {
+    return Object.keys(object)
+      .filter((key) => object[key] !== undefined)
+      .map((key) => {
+        let value = object[key];
+        if (Array.isArray(value)) {
+          value = JSON.stringify(
+            value.map((val) => this.sortObjDataByKey(val as Record<string, unknown>)),
+          );
+        }
+        if (value === null || value === undefined || value === 'undefined' || value === 'null') {
+          value = '';
+        }
+        const stringValue = String(value);
+        return `${key}=${stringValue}`;
+      })
+      .join('&');
+  }
+  private buildOrderCreatedPayload(
+    order: Order,
+    paymentMethod: PaymentMethod,
+    paymentStatus: PaymentStatus,
+    lang: SupportedLocalesType,
+  ): OrderCreatedPayload {
+    const customerName = `CustomerId:${order.userId}`;
+    const payload: OrderCreatedPayload = {
+      orderId: order.id,
+      userId: order.userId,
+      userName: customerName,
+      totalAmount: Number(order.amount),
+      paymentMethod: paymentMethod,
+      paymentStatus: paymentStatus,
+      createdAt: order.createdAt,
+      lang: lang,
+    };
+    return payload;
+  }
+  private toOrderSummaryResponse(data: OrderSummaryType): OrderSummaryResponse {
+    return {
+      id: data.id,
+      userId: data.userId,
+      deliveryAddress: data.deliveryAddress,
+      paymentMethod: data.paymentMethod,
+      paymentStatus: data.paymentStatus,
+      status: data.status,
+      totalPrice: Number(data.amount),
+      note: data.note ?? null,
+      items: data.items.map((item) => ({
+        id: item.id,
+        productVariantId: item.productVariantId,
+        productName: item.productVariant.product.name,
+        productSize: item.productVariant.size.nameSize,
+        quantity: item.quantity,
+        price: Number(item.productVariant.price),
+        note: item.note ?? null,
+      })),
+      paymentInfo: data.payments.map((payment) => ({
+        id: payment.id,
+        amount: Number(payment.amount),
+        paymentStatus: payment.status,
+        paymentType: payment.paymentType,
+        paidAt: payment.createdAt,
+      })),
+      createdAt: data.createdAt,
+    };
+  }
+  private toNewOrderDataCache(data: OrderWithItems): NewOrderDataCache {
+    return {
+      id: data.id,
+      userId: data.userId,
+      status: data.status,
+      paymentMethod: data.paymentMethod,
+      paymentStatus: data.paymentStatus,
+      items: data.items.map((item) => ({
+        id: item.id,
+        amount: item.amount,
+        note: item.note,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        quantity: item.quantity,
+        orderId: item.orderId,
+        productVariantId: item.productVariantId,
+      })),
+    };
+  }
+  private getPaymentStatusesArrayByfilter(statuses: PaymentStatus[] | undefined): PaymentStatus[] {
+    const statusesArray: PaymentStatus[] = Array.isArray(statuses)
+      ? statuses.filter((s): s is PaymentStatus => s !== undefined)
+      : statuses !== undefined
+        ? [statuses]
+        : [];
+    return statusesArray;
+  }
+  private getOrderStatusesArrayByfilter(statuses: OrderStatus[] | undefined): OrderStatus[] {
+    const orderStatuses: OrderStatus[] = Array.isArray(statuses)
+      ? statuses.filter((s): s is OrderStatus => s !== undefined)
+      : statuses !== undefined
+        ? [statuses]
+        : [];
+    return orderStatuses;
+  }
+  private getMethodsArrayByFilter(methods: PaymentMethod[] | undefined): PaymentMethod[] {
+    const methodsArray: PaymentMethod[] = Array.isArray(methods)
+      ? methods.filter((s): s is PaymentMethod => s !== undefined)
+      : methods !== undefined
+        ? [methods]
+        : [];
+    return methodsArray;
   }
 }

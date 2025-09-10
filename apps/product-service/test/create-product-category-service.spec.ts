@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { NOTIFICATION_SERVICE } from '@app/common';
 import { ProductProducer } from '../src/product.producer';
 import { I18nService } from 'nestjs-i18n';
+import { CacheService } from '@app/common/cache/cache.service';
 
 // Mock class-transformer, class-validator, and nestjs-i18n
 jest.mock('class-transformer', () => ({
@@ -37,14 +38,8 @@ jest.mock('class-validator', () => ({
   Length: jest.fn(() => jest.fn()),
   IsDateString: jest.fn(() => jest.fn()),
   ArrayNotEmpty: jest.fn(() => jest.fn()),
+  IsDate: jest.fn(() => jest.fn()),
 }));
-
-// jest.mock('nestjs-i18n', () => ({
-//   I18nService: jest.fn().mockImplementation(() => ({
-//     translate: jest.fn(),
-//   })),
-//   i18nValidationMessage: jest.fn(() => 'mocked validation message'),
-// }));
 
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
@@ -54,7 +49,6 @@ const mockConfigService = {
 const mockNotificationClient = {
   emit: jest.fn(),
 };
-
 const mockI18nService = {
   translate: jest.fn(),
 };
@@ -62,9 +56,13 @@ const mockI18nService = {
 const mockProductProducer = {
   addJobRetryPayment: jest.fn(),
 };
+const mockCacheService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
+} as unknown as CacheService;
 describe('ProductService', () => {
   let service: ProductService;
-
   const mockPrismaClient = {
     client: {
       product: {
@@ -79,7 +77,6 @@ describe('ProductService', () => {
       },
     },
   };
-
   const mockLoggerService = {
     log: jest.fn(),
     error: jest.fn(),
@@ -121,6 +118,10 @@ describe('ProductService', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -188,7 +189,6 @@ describe('ProductService', () => {
         sku: 'PHONE-001',
       },
     };
-
     describe('Happy Path', () => {
       beforeEach(() => {
         mockPlainToInstance.mockReturnValue(validCreateProductCategoryDto);
@@ -397,7 +397,6 @@ describe('ProductService', () => {
         expect(thrownError.getError().message).toBe(
           'common.product.productCategory.error.productNotFound',
         );
-
         expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledWith({
           where: { id: 100, deletedAt: null },
         });
@@ -883,7 +882,6 @@ describe('ProductService', () => {
         expect(mockPrismaClient.client.categoryProduct.findFirst).not.toHaveBeenCalled();
         expect(mockPrismaClient.client.categoryProduct.create).not.toHaveBeenCalled();
       });
-
       it('should stop execution when relationship already exists', async () => {
         const existingRelationship = { id: 1, categoryId: 1, productId: 100 };
 
@@ -896,7 +894,6 @@ describe('ProductService', () => {
         } catch (error) {
           expect(error).toBeInstanceOf(TypedRpcException);
         }
-
         expect(mockPrismaClient.client.product.findUnique).toHaveBeenCalledTimes(1);
         expect(mockPrismaClient.client.category.findUnique).toHaveBeenCalledTimes(1);
         expect(mockPrismaClient.client.categoryProduct.findFirst).toHaveBeenCalledTimes(1);

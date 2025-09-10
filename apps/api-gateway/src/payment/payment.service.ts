@@ -2,6 +2,8 @@ import { PRODUCT_SERVICE } from '@app/common';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
 import { PaymentInfoResponse } from '@app/common/dto/product/response/order-response';
+import { PaymentPaidResponse } from '@app/common/dto/product/response/payment-paid.response';
+import { PayOSWebhookDTO } from '@app/common/dto/product/response/payos-webhook.dto';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
@@ -31,6 +33,12 @@ export class PaymentService {
         timeoutMs: TIMEOUT_MS_DEFAULT,
         retries: RETRIES_DEFAULT,
       },
+    );
+  }
+  callbackWebHook(payload: PayOSWebhookDTO) {
+    return this.productClient.send<BaseResponse<PaymentPaidResponse>>(
+      ProductPattern.CALLBACK_WEBHOOK_PAYMENT,
+      payload,
     );
   }
 }
