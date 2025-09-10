@@ -1,48 +1,50 @@
-import { Controller, UsePipes } from '@nestjs/common';
-import { ProductService } from './product-service.service';
-import { MessagePattern, Payload } from '@nestjs/microservices';
-import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
-import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
-import {
-  ProductResponse,
-  UserProductResponse,
-} from '@app/common/dto/product/response/product-response';
-import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
-import { Product } from '../generated/prisma';
-import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { PaginationDto } from '@app/common/dto/pagination.dto';
-import { PaginationResult } from '@app/common/interfaces/pagination';
-import {
-  ProductDetailResponse,
-  UserProductDetailResponse,
-} from '@app/common/dto/product/response/product-detail-reponse';
 import { CreateProductCategoryDto } from '@app/common/dto/product/create-product-category.dto';
-import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
-import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
-import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
 import { CreateProductImagesServiceDto } from '@app/common/dto/product/create-product-images.dto';
+import { CreateProductDto } from '@app/common/dto/product/create-product.dto';
+import { DeleteProductCategoryDto } from '@app/common/dto/product/delete-product-category.dto';
 import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
-import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
-import { BaseResponse } from '@app/common/interfaces/data-type';
-import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
-import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
+import { skuIdProductDto } from '@app/common/dto/product/delete-product.dto';
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
-import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
-import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
+import { AddProductCartRequest } from '@app/common/dto/product/requests/add-product-cart.request';
 import { CreateReviewDto } from '@app/common/dto/product/requests/create-review.dto';
+import { DeleteProductCartRequest } from '@app/common/dto/product/requests/delete-product-cart.request';
 import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
+import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.request';
 import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
-import {
-  CreateReviewResponse,
-  ReviewResponse,
-} from '@app/common/dto/product/response/review-response.dto';
-import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
+import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
+import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
+import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
+import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import {
   OrderResponse,
   PaymentInfoResponse,
 } from '@app/common/dto/product/response/order-response';
-import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
+import { PayOSWebhookDTO } from '@app/common/dto/product/response/payos-webhook.dto';
+import { ProductCategoryResponse } from '@app/common/dto/product/response/product-category-response';
+import {
+  ProductDetailResponse,
+  UserProductDetailResponse,
+} from '@app/common/dto/product/response/product-detail-reponse';
+import {
+  ProductResponse,
+  UserProductResponse,
+} from '@app/common/dto/product/response/product-response';
+import {
+  CreateReviewResponse,
+  ReviewResponse,
+} from '@app/common/dto/product/response/review-response.dto';
+import { UpdateProductDto } from '@app/common/dto/product/upate-product.dto';
+import { UpdateProductCategoryDto } from '@app/common/dto/product/update-product-category.dto';
+import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
+import { BaseResponse } from '@app/common/interfaces/data-type';
+import { PaginationResult } from '@app/common/interfaces/pagination';
+import { I18nRpcValidationPipe } from '@app/common/pipes/rpc-validation-pipe';
+import { Controller, UsePipes } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { Product } from '../generated/prisma';
+import { ProductService } from './product-service.service';
 
 @Controller()
 export class ProductServiceController {
@@ -132,7 +134,6 @@ export class ProductServiceController {
   ): Promise<BaseResponse<CartSummaryResponse>> {
     return await this.productService.deleteProductCart(payLoad);
   }
-
   @MessagePattern(ProductPattern.GET_ALL_USER)
   async listProductsForUser(
     @Payload() payLoad: GetAllProductUserDto,
@@ -183,5 +184,17 @@ export class ProductServiceController {
     @Payload() payLoad: RetryPaymentRequest,
   ): Promise<BaseResponse<PaymentInfoResponse>> {
     return await this.productService.retryPayment(payLoad);
+  }
+  @MessagePattern(ProductPattern.CALLBACK_WEBHOOK_PAYMENT)
+  callbackWebHook(@Payload() payLoad: PayOSWebhookDTO) {
+    return this.productService.handleWebhookCallbackPayment(payLoad);
+  }
+  @MessagePattern(ProductPattern.REJECT_ORDER)
+  async rejectOrder(@Payload() payLoad: RejectOrderRequest) {
+    return this.productService.rejectOrder(payLoad);
+  }
+  @MessagePattern(ProductPattern.CONFIRM_ORDER)
+  async confirmOrder(@Payload() payLoad: RejectOrderRequest) {
+    return this.productService.confirmOrder(payLoad);
   }
 }

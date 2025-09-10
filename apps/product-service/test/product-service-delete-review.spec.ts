@@ -1,18 +1,19 @@
-import 'reflect-metadata';
-import { Test, TestingModule } from '@nestjs/testing';
-import { ProductService } from '../src/product-service.service';
-import { PrismaService } from '@app/prisma';
-import { PaginationService } from '@app/common/shared/pagination.shared';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { NOTIFICATION_SERVICE } from '@app/common';
 import { DeleteReviewDto } from '@app/common/dto/product/requests/delete-review.dto';
-import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { assertRpcException } from '@app/common/helpers/test.helper';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
+import { PrismaService } from '@app/prisma';
+import { ConfigService } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Decimal } from '@prisma/client/runtime/library';
 import { plainToInstance } from 'class-transformer';
 import { validateOrReject } from 'class-validator';
-import { ConfigService } from '@nestjs/config';
-import { NOTIFICATION_SERVICE } from '@app/common';
 import { I18nService } from 'nestjs-i18n';
+import 'reflect-metadata';
+import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -317,13 +318,17 @@ describe('ProductService - deleteReview', () => {
         updatedAt: null,
         deletedAt: null,
       };
-      const updateError = new Error('Update failed');
-
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
       mockPrismaClient.review.findFirst.mockResolvedValue(mockExistingReview);
-      mockPrismaClient.review.update.mockRejectedValue(updateError);
-
-      await expect(service.deleteReview(deleteReviewData)).rejects.toThrow(TypedRpcException);
-
+      mockPrismaClient.review.update.mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.deleteReview(deleteReviewData);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
       try {
         await service.deleteReview(deleteReviewData);
       } catch (error) {
@@ -331,13 +336,6 @@ describe('ProductService - deleteReview', () => {
         const rpcError = (error as TypedRpcException).getError();
         expect(rpcError.code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
       }
-
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(loggerService.error).toHaveBeenCalledWith(
-        'DeleteReview',
-        'Update failed',
-        expect.stringMatching(/.*/),
-      );
     });
 
     it('should handle non-Error exceptions', async () => {

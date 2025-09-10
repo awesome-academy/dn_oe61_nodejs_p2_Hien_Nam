@@ -1,8 +1,12 @@
 import { SupportedLocalesType } from '@app/common/constant/locales.constant';
+import { ConfirmOrderRequest } from '@app/common/dto/product/requests/confirm-order.request';
 import { OrderPayload } from '@app/common/dto/product/requests/order-payload.request';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
-import { StatusKey } from '@app/common/enums/status-key.enum';
+import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
+import { RejectOrderResponse } from '@app/common/dto/product/response/reject-order.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
+import { REJECT_ORDER_STATUS } from '@app/common/enums/order.enum';
+import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { assertRpcException } from '@app/common/helpers/test.helper';
 import { BaseResponse } from '@app/common/interfaces/data-type';
@@ -15,6 +19,8 @@ import {
   OrderResponse,
   PaymentInfoResponse,
 } from '@app/common/dto/product/response/order-response';
+import { AuthRoles } from '@app/common/decorators/auth-role.decorator';
+import { I18nService } from 'nestjs-i18n';
 import { PaymentStatus } from 'apps/product-service/generated/prisma';
 
 describe('OrderController', () => {
@@ -24,6 +30,8 @@ describe('OrderController', () => {
 
   const mockOrderService = {
     createOrder: jest.fn(),
+    rejectOrder: jest.fn(),
+    confirmOrder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -34,9 +42,15 @@ describe('OrderController', () => {
           provide: OrderService,
           useValue: mockOrderService,
         },
+        {
+          provide: I18nService,
+          useValue: { translate: jest.fn() },
+        },
       ],
-    }).compile();
-
+    })
+      .overrideGuard(AuthRoles)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
     controller = moduleRef.get<OrderController>(OrderController);
     orderService = moduleRef.get<OrderService>(OrderService);
   });
@@ -431,6 +445,476 @@ describe('OrderController', () => {
       expect(orderServiceCreateOrderSpy).toHaveBeenCalledWith(expectedHighQuantityDto);
       expect(orderServiceCreateOrderSpy).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockSuccessResponse);
+    });
+  });
+
+  describe('rejectOrder', () => {
+    const mockUser: AccessTokenPayload = {
+      id: 1,
+      email: 'admin@example.com',
+      role: 'ADMIN',
+    };
+
+    const orderId = 123;
+
+    const mockRejectOrderResponse: RejectOrderResponse = {
+      status: REJECT_ORDER_STATUS.SUCCESS,
+      orderId: orderId,
+      paymentMethod: PaymentMethodEnum.CASH,
+      rejectedAt: new Date('2024-01-01T00:00:00Z'),
+    };
+
+    const mockSuccessResponse: BaseResponse<RejectOrderResponse> = {
+      statusKey: StatusKey.SUCCESS,
+      data: mockRejectOrderResponse,
+    };
+
+    const expectedDto: RejectOrderRequest = {
+      userId: mockUser.id,
+      orderId: orderId,
+    };
+
+    it('should reject order successfully with valid parameters', async () => {
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockResolvedValue(mockSuccessResponse);
+      const result = await controller.rejectOrder(mockUser, orderId);
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDto);
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toEqual(mockRejectOrderResponse);
+      expect(result.data!.orderId).toBe(orderId);
+      expect(result.data!.status).toBe(REJECT_ORDER_STATUS.SUCCESS);
+    });
+
+    it('should reject order with BANK_TRANSFER payment method and payout info', async () => {
+      const bankTransferRejectResponse: RejectOrderResponse = {
+        status: REJECT_ORDER_STATUS.SUCCESS,
+        orderId: orderId,
+        paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
+        rejectedAt: new Date('2024-01-01T00:00:00Z'),
+        payoutInfo: {
+          bankCode: '970422',
+          toAccountNumber: '0000226940750',
+          transactionCode: 'FT25251501202251',
+          amountRefunded: 4000,
+          userId: mockUser.id,
+          userRejectId: mockUser.id,
+        },
+      };
+
+      const bankTransferSuccessResponse: BaseResponse<RejectOrderResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: bankTransferRejectResponse,
+      };
+
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockResolvedValue(bankTransferSuccessResponse);
+
+      const result = await controller.rejectOrder(mockUser, orderId);
+
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDto);
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(bankTransferSuccessResponse);
+      expect(result.data!.paymentMethod).toBe(PaymentMethodEnum.BANK_TRANSFER);
+      expect(result.data!.payoutInfo).toBeDefined();
+      expect(result.data!.payoutInfo!.amountRefunded).toBe(4000);
+      expect(result.data!.payoutInfo!.bankCode).toBe('970422');
+    });
+
+    it('should handle different admin user IDs correctly', async () => {
+      const differentAdmin: AccessTokenPayload = {
+        id: 999,
+        email: 'different-admin@example.com',
+        role: 'ADMIN',
+      };
+
+      const expectedDifferentDto: RejectOrderRequest = {
+        userId: differentAdmin.id,
+        orderId: orderId,
+      };
+
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockResolvedValue(mockSuccessResponse);
+
+      const result = await controller.rejectOrder(differentAdmin, orderId);
+
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDifferentDto);
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+    });
+
+    it('should handle different order IDs correctly', async () => {
+      const differentOrderId = 456;
+      const expectedDifferentOrderDto: RejectOrderRequest = {
+        userId: mockUser.id,
+        orderId: differentOrderId,
+      };
+
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockResolvedValue(mockSuccessResponse);
+
+      const result = await controller.rejectOrder(mockUser, differentOrderId);
+
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDifferentOrderDto);
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+    });
+
+    it('should handle UNCHANGED status when order already rejected', async () => {
+      const unchangedResponse: RejectOrderResponse = {
+        status: REJECT_ORDER_STATUS.UNCHANGED,
+        description: 'Order has been rejected',
+        orderId: orderId,
+      };
+
+      const unchangedSuccessResponse: BaseResponse<RejectOrderResponse> = {
+        statusKey: StatusKey.UNCHANGED,
+        data: unchangedResponse,
+      };
+
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockResolvedValue(unchangedSuccessResponse);
+
+      const result = await controller.rejectOrder(mockUser, orderId);
+
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDto);
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(unchangedSuccessResponse);
+      expect(result.statusKey).toBe(StatusKey.UNCHANGED);
+      expect(result.data!.status).toBe(REJECT_ORDER_STATUS.UNCHANGED);
+      expect(result.data!.description).toBe('Order has been rejected');
+    });
+
+    it('should propagate UnauthorizedException from service', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.guard.unauthorized',
+      };
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.rejectOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+
+    it('should propagate NotFound exception when order not found', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      };
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.rejectOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+
+    it('should propagate BadRequest exception for invalid order state', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.payment.refunded',
+      };
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.rejectOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+
+    it('should propagate InternalServerError from service', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
+      const orderServiceRejectOrderSpy = jest
+        .spyOn(orderService, 'rejectOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.rejectOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceRejectOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+  });
+
+  describe('confirmOrder', () => {
+    const mockUser: AccessTokenPayload = {
+      id: 1,
+      email: 'admin@example.com',
+      role: 'ADMIN',
+    };
+
+    const orderId = 123;
+
+    const mockConfirmOrderResponse: OrderResponse = {
+      id: orderId,
+      userId: mockUser.id,
+      totalPrice: 5000,
+      deliveryAddress: 'Da Nang city',
+      paymentMethod: PaymentMethodEnum.CASH,
+      paymentStatus: PaymentStatus.PAID,
+      status: 'PENDING',
+      note: 'No note',
+      items: [
+        {
+          id: 1,
+          productVariantId: 1,
+          quantity: 2,
+          price: 2500,
+          productName: 'ABC',
+          productSize: 'S',
+          note: 'No note',
+        },
+      ],
+      createdAt: new Date('2024-01-01T00:00:00Z'),
+    };
+
+    const mockSuccessResponse: BaseResponse<OrderResponse> = {
+      statusKey: StatusKey.SUCCESS,
+      data: mockConfirmOrderResponse,
+    };
+
+    const expectedDto: ConfirmOrderRequest = {
+      userId: mockUser.id,
+      orderId: orderId,
+    };
+
+    it('should confirm order successfully with valid parameters', async () => {
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockResolvedValue(mockSuccessResponse);
+
+      const result = await controller.confirmOrder(mockUser, orderId);
+
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data).toEqual(mockConfirmOrderResponse);
+      expect(result.data!.id).toBe(orderId);
+      expect(result.data!.userId).toBe(mockUser.id);
+      expect(result.data!.paymentStatus).toBe(PaymentStatus.PAID);
+    });
+
+    it('should confirm order with BANK_TRANSFER payment method', async () => {
+      const bankTransferOrderResponse: OrderResponse = {
+        ...mockConfirmOrderResponse,
+        paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
+        paymentInfo: {
+          qrCodeUrl: 'https://example.com/qr-code',
+          expiredAt: '10 minutes left',
+        },
+      };
+
+      const bankTransferSuccessResponse: BaseResponse<OrderResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: bankTransferOrderResponse,
+      };
+
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockResolvedValue(bankTransferSuccessResponse);
+
+      const result = await controller.confirmOrder(mockUser, orderId);
+
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(bankTransferSuccessResponse);
+      expect(result.data!.paymentMethod).toBe(PaymentMethodEnum.BANK_TRANSFER);
+      expect(result.data!.paymentInfo).toBeDefined();
+      expect(result.data!.paymentInfo!.qrCodeUrl).toBe('https://example.com/qr-code');
+    });
+
+    it('should handle different admin user IDs correctly', async () => {
+      const differentAdmin: AccessTokenPayload = {
+        id: 999,
+        email: 'different-admin@example.com',
+        role: 'ADMIN',
+      };
+
+      const expectedDifferentDto: ConfirmOrderRequest = {
+        userId: differentAdmin.id,
+        orderId: orderId,
+      };
+
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockResolvedValue(mockSuccessResponse);
+
+      const result = await controller.confirmOrder(differentAdmin, orderId);
+
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDifferentDto);
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+    });
+
+    it('should handle different order IDs correctly', async () => {
+      const differentOrderId = 456;
+      const expectedDifferentOrderDto: ConfirmOrderRequest = {
+        userId: mockUser.id,
+        orderId: differentOrderId,
+      };
+
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockResolvedValue(mockSuccessResponse);
+
+      const result = await controller.confirmOrder(mockUser, differentOrderId);
+
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDifferentOrderDto);
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+    });
+
+    it('should handle order with multiple items', async () => {
+      const multiItemOrderResponse: OrderResponse = {
+        ...mockConfirmOrderResponse,
+        totalPrice: 10000,
+        items: [
+          {
+            id: 1,
+            productVariantId: 1,
+            quantity: 2,
+            price: 2500,
+            productName: 'Test product 1',
+            productSize: 'Test product 1 description',
+            note: 'No note',
+          },
+          {
+            id: 2,
+            productVariantId: 2,
+            quantity: 2,
+            price: 2500,
+            productName: 'Test product 2',
+            productSize: 'Test product 2 description',
+            note: 'No note',
+          },
+        ],
+      };
+      const multiItemSuccessResponse: BaseResponse<OrderResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: multiItemOrderResponse,
+      };
+
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockResolvedValue(multiItemSuccessResponse);
+
+      const result = await controller.confirmOrder(mockUser, orderId);
+
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(multiItemSuccessResponse);
+      expect(result.data!.items).toHaveLength(2);
+      expect(result.data!.totalPrice).toBe(10000);
+    });
+
+    it('should propagate UnauthorizedException from service', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.guard.unauthorized',
+      };
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.confirmOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+
+    it('should propagate NotFound exception when order not found', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      };
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.confirmOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+
+    it('should propagate BadRequest exception for invalid order state', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.BAD_REQUEST,
+        message: 'common.order.alreadyConfirmed',
+      };
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.confirmOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+
+    it('should propagate Forbidden exception when user lacks permission', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.FORBIDDEN,
+        message: 'common.guard.forbidden',
+      };
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.confirmOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
+    });
+
+    it('should propagate InternalServerError from service', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
+      const orderServiceConfirmOrderSpy = jest
+        .spyOn(orderService, 'confirmOrder')
+        .mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await controller.confirmOrder(mockUser, orderId);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(orderServiceConfirmOrderSpy).toHaveBeenCalledWith(expectedDto);
     });
   });
 });

@@ -36,6 +36,7 @@ describe('ProductProcessor', () => {
     deleteSoftCart: jest.fn(),
     createPaymentInfo: jest.fn(),
     updateOrderPaymentInfo: jest.fn(),
+    handleExpirePaymentOrder: jest.fn(),
   };
 
   const mockLoggerService = {
@@ -689,6 +690,415 @@ describe('ProductProcessor', () => {
         undefined,
         i18nService,
       );
+    });
+  });
+
+  describe('handleExpiredPaymentOrder', () => {
+    const mockOrderId = 123;
+    const mockExpiredPaymentJob: Job<{ orderId: number }> = {
+      id: 'expired-payment-job-1',
+      data: { orderId: mockOrderId },
+      opts: {},
+      progress: jest.fn(),
+      log: jest.fn(),
+      getState: jest.fn(),
+      update: jest.fn(),
+      remove: jest.fn(),
+      retry: jest.fn(),
+      discard: jest.fn(),
+      promote: jest.fn(),
+    } as unknown as Job<{ orderId: number }>;
+
+    it('should handle job with null orderId and return early with error log', async () => {
+      const nullOrderJob: Job<{ orderId: number }> = {
+        ...mockExpiredPaymentJob,
+        data: { orderId: null as unknown as number },
+      };
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerErrorSpy = jest.spyOn(loggerService, 'error');
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(nullOrderJob);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[Handle Expired Payment Order Failed by Underfield Order]',
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+      expect(loggerLogSpy).not.toHaveBeenCalled();
+      expect(handleExpirePaymentOrderSpy).not.toHaveBeenCalled();
+      expect(mockHandleJobError).not.toHaveBeenCalled();
+    });
+
+    it('should handle job with empty string orderId and return early with error log', async () => {
+      const emptyStringOrderJob: Job<{ orderId: number }> = {
+        ...mockExpiredPaymentJob,
+        data: { orderId: '' as unknown as number },
+      };
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerErrorSpy = jest.spyOn(loggerService, 'error');
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(emptyStringOrderJob);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[Handle Expired Payment Order Failed by Underfield Order]',
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+      expect(loggerLogSpy).not.toHaveBeenCalled();
+      expect(handleExpirePaymentOrderSpy).not.toHaveBeenCalled();
+      expect(mockHandleJobError).not.toHaveBeenCalled();
+    });
+
+    it('should handle expired payment order successfully', async () => {
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        `[HANDLE CANCEL ORDER ${mockOrderId}] by expired payment`,
+      );
+      expect(loggerLogSpy).toHaveBeenCalledTimes(1);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(mockOrderId);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).not.toHaveBeenCalled();
+    });
+
+    it('should handle different order IDs correctly', async () => {
+      const differentOrderIds = [1, 999, 12345, 99999];
+
+      for (const orderId of differentOrderIds) {
+        const differentOrderJob: Job<{ orderId: number }> = {
+          ...mockExpiredPaymentJob,
+          data: { orderId },
+        };
+
+        const handleExpirePaymentOrderSpy = jest
+          .spyOn(productService, 'handleExpirePaymentOrder')
+          .mockResolvedValue(undefined);
+
+        const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+        await processor.handleExpiredPaymentOrder(differentOrderJob);
+
+        expect(loggerLogSpy).toHaveBeenCalledWith(
+          `[HANDLE CANCEL ORDER ${orderId}] by expired payment`,
+        );
+        expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(orderId);
+        expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+
+        jest.clearAllMocks();
+      }
+    });
+
+    it('should handle zero order ID and return early with error log', async () => {
+      const zeroOrderJob: Job<{ orderId: number }> = {
+        ...mockExpiredPaymentJob,
+        data: { orderId: 0 },
+      };
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerErrorSpy = jest.spyOn(loggerService, 'error');
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(zeroOrderJob);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[Handle Expired Payment Order Failed by Underfield Order]',
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+      expect(loggerLogSpy).not.toHaveBeenCalled();
+      expect(handleExpirePaymentOrderSpy).not.toHaveBeenCalled();
+      expect(mockHandleJobError).not.toHaveBeenCalled();
+    });
+
+    it('should handle negative order ID', async () => {
+      const negativeOrderJob: Job<{ orderId: number }> = {
+        ...mockExpiredPaymentJob,
+        data: { orderId: -123 },
+      };
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(negativeOrderJob);
+
+      expect(loggerLogSpy).toHaveBeenCalledWith('[HANDLE CANCEL ORDER -123] by expired payment');
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(-123);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle large order ID numbers', async () => {
+      const largeOrderId = 999999999;
+      const largeOrderJob: Job<{ orderId: number }> = {
+        ...mockExpiredPaymentJob,
+        data: { orderId: largeOrderId },
+      };
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(largeOrderJob);
+
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        `[HANDLE CANCEL ORDER ${largeOrderId}] by expired payment`,
+      );
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(largeOrderId);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle service error and call handleJobError', async () => {
+      const serviceError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      });
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockRejectedValue(serviceError);
+
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        `[HANDLE CANCEL ORDER ${mockOrderId}] by expired payment`,
+      );
+      expect(loggerLogSpy).toHaveBeenCalledTimes(1);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(mockOrderId);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).toHaveBeenCalledWith(
+        serviceError,
+        mockExpiredPaymentJob,
+        loggerService,
+        '[Error expired payment order]',
+      );
+      expect(mockHandleJobError).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle database error and call handleJobError', async () => {
+      const databaseError = new Error('Database connection failed');
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockRejectedValue(databaseError);
+
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(loggerLogSpy).toHaveBeenCalledTimes(1);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(mockOrderId);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).toHaveBeenCalledWith(
+        databaseError,
+        mockExpiredPaymentJob,
+        loggerService,
+        '[Error expired payment order]',
+      );
+      expect(mockHandleJobError).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle validation error and call handleJobError', async () => {
+      const validationError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.VALIDATION_ERROR,
+        message: 'common.errors.validationError',
+      });
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockRejectedValue(validationError);
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).toHaveBeenCalledWith(
+        validationError,
+        mockExpiredPaymentJob,
+        loggerService,
+        '[Error expired payment order]',
+      );
+      expect(mockHandleJobError).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle internal server error and call handleJobError', async () => {
+      const internalError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      });
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockRejectedValue(internalError);
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).toHaveBeenCalledWith(
+        internalError,
+        mockExpiredPaymentJob,
+        loggerService,
+        '[Error expired payment order]',
+      );
+      expect(mockHandleJobError).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle timeout error and call handleJobError', async () => {
+      const timeoutError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.TIME_OUT_OR_NETWORK,
+        message: 'common.errors.timeOutOrNetwork',
+      });
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockRejectedValue(timeoutError);
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).toHaveBeenCalledWith(
+        timeoutError,
+        mockExpiredPaymentJob,
+        loggerService,
+        '[Error expired payment order]',
+      );
+      expect(mockHandleJobError).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle network error and call handleJobError', async () => {
+      const networkError = new Error('Network connection lost');
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockRejectedValue(networkError);
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).toHaveBeenCalledWith(
+        networkError,
+        mockExpiredPaymentJob,
+        loggerService,
+        '[Error expired payment order]',
+      );
+      expect(mockHandleJobError).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle multiple consecutive calls correctly', async () => {
+      const orderIds = [1, 2, 3, 4, 5];
+
+      for (const orderId of orderIds) {
+        const consecutiveJob: Job<{ orderId: number }> = {
+          ...mockExpiredPaymentJob,
+          data: { orderId },
+        };
+
+        const handleExpirePaymentOrderSpy = jest
+          .spyOn(productService, 'handleExpirePaymentOrder')
+          .mockResolvedValue(undefined);
+
+        const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+        await processor.handleExpiredPaymentOrder(consecutiveJob);
+
+        expect(loggerLogSpy).toHaveBeenCalledWith(
+          `[HANDLE CANCEL ORDER ${orderId}] by expired payment`,
+        );
+        expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(orderId);
+        expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+
+        jest.clearAllMocks();
+      }
+    });
+
+    it('should handle job with undefined orderId and return early with error log', async () => {
+      const undefinedOrderJob: Job<{ orderId: number }> = {
+        ...mockExpiredPaymentJob,
+        data: { orderId: undefined as unknown as number },
+      };
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerErrorSpy = jest.spyOn(loggerService, 'error');
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      await processor.handleExpiredPaymentOrder(undefinedOrderJob);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[Handle Expired Payment Order Failed by Underfield Order]',
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+      expect(loggerLogSpy).not.toHaveBeenCalled();
+      expect(handleExpirePaymentOrderSpy).not.toHaveBeenCalled();
+      expect(mockHandleJobError).not.toHaveBeenCalled();
+    });
+
+    it('should handle concurrent job processing correctly', async () => {
+      const concurrentJobs = [
+        { ...mockExpiredPaymentJob, data: { orderId: 100 } },
+        { ...mockExpiredPaymentJob, data: { orderId: 200 } },
+        { ...mockExpiredPaymentJob, data: { orderId: 300 } },
+      ];
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockResolvedValue(undefined);
+
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+
+      const promises = concurrentJobs.map((job) => processor.handleExpiredPaymentOrder(job));
+      await Promise.all(promises);
+
+      expect(loggerLogSpy).toHaveBeenCalledTimes(3);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(3);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(100);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(200);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(300);
+    });
+
+    it('should handle order cancellation with specific business logic error', async () => {
+      const businessLogicError = new TypedRpcException({
+        code: HTTP_ERROR_CODE.CONFLICT,
+        message: 'common.order.alreadyCancelled',
+      });
+
+      const handleExpirePaymentOrderSpy = jest
+        .spyOn(productService, 'handleExpirePaymentOrder')
+        .mockRejectedValue(businessLogicError);
+
+      await processor.handleExpiredPaymentOrder(mockExpiredPaymentJob);
+
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledWith(mockOrderId);
+      expect(handleExpirePaymentOrderSpy).toHaveBeenCalledTimes(1);
+      expect(mockHandleJobError).toHaveBeenCalledWith(
+        businessLogicError,
+        mockExpiredPaymentJob,
+        loggerService,
+        '[Error expired payment order]',
+      );
+      expect(mockHandleJobError).toHaveBeenCalledTimes(1);
     });
   });
 });

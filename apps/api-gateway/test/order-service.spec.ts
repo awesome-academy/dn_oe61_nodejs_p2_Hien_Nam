@@ -2,6 +2,8 @@ import { PRODUCT_SERVICE } from '@app/common';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { SupportedLocalesType } from '@app/common/constant/locales.constant';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
+import { ConfirmOrderRequest } from '@app/common/dto/product/requests/confirm-order.request';
+import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
 import { StatusKey } from '@app/common/enums/status-key.enum';
@@ -18,13 +20,26 @@ jest.mock('@app/common/helpers/microservices', () => ({
   callMicroservice: jest.fn(),
 }));
 
-import { callMicroservice } from '@app/common/helpers/microservices';
-import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
+// Mock firstValueFrom from rxjs
+const mockFirstValueFrom = jest.fn();
+jest.mock('rxjs', () => {
+  const originalRxjs = jest.requireActual<typeof import('rxjs')>('rxjs');
+  return {
+    ...originalRxjs,
+    firstValueFrom: jest.fn(),
+  };
+});
+
 import {
   OrderResponse,
   PaymentInfoResponse,
 } from '@app/common/dto/product/response/order-response';
+import { RejectOrderResponse } from '@app/common/dto/product/response/reject-order.response';
+import { REJECT_ORDER_STATUS } from '@app/common/enums/order.enum';
+import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
+import { callMicroservice } from '@app/common/helpers/microservices';
 import { PaymentStatus } from 'apps/product-service/generated/prisma';
+import { firstValueFrom, Observable } from 'rxjs';
 
 describe('OrderService', () => {
   let service: OrderService;
@@ -643,6 +658,272 @@ describe('OrderService', () => {
       );
       expect(productClientSendSpy).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockSuccessResponse);
+    });
+  });
+
+  describe('rejectOrder', () => {
+    const mockRejectOrderRequest: RejectOrderRequest = {
+      userId: 1,
+      orderId: 123,
+    };
+
+    const mockRejectOrderResponse: RejectOrderResponse = {
+      status: REJECT_ORDER_STATUS.SUCCESS,
+      orderId: 123,
+      paymentMethod: PaymentMethodEnum.CASH,
+      rejectedAt: new Date('2024-01-01T00:00:00Z'),
+    };
+
+    const mockSuccessResponse: BaseResponse<RejectOrderResponse> = {
+      statusKey: StatusKey.SUCCESS,
+      data: mockRejectOrderResponse,
+    };
+
+    it('should reject order successfully with valid request', async () => {
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+      (firstValueFrom as jest.Mock).mockResolvedValue(mockSuccessResponse);
+      const result = await service.rejectOrder(mockRejectOrderRequest);
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.REJECT_ORDER,
+        mockRejectOrderRequest,
+      );
+      expect(productClientSendSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data!.status).toBe(REJECT_ORDER_STATUS.SUCCESS);
+      expect(result.data!.orderId).toBe(123);
+    });
+
+    it('should throw TypedRpcException when userId is undefined', async () => {
+      const invalidRequest: RejectOrderRequest = {
+        userId: undefined as unknown as number,
+        orderId: 123,
+      };
+
+      const rpcError = {
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.guard.unauthorized',
+      };
+
+      try {
+        await service.rejectOrder(invalidRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+    });
+
+    it('should propagate UnauthorizedException from microservice', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.guard.unauthorized',
+      };
+
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+
+      mockFirstValueFrom.mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await service.rejectOrder(mockRejectOrderRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.REJECT_ORDER,
+        mockRejectOrderRequest,
+      );
+    });
+
+    it('should propagate NotFound exception when order not found', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      };
+
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+
+      mockFirstValueFrom.mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await service.rejectOrder(mockRejectOrderRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.REJECT_ORDER,
+        mockRejectOrderRequest,
+      );
+    });
+
+    it('should propagate InternalServerError from microservice', async () => {
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
+
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+
+      mockFirstValueFrom.mockRejectedValue(new TypedRpcException(rpcError));
+
+      try {
+        await service.rejectOrder(mockRejectOrderRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.REJECT_ORDER,
+        mockRejectOrderRequest,
+      );
+    });
+  });
+
+  describe('confirmOrder', () => {
+    const mockConfirmOrderRequest: ConfirmOrderRequest = {
+      userId: 1,
+      orderId: 123,
+    };
+
+    const mockConfirmOrderResponse: OrderResponse = {
+      id: 123,
+      userId: 1,
+      status: PaymentStatus.PAID,
+      createdAt: new Date('2024-01-01T00:00:00Z'),
+      deliveryAddress: '123 Test Street',
+      note: 'Test order',
+      paymentMethod: PaymentMethodEnum.CASH,
+      paymentStatus: PaymentStatus.PAID,
+      paymentInfo: {
+        status: PaymentStatus.PAID,
+        createdAt: new Date('2024-01-01T00:00:00Z'),
+        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        qrCodeUrl: 'https://example.com/qr',
+        expiredAt: '2024-01-02T00:00:00Z',
+      } as PaymentInfoResponse,
+    } as OrderResponse;
+
+    const mockSuccessResponse: BaseResponse<OrderResponse> = {
+      statusKey: StatusKey.SUCCESS,
+      data: mockConfirmOrderResponse,
+    };
+
+    it('should confirm order successfully with valid request', async () => {
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+      mockCallMicroservice.mockResolvedValue(mockSuccessResponse);
+      const result = await service.confirmOrder(mockConfirmOrderRequest);
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.CONFIRM_ORDER,
+        mockConfirmOrderRequest,
+      );
+      expect(productClientSendSpy).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockSuccessResponse);
+      expect(result.statusKey).toBe(StatusKey.SUCCESS);
+      expect(result.data!.id).toBe(123);
+      expect(result.data!.status).toBe(PaymentStatus.PAID);
+    });
+
+    it('should throw TypedRpcException when userId is undefined', async () => {
+      const invalidRequest: ConfirmOrderRequest = {
+        userId: undefined as unknown as number,
+        orderId: 123,
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.guard.unauthorized',
+      };
+      try {
+        await service.confirmOrder(invalidRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+    });
+
+    it('should throw TypedRpcException when userId is null', async () => {
+      const invalidRequest: ConfirmOrderRequest = {
+        userId: null as unknown as number,
+        orderId: 123,
+      };
+      const rpcError = {
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'common.guard.unauthorized',
+      };
+      try {
+        await service.confirmOrder(invalidRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+    });
+
+    it('should propagate Unauthorized Exception from microservice', async () => {
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+      const rpcError = {
+        code: HTTP_ERROR_CODE.UNAUTHORIZED,
+        message: 'Order not found or access denied',
+      };
+      mockCallMicroservice.mockResolvedValue(new TypedRpcException(rpcError));
+
+      try {
+        await service.confirmOrder(mockConfirmOrderRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.CONFIRM_ORDER,
+        mockConfirmOrderRequest,
+      );
+    });
+
+    it('should propagate NotFound exception from microservice', async () => {
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+      const rpcError = {
+        code: HTTP_ERROR_CODE.NOT_FOUND,
+        message: 'common.order.notFound',
+      };
+      mockCallMicroservice.mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.confirmOrder(mockConfirmOrderRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.CONFIRM_ORDER,
+        mockConfirmOrderRequest,
+      );
+    });
+
+    it('should propagate InternalServerError from microservice', async () => {
+      const productClientSendSpy = jest.spyOn(productClient, 'send');
+      const mockObservable = { subscribe: jest.fn() } as unknown as Observable<unknown>;
+      productClientSendSpy.mockReturnValue(mockObservable);
+      const rpcError = {
+        code: HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR,
+        message: 'common.errors.internalServerError',
+      };
+      mockCallMicroservice.mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.confirmOrder(mockConfirmOrderRequest);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(productClientSendSpy).toHaveBeenCalledWith(
+        ProductPattern.CONFIRM_ORDER,
+        mockConfirmOrderRequest,
+      );
     });
   });
 });

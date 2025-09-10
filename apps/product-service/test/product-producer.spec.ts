@@ -6,8 +6,9 @@ import { addJobWithRetry } from '@app/common/helpers/queue.helper';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { getQueueToken } from '@nestjs/bull';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Queue } from 'bull';
+import { Job, Queue } from 'bull';
 import { ProductProducer } from '../src/product.producer';
+import { ConfigService } from '@nestjs/config';
 
 // Mock the queue helper
 jest.mock('@app/common/helpers/queue.helper', () => ({
@@ -25,6 +26,7 @@ describe('ProductProducer', () => {
     process: jest.fn(),
     on: jest.fn(),
     close: jest.fn(),
+    removeJobs: jest.fn(),
   };
 
   const mockLoggerService = {
@@ -34,6 +36,9 @@ describe('ProductProducer', () => {
     debug: jest.fn(),
   };
 
+  const mockConfigService = {
+    get: jest.fn(),
+  };
   const mockAddJobWithRetry = addJobWithRetry as jest.MockedFunction<typeof addJobWithRetry>;
 
   beforeEach(async () => {
@@ -47,6 +52,10 @@ describe('ProductProducer', () => {
         {
           provide: CustomLogger,
           useValue: mockLoggerService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
         },
       ],
     }).compile();
@@ -431,6 +440,371 @@ describe('ProductProducer', () => {
         payload: largePayload,
       });
       expect(mockAddJobWithRetry).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('addJobHandleExpiredPaymentOrder', () => {
+    const mockOrderId = 123;
+    const mockExpiredAt = Math.floor(Date.now() / 1000) + 900; // 15 minutes from now
+    const mockReminderBeforeExpire = '300000'; // 5 minutes in ms
+
+    beforeEach(() => {
+      jest.spyOn(Date, 'now').mockReturnValue(1640995200000); // Mock current time
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('should add expired payment order job successfully with valid parameters', async () => {
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const loggerLogSpy = jest.spyOn(loggerService, 'log');
+      const loggerDebugSpy = jest.spyOn(loggerService, 'debug');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+      productQueueAddSpy.mockResolvedValue({} as unknown as Job);
+
+      await producer.addJobHandleExpiredPaymentOrder(mockOrderId, mockExpiredAt);
+
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        `Add job handle expired payment orderId ${mockOrderId}`,
+      );
+      expect(configServiceGetSpy).toHaveBeenCalledWith('payOS.reminderBeforeExpire', '30m');
+      expect(loggerDebugSpy).toHaveBeenCalledWith(`[Reminder ms:: ] ${mockReminderBeforeExpire}`);
+
+      const expectedJobId = `expired-${mockOrderId}`;
+      const expectedDelay = (mockExpiredAt - Math.floor(1640995200000 / 1000)) * 1000;
+
+      expect(productQueueAddSpy).toHaveBeenCalledWith(
+        ProductEvent.EXPIRED_PAYMENT_ORDER,
+        { orderId: mockOrderId },
+        { delay: expectedDelay, jobId: expectedJobId },
+      );
+      expect(productQueueAddSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle different order IDs correctly', async () => {
+      const differentOrderIds = [1, 999, 12345, 99999];
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+      productQueueAddSpy.mockResolvedValue({} as unknown as Job);
+
+      for (const orderId of differentOrderIds) {
+        await producer.addJobHandleExpiredPaymentOrder(orderId, mockExpiredAt);
+
+        const expectedJobId = `expired-${orderId}`;
+        expect(productQueueAddSpy).toHaveBeenCalledWith(
+          ProductEvent.EXPIRED_PAYMENT_ORDER,
+          { orderId },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          { delay: expect.any(Number), jobId: expectedJobId },
+        );
+
+        jest.clearAllMocks();
+      }
+    });
+
+    it('should handle different expiration times correctly', async () => {
+      const currentTimeSec = Math.floor(1640995200000 / 1000);
+      const differentExpirationTimes = [
+        currentTimeSec + 300, // 5 minutes
+        currentTimeSec + 900, // 15 minutes
+        currentTimeSec + 1800, // 30 minutes
+        currentTimeSec + 3600, // 1 hour
+      ];
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+      productQueueAddSpy.mockResolvedValue({} as unknown as Job);
+
+      for (const expiredAt of differentExpirationTimes) {
+        await producer.addJobHandleExpiredPaymentOrder(mockOrderId, expiredAt);
+
+        const expectedDelay = (expiredAt - currentTimeSec) * 1000;
+        expect(productQueueAddSpy).toHaveBeenCalledWith(
+          ProductEvent.EXPIRED_PAYMENT_ORDER,
+          { orderId: mockOrderId },
+          { delay: expectedDelay, jobId: `expired-${mockOrderId}` },
+        );
+
+        jest.clearAllMocks();
+      }
+    });
+
+    it('should not add job when expiration time is in the past', async () => {
+      const pastExpiredAt = Math.floor(1640995200000 / 1000) - 300; // 5 minutes ago
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+
+      await producer.addJobHandleExpiredPaymentOrder(mockOrderId, pastExpiredAt);
+
+      expect(productQueueAddSpy).not.toHaveBeenCalled();
+    });
+
+    it('should use default reminder value when config is not available', async () => {
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+      const loggerDebugSpy = jest.spyOn(loggerService, 'debug');
+
+      configServiceGetSpy.mockReturnValue(undefined);
+      productQueueAddSpy.mockResolvedValue({} as unknown as Job);
+
+      await producer.addJobHandleExpiredPaymentOrder(mockOrderId, mockExpiredAt);
+
+      expect(configServiceGetSpy).toHaveBeenCalledWith('payOS.reminderBeforeExpire', '30m');
+      expect(loggerDebugSpy).toHaveBeenCalledWith('[Reminder ms:: ] undefined');
+      expect(productQueueAddSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should log error and not throw when queue.add fails', async () => {
+      const queueError = new Error('Queue connection failed');
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const loggerErrorSpy = jest.spyOn(loggerService, 'error');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+      productQueueAddSpy.mockRejectedValue(queueError);
+
+      await producer.addJobHandleExpiredPaymentOrder(mockOrderId, mockExpiredAt);
+
+      expect(productQueueAddSpy).toHaveBeenCalledTimes(1);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[ADD JOB handle expired payment order failed]',
+        `Details:: ${queueError.stack}`,
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should log error and not throw when queue.add fails with timeout error', async () => {
+      const timeoutError = new Error('Queue timeout');
+      timeoutError.stack =
+        'Error: Queue timeout\n    at ProductProducer.addJobHandleExpiredPaymentOrder';
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const loggerErrorSpy = jest.spyOn(loggerService, 'error');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+      productQueueAddSpy.mockRejectedValue(timeoutError);
+
+      await producer.addJobHandleExpiredPaymentOrder(mockOrderId, mockExpiredAt);
+
+      expect(productQueueAddSpy).toHaveBeenCalledTimes(1);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[ADD JOB handle expired payment order failed]',
+        `Details:: ${timeoutError.stack}`,
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle error without stack trace gracefully', async () => {
+      const errorWithoutStack = new Error('Simple error');
+      errorWithoutStack.stack = undefined;
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const loggerErrorSpy = jest.spyOn(loggerService, 'error');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+      productQueueAddSpy.mockRejectedValue(errorWithoutStack);
+
+      await expect(
+        producer.addJobHandleExpiredPaymentOrder(mockOrderId, mockExpiredAt),
+      ).resolves.toBeUndefined();
+
+      expect(productQueueAddSpy).toHaveBeenCalledTimes(1);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[ADD JOB handle expired payment order failed]',
+        'Details:: undefined',
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should calculate delay correctly for edge cases', async () => {
+      const currentTimeSec = Math.floor(1640995200000 / 1000);
+      const edgeCases = [
+        { expiredAt: currentTimeSec + 1, expectedDelay: 1000 }, // 1 second
+        { expiredAt: currentTimeSec + 60, expectedDelay: 60000 }, // 1 minute
+        { expiredAt: currentTimeSec + 86400, expectedDelay: 86400000 }, // 1 day
+      ];
+
+      const productQueueAddSpy = jest.spyOn(productQueue, 'add');
+      const configServiceGetSpy = jest.spyOn(mockConfigService, 'get');
+
+      configServiceGetSpy.mockReturnValue(mockReminderBeforeExpire);
+      productQueueAddSpy.mockResolvedValue({} as unknown as Job);
+
+      for (const { expiredAt, expectedDelay } of edgeCases) {
+        await producer.addJobHandleExpiredPaymentOrder(mockOrderId, expiredAt);
+
+        expect(productQueueAddSpy).toHaveBeenCalledWith(
+          ProductEvent.EXPIRED_PAYMENT_ORDER,
+          { orderId: mockOrderId },
+          { delay: expectedDelay, jobId: `expired-${mockOrderId}` },
+        );
+
+        jest.clearAllMocks();
+      }
+    });
+  });
+
+  describe('clearScheduleHandleExpiredPayment', () => {
+    const mockOrderId = 123;
+
+    it('should remove scheduled job successfully with valid order ID', async () => {
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void);
+      await producer.clearScheduleHandleExpiredPayment(mockOrderId);
+      const expectedJobId = `expired-${mockOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle different order IDs correctly', async () => {
+      const differentOrderIds = [1, 999, 12345, 99999];
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void);
+
+      for (const orderId of differentOrderIds) {
+        await producer.clearScheduleHandleExpiredPayment(orderId);
+
+        const expectedJobId = `expired-${orderId}`;
+        expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+
+        jest.clearAllMocks();
+      }
+    });
+
+    it('should handle zero order ID', async () => {
+      const zeroOrderId = 0;
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void);
+
+      await producer.clearScheduleHandleExpiredPayment(zeroOrderId);
+
+      const expectedJobId = `expired-${zeroOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle negative order ID', async () => {
+      const negativeOrderId = -123;
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void);
+
+      await producer.clearScheduleHandleExpiredPayment(negativeOrderId);
+
+      const expectedJobId = `expired-${negativeOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle large order ID numbers', async () => {
+      const largeOrderId = 999999999;
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void);
+
+      await producer.clearScheduleHandleExpiredPayment(largeOrderId);
+
+      const expectedJobId = `expired-${largeOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle when no jobs are found to remove', async () => {
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void); // No jobs removed
+
+      await producer.clearScheduleHandleExpiredPayment(mockOrderId);
+
+      const expectedJobId = `expired-${mockOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle when multiple jobs are removed', async () => {
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void); // Multiple jobs removed
+
+      await producer.clearScheduleHandleExpiredPayment(mockOrderId);
+
+      const expectedJobId = `expired-${mockOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle removeJobs failure gracefully', async () => {
+      const queueError = new Error('Queue connection failed');
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockRejectedValue(queueError);
+
+      await expect(producer.clearScheduleHandleExpiredPayment(mockOrderId)).rejects.toThrow(
+        'Queue connection failed',
+      );
+
+      const expectedJobId = `expired-${mockOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle Redis connection error', async () => {
+      const redisError = new Error('Redis connection refused');
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockRejectedValue(redisError);
+
+      await expect(producer.clearScheduleHandleExpiredPayment(mockOrderId)).rejects.toThrow(
+        'Redis connection refused',
+      );
+
+      const expectedJobId = `expired-${mockOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle timeout error', async () => {
+      const timeoutError = new Error('Operation timeout');
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockRejectedValue(timeoutError);
+
+      await expect(producer.clearScheduleHandleExpiredPayment(mockOrderId)).rejects.toThrow(
+        'Operation timeout',
+      );
+
+      const expectedJobId = `expired-${mockOrderId}`;
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith(expectedJobId);
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle multiple consecutive calls correctly', async () => {
+      const orderIds = [1, 2, 3, 4, 5];
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void);
+
+      for (const orderId of orderIds) {
+        await producer.clearScheduleHandleExpiredPayment(orderId);
+      }
+
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledTimes(5);
+      orderIds.forEach((orderId, index) => {
+        expect(productQueueRemoveJobsSpy).toHaveBeenNthCalledWith(index + 1, `expired-${orderId}`);
+      });
+    });
+
+    it('should use correct job ID format', async () => {
+      const testOrderId = 12345;
+      const productQueueRemoveJobsSpy = jest.spyOn(productQueue, 'removeJobs');
+      productQueueRemoveJobsSpy.mockResolvedValue({} as unknown as void);
+
+      await producer.clearScheduleHandleExpiredPayment(testOrderId);
+
+      // Verify the exact format of job ID
+      expect(productQueueRemoveJobsSpy).toHaveBeenCalledWith('expired-12345');
+      expect(productQueueRemoveJobsSpy.mock.calls[0][0]).toMatch(/^expired-\d+$/);
     });
   });
 });

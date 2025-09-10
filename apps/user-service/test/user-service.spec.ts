@@ -277,7 +277,6 @@ describe('UserService', () => {
 
     it('should throw ConflictException if user already exists', async () => {
       const existingUser = { id: 1, email: 'test@example.com' } as UserResponse;
-
       // Reset all mocks completely
       jest.restoreAllMocks();
       jest.spyOn(classValidator, 'validateOrReject').mockResolvedValue(undefined);
@@ -1364,7 +1363,6 @@ describe('UserService', () => {
       expect(result.data).toEqual([]);
     });
   });
-
   describe('getUserProfile', () => {
     const mockGetUserProfileRequest = {
       userId: 1,

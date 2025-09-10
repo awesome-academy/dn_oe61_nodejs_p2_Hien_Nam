@@ -109,15 +109,11 @@ CREATE TABLE `orders` (
     `amount` DECIMAL(65, 30) NOT NULL,
     `deliveryAddress` VARCHAR(255) NOT NULL,
     `paymentMethod` ENUM('CASH', 'CREDIT_CARD', 'E_WALLET', 'BANK_TRANSFER') NOT NULL DEFAULT 'CASH',
-<<<<<<< HEAD
-    `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
-=======
 <<<<<<<< HEAD:apps/product-service/prisma/migrations/20250909023540_update_client_generated/migration.sql
     `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
 ========
     `paymentStatus` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED', 'FAILED') NOT NULL DEFAULT 'UNPAID',
 >>>>>>>> a987e86 (# This is a combination of 7 commits.):apps/product-service/prisma/migrations/20250908084512_update_db_product_service/migration.sql
->>>>>>> 4808628 (feat: implement feature confirm-reject-order)
     `note` VARCHAR(255) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NULL,
@@ -129,15 +125,11 @@ CREATE TABLE `orders` (
 -- CreateTable
 CREATE TABLE `payments` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-<<<<<<< HEAD
-    `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
-=======
 <<<<<<<< HEAD:apps/product-service/prisma/migrations/20250909023540_update_client_generated/migration.sql
     `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED') NOT NULL DEFAULT 'UNPAID',
 ========
     `status` ENUM('PENDING', 'UNPAID', 'PAID', 'CANCELLED', 'REFUNDED', 'FAILED') NOT NULL DEFAULT 'UNPAID',
 >>>>>>>> a987e86 (# This is a combination of 7 commits.):apps/product-service/prisma/migrations/20250908084512_update_db_product_service/migration.sql
->>>>>>> 4808628 (feat: implement feature confirm-reject-order)
     `amount` DECIMAL(65, 30) NOT NULL,
     `transactionCode` VARCHAR(100) NOT NULL,
     `accountNumber` VARCHAR(100) NOT NULL,
