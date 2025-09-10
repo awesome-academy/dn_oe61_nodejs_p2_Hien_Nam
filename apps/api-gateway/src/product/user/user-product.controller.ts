@@ -1,17 +1,5 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Post,
-  Query,
-  Request,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { UserProductService } from './user-product.service';
-import { AuthRoles } from '@app/common/decorators/auth-role.decorator';
-import { Role } from '@app/common/enums/roles/users.enum';
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
 import { GetByIdProductDto } from '@app/common/dto/product/get-by-id-product';
 import { BaseResponse } from '@app/common/interfaces/data-type';
@@ -40,8 +28,8 @@ import { ApiResponseShareProduct } from '@app/common/decorators/document/product
 export class UserProductController {
   constructor(private readonly userProductService: UserProductService) {}
 
+  @Public()
   @ApiResponseListProductsForUser()
-  @AuthRoles(Role.USER)
   @Get('')
   async listProductsForUser(
     @Query() query: GetAllProductUserDto,
@@ -58,15 +46,15 @@ export class UserProductController {
     return this.userProductService.getProductDetailForUser(dto);
   }
 
+  @Public()
   @ApiResponseShareProduct()
-  @AuthRoles(Role.USER)
   @Post('share/:skuId')
   shareProduct(@Param() skuId: GetByIdProductDto): Promise<BaseResponse<ShareUrlProductResponse>> {
     return this.userProductService.shareProduct(skuId);
   }
 
+  @Public()
   @ApiResponseCreateReview()
-  @AuthRoles(Role.USER)
   @Post(':skuId/reviews')
   async createReview(
     @Param() param: GetByIdProductDto,
@@ -86,8 +74,8 @@ export class UserProductController {
     return await this.userProductService.getProductReviews(param, query);
   }
 
+  @Public()
   @ApiResponseDeleteReview()
-  @AuthRoles(Role.USER)
   @Delete('reviews/:reviewId')
   async deleteReview(
     @Param('reviewId', new ParseIntPipe()) reviewId: number,

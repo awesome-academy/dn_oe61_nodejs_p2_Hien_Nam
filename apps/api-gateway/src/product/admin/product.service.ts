@@ -24,6 +24,8 @@ import { CreateProductImagesDto } from '@app/common/dto/product/create-product-i
 import { MAX_IMAGES } from '@app/common/constant/cloudinary';
 import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
 import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 
 @Injectable()
 export class ProductService {
@@ -32,6 +34,8 @@ export class ProductService {
     private readonly loggerService: CustomLogger,
     private readonly i18nService: I18nService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly cacheService: CacheService,
+    private readonly upstashCacheService: UpstashCacheService,
   ) {}
 
   async create(
@@ -77,6 +81,10 @@ export class ProductService {
       throw new BadRequestException(this.i18nService.translate('common.product.error.failed'));
     }
 
+    if (create) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<ProductResponse>(StatusKey.SUCCESS, create);
   }
 
@@ -114,6 +122,10 @@ export class ProductService {
       this.i18nService.translate('common.product.action.update.failed');
     }
 
+    if (result) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<ProductResponse>(StatusKey.SUCCESS, result);
   }
 
@@ -146,6 +158,10 @@ export class ProductService {
 
     if (!result) {
       this.i18nService.translate('common.product.action.delete.failed');
+    }
+
+    if (result) {
+      await this.clearProductCache();
     }
 
     return buildBaseResponse<ProductResponse>(StatusKey.SUCCESS, result);
@@ -225,6 +241,10 @@ export class ProductService {
       );
     }
 
+    if (result) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<ProductCategoryResponse>(StatusKey.SUCCESS, result);
   }
 
@@ -247,6 +267,10 @@ export class ProductService {
       );
     }
 
+    if (result) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<ProductCategoryResponse>(StatusKey.SUCCESS, result);
   }
 
@@ -267,6 +291,10 @@ export class ProductService {
       throw new BadRequestException(
         this.i18nService.translate('common.productCategory.action.delete.failed'),
       );
+    }
+
+    if (result) {
+      await this.clearProductCache();
     }
 
     return buildBaseResponse<ProductCategoryResponse>(StatusKey.SUCCESS, result);
@@ -326,6 +354,10 @@ export class ProductService {
       );
     }
 
+    if (result) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<ProductImagesResponse[]>(StatusKey.SUCCESS, result);
   }
 
@@ -370,6 +402,21 @@ export class ProductService {
       );
     }
 
+    if (result) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<ProductImagesResponse[]>(StatusKey.SUCCESS, result);
+  }
+
+  private async clearProductCache(): Promise<void> {
+    try {
+      await this.cacheService.deleteByPattern('user_products:*');
+      await this.upstashCacheService.deleteByPattern('user_product_details:*');
+      this.loggerService.log('Product cache cleared after successful operation');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.loggerService.error('Failed to clear product cache:', errorMessage);
+    }
   }
 }

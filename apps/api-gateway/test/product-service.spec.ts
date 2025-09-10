@@ -9,6 +9,8 @@ import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { I18nService } from 'nestjs-i18n';
@@ -56,6 +58,22 @@ describe('ProductService', () => {
     uploadImagesToCloudinary: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
+  const mockUpstashCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
   const mockCallMicroservice = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
   const mockBuildBaseResponse = buildBaseResponse as jest.MockedFunction<typeof buildBaseResponse>;
 
@@ -82,6 +100,14 @@ describe('ProductService', () => {
         {
           provide: CloudinaryService,
           useValue: mockCloudinaryService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: UpstashCacheService,
+          useValue: mockUpstashCacheService,
         },
       ],
     }).compile();

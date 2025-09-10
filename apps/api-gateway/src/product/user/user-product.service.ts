@@ -195,6 +195,10 @@ export class UserProductService {
       throw new BadRequestException(this.i18nService.translate('review.errors.createFailed'));
     }
 
+    if (result) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<CreateReviewResponse>(StatusKey.SUCCESS, result);
   }
 
@@ -247,6 +251,21 @@ export class UserProductService {
       throw new BadRequestException(this.i18nService.translate('review.errors.deleteFailed'));
     }
 
+    if (result) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<DeleteReviewResponse>(StatusKey.SUCCESS, result);
+  }
+
+  private async clearProductCache(): Promise<void> {
+    try {
+      await this.cacheService.deleteByPattern('user_products:*');
+      await this.upstashCacheService.deleteByPattern('user_product_details:*');
+      this.loggerService.log('Product cache cleared after successful operation');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.loggerService.error('Failed to clear product cache:', errorMessage);
+    }
   }
 }
