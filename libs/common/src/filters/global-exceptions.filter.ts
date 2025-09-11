@@ -24,6 +24,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     private readonly configService: ConfigService,
   ) {}
   async catch(exception: unknown, host: ArgumentsHost) {
+    if (host.getType<string>() === 'graphql') {
+      return exception;
+    }
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     let status = HttpStatus.INTERNAL_SERVER_ERROR;

@@ -125,7 +125,7 @@ describe('ProductService - getAll', () => {
   });
 
   describe('getAll', () => {
-    const validQuery = { page: 1, limit: 10 };
+    const validQuery = { page: 1, pageSize: 10 };
 
     it('should return products successfully with valid query', async () => {
       // Arrange
@@ -233,7 +233,7 @@ describe('ProductService - getAll', () => {
 
     it('should handle large page numbers', async () => {
       // Arrange
-      const largePageQuery = { page: 999999, limit: 10 };
+      const largePageQuery = { page: 999999, pageSize: 10 };
       mockCallMicroservice.mockResolvedValue(mockPaginationResult);
       mockBuildBaseResponse.mockReturnValue({
         statusKey: StatusKey.SUCCESS,
@@ -249,7 +249,7 @@ describe('ProductService - getAll', () => {
 
     it('should handle large limit numbers', async () => {
       // Arrange
-      const largeLimitQuery = { page: 1, limit: 999999 };
+      const largeLimitQuery = { page: 1, pageSize: 999999 };
       mockCallMicroservice.mockResolvedValue(mockPaginationResult);
       mockBuildBaseResponse.mockReturnValue({
         statusKey: StatusKey.SUCCESS,

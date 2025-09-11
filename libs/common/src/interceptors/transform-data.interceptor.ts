@@ -6,6 +6,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { GqlExecutionContext } from '@nestjs/graphql';
 import { I18nService } from 'nestjs-i18n';
 import { map, Observable } from 'rxjs';
 import { MESSAGE_RESOURCE_ACTION, MESSAGE_RESOURCE_KEY } from '../decorators/resource.decorator';
@@ -26,6 +27,10 @@ export class TransformDataInterceptor implements NestInterceptor {
     private readonly loggerService: CustomLogger,
   ) {}
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (GqlExecutionContext.create(context).getType() === 'graphql') {
+      return next.handle();
+    }
+
     const ctx = context.switchToHttp();
     const response = ctx.getResponse<Response>();
     let resourceName = RESOURCE_NAME_FALLBACK;

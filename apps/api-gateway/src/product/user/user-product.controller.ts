@@ -49,9 +49,8 @@ export class UserProductController {
     return this.userProductService.listProductsForUser(query);
   }
 
-  @AuthRoles(Role.USER)
-  @ApiResponseGetProductDetailForUser()
   @Public()
+  @ApiResponseGetProductDetailForUser()
   @Get(':skuId')
   async getProductDetailForUser(
     @Param() dto: GetByIdProductDto,

@@ -15,4 +15,5 @@ export enum UserMsgPattern {
   UPDATE_USER_PROFILE = 'user.updateUserProfile',
   UPDATE_PASSWORD = 'user.updatePassword',
   GET_ALL_ADMIN = 'admin.user.getAllAdmin',
+  CLEANUP_INACTIVE_USERS = 'user.cleanupInactiveUsers',
 }

@@ -1,0 +1,73 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type CategoriesResponseGraphQL {
+  items: [CategoryGroupGraphQL!]
+  message: String!
+  paginations: PaginationMeta
+  success: Boolean!
+}
+
+type CategoryGroupGraphQL {
+  childCategories: [ChildCategoryGraphQL!]!
+  rootCategory: RootCategoryGraphQL!
+}
+
+type CategoryResponse {
+  data: CategoryType
+  message: String!
+  success: Boolean!
+}
+
+type CategoryType {
+  createdAt: String
+  id: ID!
+  name: String!
+  parentId: ID
+  updatedAt: String
+}
+
+type ChildCategoryGraphQL {
+  createdAt: String
+  id: Float!
+  name: String!
+  parent: String!
+  updatedAt: String
+}
+
+input GraphQLCateroryInput {
+  name: String!
+  parentId: Int
+}
+
+input GraphQLUpdateCateroryInput {
+  id: ID!
+  name: String
+  parentId: Int
+}
+
+type Mutation {
+  createCategory(input: GraphQLCateroryInput!): CategoryResponse!
+  updateCategory(input: GraphQLUpdateCateroryInput!): CategoryResponse!
+}
+
+type PaginationMeta {
+  currentPage: Float!
+  itemsOnPage: Float!
+  pageSize: Float!
+  totalItems: Float!
+  totalPages: Float!
+}
+
+type Query {
+  getCategories(page: Int, pageSize: Int): CategoriesResponseGraphQL!
+}
+
+type RootCategoryGraphQL {
+  createdAt: String
+  id: Float!
+  name: String!
+  parent: String!
+  updatedAt: String
+}

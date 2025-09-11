@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ClientProxy } from '@nestjs/microservices';
+import { GqlExecutionContext } from '@nestjs/graphql';
 import { IS_PUBLIC_KEY } from '@app/common/decorators/metadata.decorator';
 import { AuthMsgPattern } from '@app/common';
 import { TRequestWithUser } from '@app/common/types/request-with-user.type';
@@ -34,7 +35,7 @@ export class JwtAuthGuard implements CanActivate {
 
     if (isPublic) return true;
 
-    const request = context.switchToHttp().getRequest<TRequestWithUser>();
+    const request = this.getRequest<TRequestWithUser>(context);
     const token = this.checkTokenFromHeader(request);
 
     if (!token) {
@@ -66,6 +67,15 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  private getRequest<T = TRequestWithUser>(context: ExecutionContext): T {
+    const gqlCtx = GqlExecutionContext.create(context);
+    const gqlContext = gqlCtx.getContext<{ req?: TRequestWithUser }>();
+    const gqlRequest = gqlContext?.req;
+    if (gqlRequest) return gqlRequest as T;
+
+    return context.switchToHttp().getRequest<T>();
   }
 
   private checkTokenFromHeader(request: TRequestWithUser): string | undefined {

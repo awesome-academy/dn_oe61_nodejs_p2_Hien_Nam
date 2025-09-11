@@ -98,4 +98,9 @@ export class UserServiceController {
   async getAllAdmin() {
     return await this.userService.getAllAdmin();
   }
+
+  @MessagePattern(UserMsgPattern.CLEANUP_INACTIVE_USERS)
+  async cleanupInactiveUsers(): Promise<{ deletedCount: number; message: string }> {
+    return await this.userService.cleanupInactiveUsers();
+  }
 }

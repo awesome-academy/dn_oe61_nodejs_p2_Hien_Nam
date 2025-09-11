@@ -185,7 +185,10 @@ export class ProductService {
     return buildBaseResponse<ProductDetailResponse>(StatusKey.SUCCESS, result);
   }
 
-  async getAll(query: { page: number; limit: number }): Promise<BaseResponse<ProductResponse[]>> {
+  async getAll(query: {
+    page: number;
+    pageSize: number;
+  }): Promise<BaseResponse<ProductResponse[]>> {
     const result = await callMicroservice<ProductResponse[]>(
       this.productClient.send(ProductPattern.GET_ALL, query),
       PRODUCT_SERVICE,

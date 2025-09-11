@@ -14,7 +14,6 @@ import { GetCartRequest } from '@app/common/dto/product/requests/get-cart.reques
 import { GetProductReviewsDto } from '@app/common/dto/product/requests/get-product-reviews.dto';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
 import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
-import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
 import { CartSummaryResponse } from '@app/common/dto/product/response/cart-summary.response';
 import { DeleteReviewResponse } from '@app/common/dto/product/response/delete-review.response';
 import {
@@ -45,6 +44,11 @@ import { Controller, UsePipes } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { Product } from '../generated/prisma';
 import { ProductService } from './product-service.service';
+import { RetryPaymentRequest } from '@app/common/dto/product/requests/retry-payment.requqest';
+import { PaginationArgs } from '@app/common/types/graphql/arg-type/pagination.type';
+import { CategoryGroupGraphQL, CategoryType } from '@app/common/types/graphql/caterories.type';
+import { GraphQLCateroryInput } from '@app/common/types/graphql/arg-type/create-category.type';
+import { GraphQLUpdateCateroryInput } from '@app/common/types/graphql/arg-type/update-category.typ';
 
 @Controller()
 export class ProductServiceController {
@@ -196,5 +200,22 @@ export class ProductServiceController {
   @MessagePattern(ProductPattern.CONFIRM_ORDER)
   async confirmOrder(@Payload() payLoad: RejectOrderRequest) {
     return this.productService.confirmOrder(payLoad);
+  }
+
+  @MessagePattern(ProductPattern.GET_ALL_CATERORY)
+  async getAllCategories(
+    @Payload() payload: PaginationArgs,
+  ): Promise<PaginationResult<CategoryGroupGraphQL>> {
+    return await this.productService.getAllCategories(payload);
+  }
+
+  @MessagePattern(ProductPattern.CREATE_CATEGORY)
+  async createCategory(@Payload() payload: GraphQLCateroryInput): Promise<CategoryType> {
+    return await this.productService.createCategory(payload);
+  }
+
+  @MessagePattern(ProductPattern.UPDATE_CATEGORY)
+  async updateCategory(@Payload() payLoad: GraphQLUpdateCateroryInput) {
+    return this.productService.updateCategory(payLoad);
   }
 }

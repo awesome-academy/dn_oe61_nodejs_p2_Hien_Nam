@@ -327,16 +327,16 @@ describe('UserProfileService', () => {
     });
 
     it('should successfully update user profile without file', async () => {
+      const requestDto = { ...mockUpdateUserProfileRequest };
       mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
       mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
 
-      const result = await service.updateUserProfile(1, mockUpdateUserProfileRequest);
+      const result = await service.updateUserProfile(1, requestDto);
 
-      expect(mockPlainToInstance).toHaveBeenCalledWith(
-        UpdateUserProfileRequest,
-        mockUpdateUserProfileRequest,
-      );
-      expect(mockValidateOrReject).toHaveBeenCalledWith(mockUpdateUserProfileRequest);
+      expect(mockPlainToInstance).toHaveBeenCalledWith(UpdateUserProfileRequest, requestDto);
+      expect(mockValidateOrReject).toHaveBeenCalledWith(requestDto);
+      // Verify that userId was set on the DTO
+      expect(requestDto.userId).toBe(1);
       expect(mockCallMicroservice).toHaveBeenCalledWith(
         expect.anything(),
         USER_SERVICE,
@@ -354,16 +354,20 @@ describe('UserProfileService', () => {
     });
 
     it('should successfully update user profile with file', async () => {
+      const requestDto = { ...mockUpdateUserProfileRequest };
       const uploadSpy = jest.spyOn(mockCloudinaryService, 'uploadImagesToCloudinary');
       uploadSpy.mockResolvedValue(['https://cloudinary.com/avatar.jpg']);
       mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
       mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
 
-      const result = await service.updateUserProfile(1, mockUpdateUserProfileRequest, mockFile);
+      const result = await service.updateUserProfile(1, requestDto, mockFile);
 
       expect(uploadSpy).toHaveBeenCalledWith([mockFile]);
-      expect(mockUpdateUserProfileRequest).toEqual(
-        expect.objectContaining({ imageUrl: 'https://cloudinary.com/avatar.jpg' }),
+      expect(requestDto).toEqual(
+        expect.objectContaining({
+          imageUrl: 'https://cloudinary.com/avatar.jpg',
+          userId: 1,
+        }),
       );
       expect(mockCallMicroservice).toHaveBeenCalledWith(
         expect.anything(),
@@ -420,11 +424,14 @@ describe('UserProfileService', () => {
 
     it('should set userId correctly from parameter', async () => {
       const userId = 999;
+      const requestDto = { ...mockUpdateUserProfileRequest };
       mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
       mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
 
-      await service.updateUserProfile(userId, mockUpdateUserProfileRequest);
+      await service.updateUserProfile(userId, requestDto);
 
+      // Verify that userId was set on the DTO
+      expect(requestDto.userId).toBe(userId);
       expect(mockCallMicroservice).toHaveBeenCalledWith(
         expect.anything(),
         USER_SERVICE,
@@ -461,14 +468,14 @@ describe('UserProfileService', () => {
 
     it('should handle different user ID types in update', async () => {
       const stringUserId = '123';
+      const requestDto = { ...mockUpdateUserProfileRequest };
       mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
       mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
 
-      await service.updateUserProfile(
-        stringUserId as unknown as number,
-        mockUpdateUserProfileRequest,
-      );
+      await service.updateUserProfile(stringUserId as unknown as number, requestDto);
 
+      // Verify that userId was set correctly even with string type
+      expect(requestDto.userId).toBe(stringUserId);
       expect(mockCallMicroservice).toHaveBeenCalledWith(
         expect.anything(),
         USER_SERVICE,
@@ -562,6 +569,118 @@ describe('UserProfileService', () => {
 
       expect(uploadSpy).toHaveBeenCalledWith([mockFile]);
       expect(deleteByUrlsSpy).toHaveBeenCalledWith(uploadedImageUrl);
+    });
+
+    it('should not set userId when userId is 0 (falsy)', async () => {
+      const requestDto = { ...mockUpdateUserProfileRequest };
+      const originalUserId = requestDto.userId;
+      mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
+
+      await service.updateUserProfile(0, requestDto);
+
+      // Verify that userId was NOT modified when userId is 0 (falsy)
+      expect(requestDto.userId).toBe(originalUserId);
+      expect(requestDto.userId).not.toBe(0);
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        expect.anything(),
+        USER_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+    });
+
+    it('should not set userId when userId is null (falsy)', async () => {
+      const requestDto = { ...mockUpdateUserProfileRequest };
+      const originalUserId = requestDto.userId;
+      mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
+
+      await service.updateUserProfile(null as unknown as number, requestDto);
+
+      // Verify that userId was NOT modified when userId is null (falsy)
+      expect(requestDto.userId).toBe(originalUserId);
+      expect(requestDto.userId).not.toBe(null);
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        expect.anything(),
+        USER_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+    });
+
+    it('should not set userId when userId is undefined (falsy)', async () => {
+      const requestDto = { ...mockUpdateUserProfileRequest };
+      const originalUserId = requestDto.userId;
+      mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
+
+      await service.updateUserProfile(undefined as unknown as number, requestDto);
+
+      // Verify that userId was NOT modified when userId is undefined (falsy)
+      expect(requestDto.userId).toBe(originalUserId);
+      expect(requestDto.userId).not.toBe(undefined);
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        expect.anything(),
+        USER_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+    });
+
+    it('should set userId when userId is negative number (truthy)', async () => {
+      const requestDto = { ...mockUpdateUserProfileRequest };
+      const negativeUserId = -1;
+      mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
+
+      await service.updateUserProfile(negativeUserId, requestDto);
+
+      // Verify that userId was set even for negative numbers (truthy)
+      expect(requestDto.userId).toBe(negativeUserId);
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        expect.anything(),
+        USER_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+    });
+
+    it('should handle userId assignment with file upload', async () => {
+      const requestDto = { ...mockUpdateUserProfileRequest };
+      const userId = 123;
+      const uploadSpy = jest.spyOn(mockCloudinaryService, 'uploadImagesToCloudinary');
+      uploadSpy.mockResolvedValue(['https://cloudinary.com/avatar.jpg']);
+      mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
+
+      await service.updateUserProfile(userId, requestDto, mockFile);
+
+      // Verify that both imageUrl and userId were set correctly
+      expect(requestDto.imageUrl).toBe('https://cloudinary.com/avatar.jpg');
+      expect(requestDto.userId).toBe(userId);
+      expect(uploadSpy).toHaveBeenCalledWith([mockFile]);
+      expect(mockCallMicroservice).toHaveBeenCalledWith(
+        expect.anything(),
+        USER_SERVICE,
+        mockLoggerService,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
     });
   });
 
@@ -718,10 +837,115 @@ describe('UserProfileService', () => {
     });
   });
 
+  describe('New Logic Tests for userId Assignment', () => {
+    const mockUpdateUserProfileRequest: UpdateUserProfileRequest = {
+      userId: 1,
+      userName: 'janesmith',
+      phoneNumber: '+84987654321',
+      address: '456 Updated Street',
+      dateOfBirth: '1990-01-01',
+    };
+
+    const mockUpdateUserProfileResponse: UpdateUserProfileResponse = {
+      id: 1,
+      name: 'Jane Smith',
+      userName: 'janesmith',
+      email: 'test@example.com',
+      imageUrl: 'https://example.com/avatar.jpg',
+      updatedAt: new Date('2024-01-03'),
+      profile: {
+        id: 1,
+        address: '456 Updated Street',
+        phoneNumber: '+84987654321',
+        dateOfBirth: new Date('1990-01-01'),
+        updatedAt: new Date('2024-01-03'),
+      },
+    };
+
+    const mockBaseResponse: BaseResponse<UpdateUserProfileResponse> = {
+      statusKey: StatusKey.SUCCESS,
+      data: mockUpdateUserProfileResponse,
+    };
+
+    it('should demonstrate the difference between old and new logic', async () => {
+      const requestDto: UpdateUserProfileRequest = { ...mockUpdateUserProfileRequest, userId: 999 };
+      const paramUserId = 123;
+      mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
+
+      await service.updateUserProfile(paramUserId, requestDto);
+
+      // New logic: if (userId) dto.userId = userId;
+      // This means paramUserId overwrites requestDto.userId when paramUserId is truthy
+      expect(requestDto.userId).toBe(paramUserId);
+      expect(requestDto.userId).not.toBe(999); // Original value is overwritten
+    });
+
+    it('should preserve original userId when parameter userId is falsy', async () => {
+      const originalUserId = 999;
+      const requestDto: UpdateUserProfileRequest = {
+        ...mockUpdateUserProfileRequest,
+        userId: originalUserId,
+      };
+      const falsyUserId = 0;
+      mockCallMicroservice.mockResolvedValue(mockUpdateUserProfileResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBaseResponse);
+
+      await service.updateUserProfile(falsyUserId, requestDto);
+
+      // When parameter userId is falsy, original DTO userId is preserved
+      expect(requestDto.userId).toBe(originalUserId);
+      expect(requestDto.userId).not.toBe(falsyUserId);
+    });
+  });
+
   describe('Edge Cases and Error Scenarios', () => {
     it('should handle service instantiation', () => {
       expect(service).toBeDefined();
       expect(service).toBeInstanceOf(UserProfileService);
+    });
+
+    it('should handle DTO mutation correctly in updateUserProfile', async () => {
+      const originalDto: UpdateUserProfileRequest = {
+        userId: 100,
+        userName: 'original',
+        phoneNumber: '+84123456789',
+      };
+      const requestDto: UpdateUserProfileRequest = { ...originalDto };
+      const paramUserId = 200;
+
+      const mockResponse: UpdateUserProfileResponse = {
+        id: 1,
+        name: 'Updated User',
+        userName: 'original',
+        email: 'test@example.com',
+        imageUrl: 'https://example.com/avatar.jpg',
+        updatedAt: new Date('2024-01-03'),
+        profile: {
+          id: 1,
+          address: '123 Street',
+          phoneNumber: '+84123456789',
+          dateOfBirth: new Date('1990-01-01'),
+          updatedAt: new Date('2024-01-03'),
+        },
+      };
+
+      const mockBase: BaseResponse<UpdateUserProfileResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: mockResponse,
+      };
+
+      mockCallMicroservice.mockResolvedValue(mockResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBase);
+
+      await service.updateUserProfile(paramUserId, requestDto);
+
+      // Verify that the DTO was mutated correctly
+      expect(requestDto.userId).toBe(paramUserId);
+      expect(requestDto.userName).toBe(originalDto.userName);
+      expect(requestDto.phoneNumber).toBe(originalDto.phoneNumber);
+      // Original object should remain unchanged
+      expect(originalDto.userId).toBe(100);
     });
 
     it('should handle null request objects gracefully', async () => {
@@ -731,6 +955,16 @@ describe('UserProfileService', () => {
       mockValidateOrReject.mockRejectedValue(validationError);
 
       await expect(service.getUserProfile(nullRequest)).rejects.toThrow(validationError);
+    });
+
+    it('should handle null DTO in updateUserProfile', async () => {
+      const nullDto = null as unknown as UpdateUserProfileRequest;
+      mockPlainToInstance.mockReturnValue(nullDto);
+      const validationError = new Error('Validation failed for null DTO');
+      mockValidateOrReject.mockRejectedValue(validationError);
+
+      await expect(service.updateUserProfile(1, nullDto)).rejects.toThrow(validationError);
+      expect(mockCallMicroservice).not.toHaveBeenCalled();
     });
 
     it('should handle service timeout errors', async () => {
@@ -745,6 +979,20 @@ describe('UserProfileService', () => {
       mockCallMicroservice.mockRejectedValue(networkError);
 
       await expect(service.getUserProfile({ userId: 1 })).rejects.toThrow(networkError);
+    });
+
+    it('should handle network issues in updateUserProfile', async () => {
+      const requestDto: UpdateUserProfileRequest = {
+        userId: 999,
+        userName: 'testuser',
+        phoneNumber: '+84123456789',
+      };
+      const networkError = new Error('Network unavailable');
+      mockCallMicroservice.mockRejectedValue(networkError);
+
+      await expect(service.updateUserProfile(1, requestDto)).rejects.toThrow(networkError);
+      // Verify userId was still set before the network error
+      expect(requestDto.userId).toBe(1);
     });
 
     it('should handle large file uploads gracefully', async () => {
@@ -767,6 +1015,49 @@ describe('UserProfileService', () => {
       await expect(service.updateUserProfile(1, { userId: 1 }, largeFile)).rejects.toThrow(
         cloudinaryError,
       );
+    });
+
+    it('should verify microservice receives DTO directly without spread operator', async () => {
+      const requestDto: UpdateUserProfileRequest = {
+        userId: 999,
+        userName: 'testuser',
+        phoneNumber: '+84123456789',
+      };
+      const userId = 456;
+
+      const mockResponse: UpdateUserProfileResponse = {
+        id: 1,
+        name: 'Test User',
+        userName: 'testuser',
+        email: 'test@example.com',
+        imageUrl: 'https://example.com/avatar.jpg',
+        updatedAt: new Date('2024-01-03'),
+        profile: {
+          id: 1,
+          address: '123 Street',
+          phoneNumber: '+84123456789',
+          dateOfBirth: new Date('1990-01-01'),
+          updatedAt: new Date('2024-01-03'),
+        },
+      };
+
+      const mockBase: BaseResponse<UpdateUserProfileResponse> = {
+        statusKey: StatusKey.SUCCESS,
+        data: mockResponse,
+      };
+
+      mockCallMicroservice.mockResolvedValue(mockResponse);
+      mockBuildBaseResponse.mockReturnValue(mockBase);
+
+      await service.updateUserProfile(userId, requestDto);
+
+      // Verify that the microservice receives the DTO directly (not spread)
+      const sendSpy = jest.spyOn(mockUserClient, 'send');
+      expect(sendSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        requestDto, // Should be the DTO object directly
+      );
+      expect(requestDto.userId).toBe(userId);
     });
   });
 });

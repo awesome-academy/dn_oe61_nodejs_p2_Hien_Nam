@@ -1359,9 +1359,10 @@ describe('UserProductService', () => {
         const getProductDetailForUser = service.getProductDetailForUser;
         const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
         expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
         expect(mockCallMicroservice).toHaveBeenCalledWith(
           expect.anything(),
           NOTIFICATION_SERVICE,
@@ -1403,9 +1404,10 @@ describe('UserProductService', () => {
           const getProductDetailForUser = service.getProductDetailForUser;
           const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
           expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
-          expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-            skuId: mockProductDetail,
-          });
+          expect(mockNotificationClient.send).toHaveBeenCalledWith(
+            'GET_SHARE_INFO',
+            mockProductDetail,
+          );
           expect(result).toEqual(mockShareResponse);
           expect(result.data?.messengerShare).toBeDefined();
           expect(result.data?.facebookShare).toBeDefined();
@@ -1566,9 +1568,10 @@ describe('UserProductService', () => {
         const getProductDetailForUser = service.getProductDetailForUser;
         const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
         expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
         expect(mockI18nService.translate).toHaveBeenCalledWith(
           'common.product.action.shareProduct.failed',
         );
@@ -1612,9 +1615,10 @@ describe('UserProductService', () => {
         const getProductDetailForUser = service.getProductDetailForUser;
         const mockedGetProductDetail = jest.mocked(getProductDetailForUser);
         expect(mockedGetProductDetail).toHaveBeenCalledWith(dto);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
         expect(mockCallMicroservice).toHaveBeenCalledWith(
           expect.anything(),
           NOTIFICATION_SERVICE,
@@ -1691,9 +1695,10 @@ describe('UserProductService', () => {
         const result = await service.shareProduct(dto);
 
         expect(result).toEqual(mockShareResponse);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
       });
 
       it('should handle special characters in skuId for sharing', async () => {
@@ -1716,9 +1721,10 @@ describe('UserProductService', () => {
           const result = await service.shareProduct(dto);
 
           expect(result).toEqual(mockShareResponse);
-          expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-            skuId: mockProductDetail,
-          });
+          expect(mockNotificationClient.send).toHaveBeenCalledWith(
+            'GET_SHARE_INFO',
+            mockProductDetail,
+          );
         }
       });
 
@@ -1740,9 +1746,10 @@ describe('UserProductService', () => {
         const result = await service.shareProduct(dto);
 
         expect(result).toEqual(mockShareResponse);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
       });
 
       it('should handle product with high price values for sharing', async () => {
@@ -1763,9 +1770,10 @@ describe('UserProductService', () => {
         const result = await service.shareProduct(dto);
 
         expect(result).toEqual(mockShareResponse);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
       });
 
       it('should handle product with very long names and descriptions for sharing', async () => {
@@ -1786,9 +1794,10 @@ describe('UserProductService', () => {
         const result = await service.shareProduct(dto);
 
         expect(result).toEqual(mockShareResponse);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
       });
     });
 
@@ -1848,9 +1857,10 @@ describe('UserProductService', () => {
         expect(typeof dto.skuId).toBe('string');
 
         // Verify the parameter passed to notification service
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
       });
 
       it('should verify all service method calls with correct parameters', async () => {
@@ -1876,9 +1886,10 @@ describe('UserProductService', () => {
 
         // Verify notification client call
         expect(mockNotificationClient.send).toHaveBeenCalledTimes(1);
-        expect(mockNotificationClient.send).toHaveBeenCalledWith('GET_SHARE_INFO', {
-          skuId: mockProductDetail,
-        });
+        expect(mockNotificationClient.send).toHaveBeenCalledWith(
+          'GET_SHARE_INFO',
+          mockProductDetail,
+        );
 
         // Verify callMicroservice call
         expect(mockCallMicroservice).toHaveBeenCalledTimes(1);
