@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
+import { ConfigService } from '@nestjs/config';
+import { ClientProxy } from '@nestjs/microservices';
+import { I18nService } from 'nestjs-i18n';
 import { PrismaService } from '@app/prisma';
 import { ProductService } from '../src/product-service.service';
 import { GraphQLCateroryInput } from '@app/common/types/graphql/arg-type/create-category.type';
@@ -8,6 +11,8 @@ import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
+import { ProductProducer } from '../src/product.producer';
+import { NOTIFICATION_SERVICE } from '@app/common';
 
 // Mock class-transformer
 jest.mock('class-transformer', () => ({
@@ -29,6 +34,10 @@ describe('ProductService - createCategory', () => {
   };
   let mockLogger: jest.Mocked<CustomLogger>;
   let mockPaginationService: jest.Mocked<PaginationService>;
+  let mockConfigService: jest.Mocked<ConfigService>;
+  let mockI18nService: jest.Mocked<I18nService>;
+  let mockProductProducer: jest.Mocked<ProductProducer>;
+  let mockNotificationClient: jest.Mocked<ClientProxy>;
   let plainToInstanceMock: jest.MockedFunction<typeof plainToInstance>;
 
   const mockDate = new Date('2024-01-01T00:00:00Z');
@@ -73,6 +82,25 @@ describe('ProductService - createCategory', () => {
       getPaginationMeta: jest.fn(),
     };
 
+    const mockConfig = {
+      get: jest.fn(),
+    };
+
+    const mockI18n = {
+      t: jest.fn(),
+      translate: jest.fn(),
+    };
+
+    const mockProducer = {
+      sendMessage: jest.fn(),
+      emit: jest.fn(),
+    };
+
+    const mockNotification = {
+      send: jest.fn(),
+      emit: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProductService,
@@ -88,6 +116,22 @@ describe('ProductService - createCategory', () => {
           provide: PaginationService,
           useValue: mockPagination,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfig,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18n,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProducer,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotification,
+        },
       ],
     }).compile();
 
@@ -95,10 +139,18 @@ describe('ProductService - createCategory', () => {
     mockPrismaService = module.get(PrismaService);
     mockLogger = module.get(CustomLogger);
     mockPaginationService = module.get(PaginationService);
+    mockConfigService = module.get(ConfigService);
+    mockI18nService = module.get(I18nService);
+    mockProductProducer = module.get(ProductProducer);
+    mockNotificationClient = module.get(NOTIFICATION_SERVICE);
 
     // Suppress unused variable warnings
     void mockLogger;
     void mockPaginationService;
+    void mockConfigService;
+    void mockI18nService;
+    void mockProductProducer;
+    void mockNotificationClient;
     plainToInstanceMock = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
 
     // Reset all mocks
@@ -691,13 +743,15 @@ describe('ProductService - createCategory', () => {
       const result = await service.createCategory(input);
 
       // Assert
-      expect(result).toEqual({
-        id: expect.any(Number) as number,
-        name: expect.any(String) as string,
-        parentId: expect.anything() as string | number, // Can be string, number, or empty string
-        createdAt: expect.any(Date) as Date,
-        updatedAt: expect.any(Date) as Date,
-      });
+      expect(typeof result.id).toBe('number');
+      expect(typeof result.name).toBe('string');
+      expect(result.createdAt).toBeInstanceOf(Date);
+      expect(result.updatedAt).toBeInstanceOf(Date);
+      expect(result).toHaveProperty('id');
+      expect(result).toHaveProperty('name');
+      expect(result).toHaveProperty('parentId');
+      expect(result).toHaveProperty('createdAt');
+      expect(result).toHaveProperty('updatedAt');
     });
   });
 

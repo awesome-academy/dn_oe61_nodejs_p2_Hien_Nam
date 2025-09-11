@@ -1,4 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
+import { I18nService } from 'nestjs-i18n';
 import { ProductService } from '../src/product-service.service';
 import { PrismaService } from '@app/prisma/prisma.service';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
@@ -7,6 +9,8 @@ import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { GraphQLUpdateCateroryInput } from '@app/common/types/graphql/arg-type/update-category.typ';
 import { CategoryType } from '@app/common/types/graphql/caterories.type';
+import { ProductProducer } from '../src/product.producer';
+import { NOTIFICATION_SERVICE } from '@app/common';
 
 // Mock interfaces
 interface MockCategory {
@@ -75,6 +79,33 @@ describe('ProductService - updateCategory', () => {
           provide: PaginationService,
           useValue: {
             queryWithPagination: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(),
+          },
+        },
+        {
+          provide: I18nService,
+          useValue: {
+            t: jest.fn(),
+            translate: jest.fn(),
+          },
+        },
+        {
+          provide: ProductProducer,
+          useValue: {
+            sendMessage: jest.fn(),
+            emit: jest.fn(),
+          },
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: {
+            send: jest.fn(),
+            emit: jest.fn(),
           },
         },
       ],

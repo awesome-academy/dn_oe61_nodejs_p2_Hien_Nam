@@ -5,6 +5,8 @@ import { of, throwError } from 'rxjs';
 import { ProductService } from '../../src/product/admin/product.service';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 import { DeleteProductImagesDto } from '@app/common/dto/product/delete-product-images.dto';
 import { ProductImagesResponse } from '@app/common/dto/product/response/product-images.response.dto';
 import { BaseResponse } from '@app/common/interfaces/data-type';
@@ -58,6 +60,22 @@ describe('ProductService - deleteProductImages', () => {
     deleteImage: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
+  const mockUpstashCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
   beforeEach(async () => {
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -77,6 +95,14 @@ describe('ProductService - deleteProductImages', () => {
         {
           provide: CloudinaryService,
           useValue: mockCloudinaryService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: UpstashCacheService,
+          useValue: mockUpstashCacheService,
         },
       ],
     }).compile();

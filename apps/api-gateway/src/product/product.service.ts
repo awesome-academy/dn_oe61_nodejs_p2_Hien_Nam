@@ -12,6 +12,8 @@ import { buildBaseResponse } from '@app/common/utils/data.util';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { I18nService } from 'nestjs-i18n';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 
 @Injectable()
 export class ProductService {
@@ -20,6 +22,8 @@ export class ProductService {
     private readonly loggerService: CustomLogger,
     private readonly i18nService: I18nService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly cacheService: CacheService,
+    private readonly upstashCacheService: UpstashCacheService,
   ) {}
 
   async create(
@@ -63,6 +67,27 @@ export class ProductService {
     if (!create) {
       throw new BadRequestException(this.i18nService.translate('common.product.error.failed'));
     }
+
+    // Clear cache when product created successfully
+    if (create) {
+      await this.clearProductCache();
+    }
+
     return buildBaseResponse<ProductResponse>(StatusKey.SUCCESS, create);
+  }
+
+  /**
+   * Simple cache clearing - only clear when operation succeeds
+   */
+  private async clearProductCache(): Promise<void> {
+    try {
+      await this.cacheService.deleteByPattern('user_products:*');
+      await this.upstashCacheService.deleteByPattern('user_product_details:*');
+      this.loggerService.log('Product cache cleared after successful operation');
+    } catch (error) {
+      // Don't throw error, just log it
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.loggerService.error('Failed to clear product cache:', errorMessage);
+    }
   }
 }

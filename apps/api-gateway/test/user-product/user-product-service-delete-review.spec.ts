@@ -79,15 +79,17 @@ describe('UserProductService - deleteReview', () => {
     mockCacheService = {
       get: jest.fn(),
       set: jest.fn(),
-      del: jest.fn(),
-      deleteByPattern: jest.fn(),
+      delete: jest.fn(),
+      deleteByPattern: jest.fn().mockResolvedValue(0),
+      generateKey: jest.fn(),
     } as unknown as CacheService;
 
     mockUpstashCacheService = {
       get: jest.fn(),
       set: jest.fn(),
-      del: jest.fn(),
-      deleteByPattern: jest.fn(),
+      delete: jest.fn(),
+      deleteByPattern: jest.fn().mockResolvedValue(0),
+      generateKey: jest.fn(),
     } as unknown as UpstashCacheService;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -153,6 +155,13 @@ describe('UserProductService - deleteReview', () => {
 
       // Assert
       expect(mockCallMicroservice).toHaveBeenCalledTimes(1);
+      // Verify cache invalidation is called when result exists
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockCacheService.deleteByPattern).toHaveBeenCalledWith('user_products:*');
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockUpstashCacheService.deleteByPattern).toHaveBeenCalledWith(
+        'user_product_details:*',
+      );
       expect(mockCallMicroservice).toHaveBeenCalledWith(
         mockObservable,
         PRODUCT_SERVICE,
@@ -320,6 +329,11 @@ describe('UserProductService - deleteReview', () => {
       await expect(service.deleteReview(reviewId, userId)).rejects.toThrow(errorMessage);
       const translateSpy = jest.spyOn(mockI18nService, 'translate');
       expect(translateSpy).toHaveBeenCalledWith('review.errors.deleteFailed');
+      // Verify cache is NOT cleared when result is null
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockCacheService.deleteByPattern).not.toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockUpstashCacheService.deleteByPattern).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException when callMicroservice returns undefined', async () => {

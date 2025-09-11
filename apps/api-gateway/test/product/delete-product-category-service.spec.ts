@@ -8,6 +8,8 @@ import { StatusKey } from '@app/common/enums/status-key.enum';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { CloudUploadQueueService } from '@app/common/cloudinary/cloud-upload-queue/cloud-upload-queue.service';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 import { PRODUCT_SERVICE } from '@app/common';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
@@ -53,6 +55,22 @@ describe('ProductService', () => {
     uploadImagesToCloudinary: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
+  const mockUpstashCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
   const mockCallMicroservice = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
   const mockBuildBaseResponse = buildBaseResponse as jest.MockedFunction<typeof buildBaseResponse>;
 
@@ -79,6 +97,14 @@ describe('ProductService', () => {
         {
           provide: CloudinaryService,
           useValue: mockCloudinaryService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: UpstashCacheService,
+          useValue: mockUpstashCacheService,
         },
       ],
     }).compile();

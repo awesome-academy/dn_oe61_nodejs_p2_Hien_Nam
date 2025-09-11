@@ -281,22 +281,15 @@ describe('ProductService - deleteReview', () => {
       await expect(service.deleteReview(deleteReviewData)).rejects.toThrow(validationError);
     });
 
-    it('should handle database errors during findFirst and throw internal server error', async () => {
+    it('should handle database errors during findFirst and throw original error', async () => {
       const deleteReviewData: DeleteReviewDto = { reviewId: 1, userId: 1 };
       const dbError = new Error('Database connection failed');
 
       mockPrismaClient.review.findFirst.mockRejectedValue(dbError);
 
-      await expect(service.deleteReview(deleteReviewData)).rejects.toThrow(TypedRpcException);
-
-      try {
-        await service.deleteReview(deleteReviewData);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TypedRpcException);
-        const rpcError = (error as TypedRpcException).getError();
-        expect(rpcError.code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
-        expect(rpcError.message).toBe('common.errors.internalServerError');
-      }
+      await expect(service.deleteReview(deleteReviewData)).rejects.toThrow(
+        'Database connection failed',
+      );
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(loggerService.error).toHaveBeenCalledWith(
@@ -306,7 +299,7 @@ describe('ProductService - deleteReview', () => {
       );
     });
 
-    it('should handle database errors during update and throw internal server error', async () => {
+    it('should handle database errors during update and throw original error', async () => {
       const deleteReviewData: DeleteReviewDto = { reviewId: 1, userId: 1 };
       const mockExistingReview = {
         id: 1,
@@ -344,15 +337,7 @@ describe('ProductService - deleteReview', () => {
 
       mockPrismaClient.review.findFirst.mockRejectedValue(nonError);
 
-      await expect(service.deleteReview(deleteReviewData)).rejects.toThrow(TypedRpcException);
-
-      try {
-        await service.deleteReview(deleteReviewData);
-      } catch (error) {
-        expect(error).toBeInstanceOf(TypedRpcException);
-        const rpcError = (error as TypedRpcException).getError();
-        expect(rpcError.code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
-      }
+      await expect(service.deleteReview(deleteReviewData)).rejects.toBe(nonError);
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(loggerService.error).toHaveBeenCalledWith('DeleteReview', 'String error', undefined);

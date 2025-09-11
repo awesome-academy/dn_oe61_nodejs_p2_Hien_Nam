@@ -11,6 +11,8 @@ import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 import { PRODUCT_SERVICE } from '@app/common';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -37,6 +39,22 @@ describe('ProductService - Delete Product', () => {
     uploadImagesToCloudinary: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
+  const mockUpstashCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
   beforeEach(async () => {
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -56,6 +74,14 @@ describe('ProductService - Delete Product', () => {
         {
           provide: CloudinaryService,
           useValue: mockCloudinaryService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: UpstashCacheService,
+          useValue: mockUpstashCacheService,
         },
       ],
     }).compile();
