@@ -268,6 +268,35 @@ describe('JwtAuthGuard', () => {
         expect(jest.mocked(GqlExecutionContext).create).toHaveBeenCalledWith(ctx);
       });
 
+      it('should return GraphQL request when gqlRequest exists', async () => {
+        jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+        const sendSpy = jest.spyOn(clientProxy, 'send').mockReturnValue(of({}));
+        mockCallMicroservice.mockResolvedValue(mockedUser);
+
+        const gqlRequest: TestRequestJWT = { headers: { authorization: 'Bearer gql-req-token' } };
+
+        // Mock GraphQL context with a valid req object
+        jest.spyOn(GqlExecutionContext, 'create').mockReturnValue({
+          getContext: () => ({ req: gqlRequest }),
+          getInfo: jest.fn(),
+          getArgs: jest.fn(),
+          getRoot: jest.fn(),
+        } as unknown as GqlExecutionContext);
+
+        const httpRequest: TestRequestJWT = { headers: { authorization: 'Bearer http-token' } };
+        const ctx = createExecutionContext(httpRequest, true);
+
+        const result = await guard.canActivate(ctx);
+
+        expect(result).toBe(true);
+        // Should use the GraphQL request token, not the HTTP request token
+        expect(sendSpy).toHaveBeenCalledWith(AuthMsgPattern.VALIDATE_USER, {
+          token: 'gql-req-token',
+        });
+        expect(gqlRequest.user).toEqual(mockedUser);
+        expect(jest.mocked(GqlExecutionContext).create).toHaveBeenCalledWith(ctx);
+      });
+
       it('should handle GraphQL context without request object', async () => {
         jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
 

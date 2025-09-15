@@ -72,12 +72,16 @@ describe('UserProductService - createReview', () => {
       get: jest.fn(),
       set: jest.fn(),
       delete: jest.fn(),
+      deleteByPattern: jest.fn().mockResolvedValue(0),
+      generateKey: jest.fn(),
     } as unknown as CacheService;
 
     mockUpstashCacheService = {
       get: jest.fn(),
       set: jest.fn(),
       delete: jest.fn(),
+      deleteByPattern: jest.fn().mockResolvedValue(0),
+      generateKey: jest.fn(),
     } as unknown as UpstashCacheService;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -154,6 +158,13 @@ describe('UserProductService - createReview', () => {
       // Assert
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockProductClient.send).toHaveBeenCalledTimes(1);
+      // Verify cache invalidation is called when result exists
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockCacheService.deleteByPattern).toHaveBeenCalledWith('user_products:*');
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockUpstashCacheService.deleteByPattern).toHaveBeenCalledWith(
+        'user_product_details:*',
+      );
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockProductClient.send).toHaveBeenCalledWith(
         ProductPattern.CREATE_REVIEW,
@@ -331,6 +342,11 @@ describe('UserProductService - createReview', () => {
       );
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(mockI18nService.translate).toHaveBeenCalledWith('review.errors.createFailed');
+      // Verify cache is NOT cleared when result is null
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockCacheService.deleteByPattern).not.toHaveBeenCalled();
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      expect(mockUpstashCacheService.deleteByPattern).not.toHaveBeenCalled();
     });
 
     it('should throw BadRequestException when callMicroservice returns undefined', async () => {

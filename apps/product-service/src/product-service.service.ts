@@ -1691,27 +1691,35 @@ export class ProductService {
           'Content-Type': 'application/json',
         },
       };
-      const response: AxiosResponse<PayOSCreatePaymentResponseDto> = await axios.post(
-        endpoint,
-        data,
-        options,
-      );
+      const response = await axios.post<PayOSCreatePaymentResponseDto>(endpoint, data, options);
       if (!response.data.data) {
         throw new PaymentCreationException(response.data.desc || 'Payment creation failed');
       }
       return response.data;
     } catch (error) {
-      if (axios.isAxiosError(error)) {
+      // Check if it's an axios error by checking common axios error properties
+      const hasAxiosErrorProperties = (err: unknown): boolean => {
+        return (
+          err !== null &&
+          typeof err === 'object' &&
+          ('response' in err || 'request' in err || 'code' in err)
+        );
+      };
+
+      if (hasAxiosErrorProperties(error)) {
+        const errorObj = error as Record<string, unknown>;
         this.loggerService.error(
           `[Create payment error]`,
           `Error detail:: ${(error as Error).stack}`,
         );
+
+        const errorCode = errorObj.code as string;
         if (
-          error.code === 'ECONNABORTED' ||
-          error.code === 'ETIMEDOUT' ||
-          error.code === 'ECONNRESET' ||
-          error.code === 'ECONNREFUSED' ||
-          !error.response
+          errorCode === 'ECONNABORTED' ||
+          errorCode === 'ETIMEDOUT' ||
+          errorCode === 'ECONNRESET' ||
+          errorCode === 'ECONNREFUSED' ||
+          !errorObj.response
         ) {
           throw new TypedRpcException({
             code: HTTP_ERROR_CODE.TIME_OUT_OR_NETWORK,

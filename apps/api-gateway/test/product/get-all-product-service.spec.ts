@@ -3,6 +3,8 @@ import { ProductService } from '../../src/product/admin/product.service';
 import { I18nService } from 'nestjs-i18n';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { StatusKey } from '@app/common/enums/status-key.enum';
@@ -63,6 +65,22 @@ describe('ProductService - getAll', () => {
     getImageUrl: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
+  const mockUpstashCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
   const mockProductResponse: ProductResponse = {
     id: 1,
     name: 'Test Product',
@@ -105,6 +123,14 @@ describe('ProductService - getAll', () => {
         {
           provide: CloudinaryService,
           useValue: mockCloudinaryService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: UpstashCacheService,
+          useValue: mockUpstashCacheService,
         },
       ],
     }).compile();

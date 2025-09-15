@@ -11,6 +11,8 @@ import { VariantInput } from '@app/common/dto/product/variants.dto';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { CloudUploadQueueService } from '@app/common/cloudinary/cloud-upload-queue/cloud-upload-queue.service';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 import { PRODUCT_SERVICE } from '@app/common';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 
@@ -56,6 +58,22 @@ describe('ProductService', () => {
     uploadImagesToCloudinary: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
+  const mockUpstashCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
   const mockCallMicroservice = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
   const mockBuildBaseResponse = buildBaseResponse as jest.MockedFunction<typeof buildBaseResponse>;
 
@@ -82,6 +100,14 @@ describe('ProductService', () => {
         {
           provide: CloudinaryService,
           useValue: mockCloudinaryService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: UpstashCacheService,
+          useValue: mockUpstashCacheService,
         },
       ],
     }).compile();
@@ -359,6 +385,50 @@ describe('ProductService', () => {
       expect(mockCallMicroservice).toHaveBeenCalledTimes(1);
       expect(mockI18nService.translate).toHaveBeenCalledWith('common.product.error.filesExists');
       expect(mockCloudinaryService.uploadImagesToCloudinary).not.toHaveBeenCalled();
+    });
+
+    it('should handle cache clearing error and continue execution', async () => {
+      const cacheError = new Error('Cache service unavailable');
+
+      mockCallMicroservice.mockResolvedValueOnce(null).mockResolvedValueOnce(mockProductResponse);
+
+      mockCloudinaryService.uploadImagesToCloudinary.mockResolvedValueOnce(['image1.jpg']);
+      mockBuildBaseResponse.mockReturnValue(mockSuccessResponse);
+
+      // Mock cache service to throw error
+      mockCacheService.deleteByPattern.mockRejectedValueOnce(cacheError);
+
+      const result = await service.create(mockProductDto, mockFiles);
+
+      expect(result).toEqual(mockSuccessResponse);
+      expect(mockLoggerService.error).toHaveBeenCalledWith(
+        'Failed to clear product cache:',
+        'Cache service unavailable',
+      );
+      expect(mockCallMicroservice).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle non-Error cache clearing failure', async () => {
+      const nonErrorFailure = 'String error message';
+
+      mockCallMicroservice
+        .mockResolvedValueOnce(null) // CHECK_PRODUCT_EXISTS returns null
+        .mockResolvedValueOnce(mockProductResponse); // CREATE_PRODUCT succeeds
+
+      mockCloudinaryService.uploadImagesToCloudinary.mockResolvedValueOnce(['image1.jpg']);
+      mockBuildBaseResponse.mockReturnValue(mockSuccessResponse);
+
+      // Mock upstash cache service to throw non-Error
+      mockUpstashCacheService.deleteByPattern.mockRejectedValueOnce(nonErrorFailure);
+
+      const result = await service.create(mockProductDto, mockFiles);
+
+      expect(result).toEqual(mockSuccessResponse);
+      expect(mockLoggerService.error).toHaveBeenCalledWith(
+        'Failed to clear product cache:',
+        'Unknown error',
+      );
+      expect(mockCallMicroservice).toHaveBeenCalledTimes(2);
     });
   });
 });

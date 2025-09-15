@@ -10,6 +10,8 @@ import { buildBaseResponse } from '@app/common/utils/data.util';
 import { RETRIES_DEFAULT, TIMEOUT_MS_DEFAULT } from '@app/common/constant/rpc.constants';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { CloudinaryService } from '@app/common/cloudinary/cloudinary.service';
+import { CacheService } from '@app/common/cache/cache.service';
+import { UpstashCacheService } from '@app/common/cache/upstash-cache/upstash-cache.service';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { ProductResponse } from '@app/common/dto/product/response/product-response';
@@ -48,6 +50,22 @@ describe('ProductService - update', () => {
     uploadImagesToCloudinary: jest.fn(),
   };
 
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
+  const mockUpstashCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn().mockResolvedValue(0),
+    generateKey: jest.fn(),
+  };
+
   const mockCallMicroservice = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
   const mockBuildBaseResponse = buildBaseResponse as jest.MockedFunction<typeof buildBaseResponse>;
 
@@ -70,6 +88,14 @@ describe('ProductService - update', () => {
         {
           provide: CloudinaryService,
           useValue: mockCloudinaryService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: UpstashCacheService,
+          useValue: mockUpstashCacheService,
         },
       ],
     }).compile();
