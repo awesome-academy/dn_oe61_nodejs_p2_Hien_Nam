@@ -1,4 +1,7 @@
 import { AuthRoles } from '@app/common/decorators/auth-role.decorator';
+import { Public } from '@app/common/decorators/metadata.decorator';
+import { FilterGetUsersRequest } from '@app/common/dto/user/requests/filter-get-orders.request';
+import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
 import { UserUpdateStatusRequest } from '@app/common/dto/user/requests/user-update-status.request';
@@ -6,15 +9,18 @@ import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { Role } from '@app/common/enums/roles/users.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { ApiResponseCreateUserV1 } from '@app/common/swagger/documents/admin-users/admin-create-user.example';
 import { isRpcError } from '@app/common/utils/error.util';
 import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -23,10 +29,12 @@ import { UploadApiResponse } from 'cloudinary';
 import { CloudinaryService } from 'libs/cloudinary/cloudinary.service';
 import { multerConfig } from 'libs/cloudinary/multer.config';
 import { UserService } from './user.service';
-import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
-import { Public } from '@app/common/decorators/metadata.decorator';
+import { ApiResponseUpdateRolesV1 } from '@app/common/swagger/documents/admin-users/admin-update-user-role.example';
+import { ApiResponseUpdateStatusV1 } from '@app/common/swagger/documents/admin-users/admin-update-user-status.example';
+import { ApiResponseDeleteSoftUserV1 } from '@app/common/swagger/documents/admin-users/delete-soft-user.example';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
-@Controller('/admin/user')
+@Controller('/admin/users')
 export class AdminUserController {
   constructor(
     private readonly userService: UserService,
@@ -35,6 +43,8 @@ export class AdminUserController {
   ) {}
   @UseInterceptors(FileInterceptor('image', multerConfig))
   // @AuthRoles(Role.ADMIN)
+  @ApiBearerAuth('access-token')
+  @ApiResponseCreateUserV1()
   @Public()
   @Post('')
   async create(@UploadedFile() file: Express.Multer.File, @Body() dto: UserCreationRequest) {
@@ -57,16 +67,22 @@ export class AdminUserController {
       });
     }
   }
+  @ApiBearerAuth('access-token')
+  @ApiResponseUpdateRolesV1()
   @AuthRoles(Role.ADMIN)
   @Patch('roles')
   async updateRoles(@Body() dto: UserUpdateRoleRequest) {
     return await this.userService.updateRoles(dto);
   }
+  @ApiBearerAuth('access-token')
+  @ApiResponseUpdateStatusV1()
   @AuthRoles(Role.ADMIN)
   @Patch('status')
   async updateStatuses(@Body() dto: UserUpdateStatusRequest) {
     return await this.userService.updateStatuses(dto);
   }
+  @ApiBearerAuth('access-token')
+  @ApiResponseDeleteSoftUserV1()
   @AuthRoles(Role.ADMIN)
   @Delete('/:id')
   async delete(@Param('id', ParseIntPipe) id: number) {
@@ -74,5 +90,12 @@ export class AdminUserController {
       userId: id,
     };
     return await this.userService.delete(payload);
+  }
+  @ApiBearerAuth('access-token')
+  @ApiResponseDeleteSoftUserV1()
+  @AuthRoles(Role.ADMIN)
+  @Get('')
+  async getUsers(@Query() filter: FilterGetUsersRequest) {
+    return await this.userService.getUsers(filter);
   }
 }

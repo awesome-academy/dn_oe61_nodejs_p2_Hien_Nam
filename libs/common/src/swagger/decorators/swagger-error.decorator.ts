@@ -69,3 +69,7 @@ export function ApiErrorUnauthorized(description: string, message = 'Unauthorize
 export function ApiErrorForbidden(description: string, message = 'Forbidden') {
   return createApiErrorResponse(403, HTTP_ERROR_NAME.FORBIDDEN, message, description);
 }
+
+export function ApiErrorServiceUnavailabel(description: string, message = 'Serrvice unvailabel') {
+  return createApiErrorResponse(503, HTTP_ERROR_NAME.SERVICE_UNAVAILABLE, message, description);
+}

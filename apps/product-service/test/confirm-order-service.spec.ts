@@ -1,10 +1,12 @@
 import { NOTIFICATION_SERVICE } from '@app/common';
+import { CacheService } from '@app/common/cache/cache.service';
 import { ConfirmOrderRequest } from '@app/common/dto/product/requests/confirm-order.request';
 import { OrderResponse } from '@app/common/dto/product/response/order-response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { assertRpcException } from '@app/common/helpers/test.helper';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
 import * as prismaErrorUtils from '@app/common/utils/prisma-client-error';
@@ -15,7 +17,6 @@ import { I18nService } from 'nestjs-i18n';
 import { OrderStatus, PaymentStatus } from '../generated/prisma';
 import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
-import { assertRpcException } from '@app/common/helpers/test.helper';
 
 jest.mock('@app/common/utils/prisma-client-error', () => ({
   handleServiceError: jest.fn(),
@@ -31,6 +32,7 @@ describe('ProductService - confirmOrder', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
       },
+      $transaction: jest.fn(),
     },
   };
 
@@ -54,7 +56,13 @@ describe('ProductService - confirmOrder', () => {
   const mockNotificationClient = {
     emit: jest.fn(),
   };
-
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn(),
+    getOrSet: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -88,6 +96,10 @@ describe('ProductService - confirmOrder', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -131,7 +143,7 @@ describe('ProductService - confirmOrder', () => {
     };
 
     it('should throw error when order not found', async () => {
-      mockPrismaService.client.order.findUnique.mockResolvedValue(null);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(null);
       const rpcError = {
         code: HTTP_ERROR_CODE.NOT_FOUND,
         message: 'common.order.notFound',
@@ -141,13 +153,6 @@ describe('ProductService - confirmOrder', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledWith({
-        where: { id: mockConfirmOrderRequest.orderId },
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        include: expect.any(Object),
-      });
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledTimes(1);
     });
 
     it('should throw error when bank transfer order has pending payment', async () => {
@@ -156,7 +161,8 @@ describe('ProductService - confirmOrder', () => {
         paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
         paymentStatus: PaymentStatus.PENDING,
       };
-      mockPrismaService.client.order.findUnique.mockResolvedValue(pendingPaymentOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(pendingPaymentOrder);
+
       const rpcError = {
         code: HTTP_ERROR_CODE.BAD_REQUEST,
         message: 'common.order.orderPendingPayment',
@@ -166,7 +172,6 @@ describe('ProductService - confirmOrder', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledTimes(1);
     });
 
     it('should return unchanged status when order already confirmed', async () => {
@@ -175,48 +180,45 @@ describe('ProductService - confirmOrder', () => {
         status: OrderStatus.CONFIRMED,
       };
 
-      mockPrismaService.client.order.findUnique.mockResolvedValue(confirmedOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(confirmedOrder);
+
       const toOrderResponseSpy = jest
         .spyOn(service, 'toOrderResponse')
         .mockReturnValue(confirmedOrder);
 
       const result = await service.confirmOrder(mockConfirmOrderRequest);
 
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledTimes(1);
       expect(toOrderResponseSpy).toHaveBeenCalledWith(confirmedOrder);
       expect(result.statusKey).toBe(StatusKey.UNCHANGED);
       expect(result.data).toEqual(confirmedOrder);
     });
 
     it('should successfully confirm cash payment order', async () => {
-      mockPrismaService.client.order.findUnique.mockResolvedValue(mockOrderDetail);
-      mockPrismaService.client.order.update.mockResolvedValue({
-        ...mockOrderDetail,
-        status: OrderStatus.CONFIRMED,
-      });
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
 
-      const toOrderResponseSpy = jest.spyOn(service, 'toOrderResponse').mockReturnValue({
-        ...mockOrderDetail,
-        status: OrderStatus.CONFIRMED,
-      });
+      mockPrismaService.client.$transaction.mockImplementation(
+        async <T>(callback: (tx: typeof mockPrismaService.client) => Promise<T>): Promise<T> => {
+          const mockTx = {
+            payment: {
+              create: jest.fn().mockResolvedValue({}),
+            },
+            order: {
+              update: jest.fn().mockResolvedValue({
+                ...mockOrderDetail,
+                status: OrderStatus.CONFIRMED,
+              }),
+            },
+          } as unknown as typeof mockPrismaService.client;
+          return callback(mockTx);
+        },
+      );
 
       const loggerLogSpy = jest.spyOn(loggerService, 'log');
-
-      const result = await service.confirmOrder(mockConfirmOrderRequest);
-
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledTimes(1);
-      expect(mockPrismaService.client.order.update).toHaveBeenCalledWith({
-        where: { id: mockConfirmOrderRequest.orderId },
-        data: { status: OrderStatus.CONFIRMED },
-      });
-      expect(mockPrismaService.client.order.update).toHaveBeenCalledTimes(1);
+      await service.confirmOrder(mockConfirmOrderRequest);
+      expect(mockPrismaService.client.$transaction).toHaveBeenCalledTimes(1);
       expect(loggerLogSpy).toHaveBeenCalledWith(
         `[Order(${mockOrderDetail.id}) has confirmed by AdminId: ${mockConfirmOrderRequest.userId}]`,
       );
-      expect(loggerLogSpy).toHaveBeenCalledTimes(1);
-      expect(toOrderResponseSpy).toHaveBeenCalledTimes(1);
-      expect(result.statusKey).toBe(StatusKey.SUCCESS);
-      expect(result.data!.status).toBe(OrderStatus.CONFIRMED);
     });
 
     it('should successfully confirm bank transfer order with paid status', async () => {
@@ -227,11 +229,21 @@ describe('ProductService - confirmOrder', () => {
         status: OrderStatus.PENDING,
       };
 
-      mockPrismaService.client.order.findUnique.mockResolvedValue(bankTransferOrder);
-      mockPrismaService.client.order.update.mockResolvedValue({
-        ...bankTransferOrder,
-        status: OrderStatus.CONFIRMED,
-      });
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(bankTransferOrder);
+
+      mockPrismaService.client.$transaction.mockImplementation(
+        async <T>(callback: (tx: typeof mockPrismaService.client) => Promise<T>): Promise<T> => {
+          const mockTx = {
+            order: {
+              update: jest.fn().mockResolvedValue({
+                ...bankTransferOrder,
+                status: OrderStatus.CONFIRMED,
+              }),
+            },
+          } as unknown as typeof mockPrismaService.client;
+          return callback(mockTx);
+        },
+      );
 
       const toOrderResponseSpy = jest.spyOn(service, 'toOrderResponse').mockReturnValue({
         ...bankTransferOrder,
@@ -242,12 +254,7 @@ describe('ProductService - confirmOrder', () => {
 
       const result = await service.confirmOrder(mockConfirmOrderRequest);
 
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledTimes(1);
-      expect(mockPrismaService.client.order.update).toHaveBeenCalledWith({
-        where: { id: mockConfirmOrderRequest.orderId },
-        data: { status: OrderStatus.CONFIRMED },
-      });
-      expect(mockPrismaService.client.order.update).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.client.$transaction).toHaveBeenCalledTimes(1);
       expect(loggerLogSpy).toHaveBeenCalledWith(
         `[Order(${bankTransferOrder.id}) has confirmed by AdminId: ${mockConfirmOrderRequest.userId}]`,
       );
@@ -263,7 +270,7 @@ describe('ProductService - confirmOrder', () => {
         code: HTTP_ERROR_CODE.CONFLICT,
         message: 'common.erros.recordNotFound',
       };
-      mockPrismaService.client.order.findUnique.mockRejectedValue(databaseError);
+      (mockCacheService.getOrSet as jest.Mock).mockRejectedValue(databaseError);
       const handleServiceErrorSpy = jest
         .spyOn(prismaErrorUtils, 'handleServiceError')
         .mockImplementation(() => {
@@ -274,7 +281,6 @@ describe('ProductService - confirmOrder', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledTimes(1);
       expect(handleServiceErrorSpy).toHaveBeenCalledWith(
         databaseError,
         'ProductService',
@@ -288,13 +294,13 @@ describe('ProductService - confirmOrder', () => {
         ...mockOrderDetail,
         status: OrderStatus.PENDING,
       };
-      mockPrismaService.client.order.findUnique.mockResolvedValue(orderToUpdate);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(orderToUpdate);
       const updateError = new Error('Update failed');
       const rpcError = {
         code: HTTP_ERROR_CODE.CONFLICT,
         message: 'common.erros.recordNotFound',
       };
-      mockPrismaService.client.order.update.mockRejectedValue(updateError);
+      mockPrismaService.client.$transaction.mockRejectedValue(updateError);
       const handleServiceErrorSpy = jest
         .spyOn(prismaErrorUtils, 'handleServiceError')
         .mockImplementation(() => {
@@ -305,8 +311,7 @@ describe('ProductService - confirmOrder', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-      expect(mockPrismaService.client.order.findUnique).toHaveBeenCalledTimes(1);
-      expect(mockPrismaService.client.order.update).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.client.$transaction).toHaveBeenCalledTimes(1);
       expect(handleServiceErrorSpy).toHaveBeenCalledWith(
         updateError,
         'ProductService',

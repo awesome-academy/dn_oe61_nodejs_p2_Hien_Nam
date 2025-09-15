@@ -1,8 +1,15 @@
 import { MIN_NUMBER_ID } from '@app/common/constant/validation.constant';
 import { IsNotEmpty, IsNumber, Min } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class RejectOrderRequest {
+  @ApiProperty({
+    description: 'ID of the user rejecting the order',
+    example: 123,
+    type: 'number',
+    minimum: MIN_NUMBER_ID,
+  })
   @IsNotEmpty({
     message: i18nValidationMessage('common.validation.isInt', {
       field: 'userId',
@@ -23,22 +30,28 @@ export class RejectOrderRequest {
     }),
   })
   userId: number;
+  @ApiProperty({
+    description: 'ID of the order to be rejected',
+    example: 456,
+    type: 'number',
+    minimum: MIN_NUMBER_ID,
+  })
   @IsNotEmpty({
     message: i18nValidationMessage('common.validation.isInt', {
-      field: 'userId',
+      field: 'orderId',
     }),
   })
   @IsNumber(
     {},
     {
       message: i18nValidationMessage('common.validation.isInt', {
-        field: 'userId',
+        field: 'orderId',
       }),
     },
   )
   @Min(MIN_NUMBER_ID, {
     message: i18nValidationMessage('common.validation.min', {
-      field: 'userId',
+      field: 'orderId',
       value: MIN_NUMBER_ID,
     }),
   })

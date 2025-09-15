@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
 import { ProfileFacebookUser } from '@app/common/dto/user/requests/facebook-user-dto.request';
 import { SoftDeleteUserRequest } from '@app/common/dto/user/requests/soft-delete-user.request';
+import { UpdatePasswordRequest } from '@app/common/dto/user/requests/update-password.request';
+import { UpdateUserProfileRequest } from '@app/common/dto/user/requests/update-user-profile.request';
 import { UserByEmailRequest } from '@app/common/dto/user/requests/user-by-email.request';
 import { UserCreationRequest } from '@app/common/dto/user/requests/user-creation.request';
 import { UserUpdateRoleRequest } from '@app/common/dto/user/requests/user-update-role.request';
@@ -13,7 +15,9 @@ import { Role as RoleUpdate } from '@app/common/enums/roles/users.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { UserStatus } from '@app/common/enums/user-status.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
+import { assertRpcException } from '@app/common/helpers/test.helper';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 import * as prismaClientError from '@app/common/utils/prisma-client-error';
 import { handlePrismaError } from '@app/common/utils/prisma-client-error';
 import { PrismaService } from '@app/prisma';
@@ -25,9 +29,6 @@ import * as classValidator from 'class-validator';
 import { PrismaClient, Provider, Role } from '../generated/prisma';
 import { ProductProducer } from '../src/producer/product.producer';
 import { UserService } from '../src/user-service.service';
-import { assertRpcException } from '@app/common/helpers/test.helper';
-import { UpdateUserProfileRequest } from '@app/common/dto/user/requests/update-user-profile.request';
-import { UpdatePasswordRequest } from '@app/common/dto/user/requests/update-password.request';
 jest.mock('bcrypt', () => ({
   hash: jest.fn().mockResolvedValue('hashed-password'),
   compare: jest.fn().mockResolvedValue(true),
@@ -77,6 +78,7 @@ describe('UserService', () => {
           provide: ProductProducer,
           useValue: { addJobSoftDeleteCart: jest.fn() },
         },
+        { provide: PaginationService, useValue: { queryWithPagination: jest.fn() } },
       ],
     }).compile();
     service = moduleRef.get<UserService>(UserService);

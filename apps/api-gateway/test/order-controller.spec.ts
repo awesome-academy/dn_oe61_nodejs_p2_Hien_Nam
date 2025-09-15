@@ -3,25 +3,25 @@ import { ConfirmOrderRequest } from '@app/common/dto/product/requests/confirm-or
 import { OrderPayload } from '@app/common/dto/product/requests/order-payload.request';
 import { OrderRequest } from '@app/common/dto/product/requests/order-request';
 import { RejectOrderRequest } from '@app/common/dto/product/requests/reject-order.request';
+import {
+  OrderResponse,
+  PaymentInfoResponse,
+} from '@app/common/dto/product/response/order-response';
 import { RejectOrderResponse } from '@app/common/dto/product/response/reject-order.response';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { REJECT_ORDER_STATUS } from '@app/common/enums/order.enum';
+import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
 import { StatusKey } from '@app/common/enums/status-key.enum';
 import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { assertRpcException } from '@app/common/helpers/test.helper';
 import { BaseResponse } from '@app/common/interfaces/data-type';
 import { AccessTokenPayload } from '@app/common/interfaces/token-payload';
 import { Test, TestingModule } from '@nestjs/testing';
+import { PaymentStatus } from 'apps/product-service/generated/prisma';
 import { OrderController } from '../src/order/order.controller';
 import { OrderService } from '../src/order/order.service';
-import { PaymentMethodEnum } from '@app/common/enums/product/payment-method.enum';
-import {
-  OrderResponse,
-  PaymentInfoResponse,
-} from '@app/common/dto/product/response/order-response';
 import { AuthRoles } from '@app/common/decorators/auth-role.decorator';
 import { I18nService } from 'nestjs-i18n';
-import { PaymentStatus } from 'apps/product-service/generated/prisma';
 
 describe('OrderController', () => {
   let controller: OrderController;
