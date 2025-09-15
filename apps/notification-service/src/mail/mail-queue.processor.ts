@@ -7,6 +7,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import { Process, Processor } from '@nestjs/bull';
 import { Job } from 'bull';
 import { MailQueueService } from './mail-queue.service';
+import { SendStatisticOrderMonthly } from '@app/common/dto/product/payload/send-statistic-oder-monthly';
 
 @Processor('mailQueue')
 export class MailQueueProcessor {
@@ -39,6 +40,14 @@ export class MailQueueProcessor {
       await this.mailQueueService.sendEmailOrderCreated(job.data);
     } catch (error) {
       await handleJobError(error, job, this.loggerService, '[Error send chat work message]');
+    }
+  }
+  @Process(NotificationEvent.STATISTIC_ORDER_MONTHLY)
+  async handleSendStatisticOrderMonthly(job: Job<SendStatisticOrderMonthly>) {
+    try {
+      await this.mailQueueService.sendStatisticOrderMonthly(job.data);
+    } catch (error) {
+      await handleJobError(error, job, this.loggerService, '[Error send statistic order email]');
     }
   }
 }

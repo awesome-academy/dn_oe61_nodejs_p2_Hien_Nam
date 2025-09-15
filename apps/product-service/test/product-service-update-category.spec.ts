@@ -9,8 +9,9 @@ import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { GraphQLUpdateCateroryInput } from '@app/common/types/graphql/arg-type/update-category.typ';
 import { CategoryType } from '@app/common/types/graphql/caterories.type';
-import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 import { NOTIFICATION_SERVICE } from '@app/common';
+import { ProductProducer } from '../src/product.producer';
 
 // Mock interfaces
 interface MockCategory {
@@ -27,7 +28,9 @@ interface MockPrismaClient {
     update: jest.Mock;
   };
 }
-
+const mockPaginationService = {
+  paginate: jest.fn(),
+};
 describe('ProductService - updateCategory', () => {
   let service: ProductService;
   let prismaService: { client: MockPrismaClient };
@@ -48,7 +51,29 @@ describe('ProductService - updateCategory', () => {
     createdAt: mockDate,
     updatedAt: mockDate,
   };
-
+  const mockI18nService = {
+    translate: jest.fn(),
+  };
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+  const mockNotificationClient = {
+    emit: jest.fn(),
+  };
+  const mockProductProducer = {
+    addJobRetryPayment: jest.fn(),
+  };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
+  const mockLoggerService = {
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
   beforeEach(async () => {
     const mockPrismaClient: MockPrismaClient = {
       category: {
@@ -66,20 +91,31 @@ describe('ProductService - updateCategory', () => {
         },
         {
           provide: CustomLogger,
-          useValue: {
-            log: jest.fn(),
-            error: jest.fn(() => {
-              throw new Error('Mock error');
-            }),
-            warn: jest.fn(),
-            debug: jest.fn(),
-          },
+          useValue: mockLoggerService,
         },
         {
           provide: PaginationService,
-          useValue: {
-            queryWithPagination: jest.fn(),
-          },
+          useValue: mockPaginationService,
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService,
+        },
+        {
+          provide: NOTIFICATION_SERVICE,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
         {
           provide: ConfigService,

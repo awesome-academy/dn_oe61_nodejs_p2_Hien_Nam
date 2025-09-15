@@ -22,6 +22,13 @@ import { PRODUCT_SERVICE } from '@app/common';
 import { UserProductDetailResponse } from '@app/common/dto/product/response/product-detail-reponse';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StatusProduct } from '@app/common/enums/product/product-status.enum';
+import { GetStatisticByMonthRequest } from '@app/common/dto/product/requests/get-statistic-by-month.request';
+import { StatisticOrderByMonthResponse } from '@app/common/dto/product/response/statistic-order-by-month.response';
+import { ProductPattern } from '@app/common/enums/message-patterns/product.pattern';
+
+// Mock external helpers
+jest.mock('@app/common/helpers/microservices');
+jest.mock('@app/common/helpers/queue.helper');
 
 // Mock external helpers
 jest.mock('@app/common/helpers/microservices');
@@ -627,6 +634,678 @@ describe('NotificationService', () => {
       );
     });
   });
+
+  describe('fetchAllAdmins', () => {
+    const mockAdminsResponse: AdminInfoResponse[] = [
+      {
+        id: 1,
+        email: 'admin1@example.com',
+        name: 'Admin One',
+      },
+      {
+        id: 2,
+        email: 'admin2@example.com',
+        name: 'Admin Two',
+      },
+    ];
+
+    it('should fetch all admins successfully', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue(mockAdminsResponse);
+
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({} as any);
+
+      const result = await service.fetchAllAdmins();
+
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+      expect(callMicroserviceMock).toHaveBeenCalledWith({}, USER_SERVICE, expect.any(Object), {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      });
+      expect(result).toEqual(mockAdminsResponse);
+    });
+
+    it('should return empty array if no admins found', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue(null);
+
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({} as any);
+
+      const result = await service.fetchAllAdmins();
+
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+      expect(result).toEqual([]);
+    });
+
+    it('should handle microservice call errors', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      const rpcError = {
+        code: HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        message: 'common.errors.serviceUnavailable',
+      };
+      callMicroserviceMock.mockRejectedValue(new TypedRpcException(rpcError));
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({});
+      try {
+        await service.fetchAllAdmins();
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+    });
+  });
+
+  describe('sendNotificationOrderCreated', () => {
+    const mockOrderPayload: OrderCreatedPayload = {
+      orderId: 12345,
+      userId: 1,
+      userName: 'John Doe',
+      paymentMethod: 'Cash',
+      totalAmount: 99.99,
+      paymentStatus: 'PAID',
+      createdAt: new Date('2024-01-01T10:00:00Z'),
+      lang: 'en',
+    };
+
+    const mockAdminsResponse: AdminInfoResponse[] = [
+      {
+        id: 1,
+        email: 'admin1@example.com',
+        name: 'Admin One',
+      },
+      {
+        id: 2,
+        email: 'admin2@example.com',
+        name: 'Admin Two',
+      },
+    ];
+
+    beforeEach(() => {
+      mockAddJobWithRetry.mockResolvedValue(undefined);
+    });
+
+    it('should send chatwork notification and email notifications to all admins', async () => {
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockChatworkQueue,
+        NotificationEvent.ORDER_CREATED,
+        mockOrderPayload,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin1@example.com',
+          name: 'Admin One',
+          data: mockOrderPayload,
+        },
+      );
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin2@example.com',
+          name: 'Admin Two',
+          data: mockOrderPayload,
+        },
+      );
+
+      expect(loggerSpy).not.toHaveBeenCalled();
+    });
+
+    it('should handle chatwork queue errors gracefully', async () => {
+      const chatworkError = new Error('Chatwork queue failed');
+      mockAddJobWithRetry.mockRejectedValueOnce(chatworkError).mockResolvedValue(undefined);
+
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job chatwork errors]',
+        `Details:: ${chatworkError.stack}`,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(mockAddJobWithRetry).toHaveBeenCalledTimes(3); // 1 failed chatwork + 2 successful emails
+    });
+
+    it('should handle email queue errors gracefully', async () => {
+      const emailError = new Error('Email queue failed');
+      mockAddJobWithRetry
+        .mockResolvedValueOnce(undefined) // chatwork success
+        .mockRejectedValue(emailError); // email failures
+
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job email errors]',
+        `Details:: ${emailError.stack}`,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+    });
+
+    it('should handle fetchAllAdmins errors gracefully', async () => {
+      const fetchError = new Error('Failed to fetch admins');
+      const fetchAllAdminsSpy = jest.spyOn(service, 'fetchAllAdmins').mockRejectedValue(fetchError);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockChatworkQueue,
+        NotificationEvent.ORDER_CREATED,
+        mockOrderPayload,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job email errors]',
+        `Details:: ${fetchError.stack}`,
+      );
+    });
+
+    it('should filter out admins without email', async () => {
+      const adminsWithoutEmail: AdminInfoResponse[] = [
+        {
+          id: 1,
+          email: 'admin1@example.com',
+          name: 'Admin One',
+        },
+        {
+          id: 2,
+          email: null as unknown as string,
+          name: 'Admin Two',
+        },
+      ];
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(adminsWithoutEmail);
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(mockAddJobWithRetry).toHaveBeenCalledTimes(2);
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin1@example.com',
+          name: 'Admin One',
+          data: mockOrderPayload,
+        },
+      );
+    });
+  });
+
+  describe('fetchAllAdmins', () => {
+    const mockAdminsResponse: AdminInfoResponse[] = [
+      {
+        id: 1,
+        email: 'admin1@example.com',
+        name: 'Admin One',
+      },
+      {
+        id: 2,
+        email: 'admin2@example.com',
+        name: 'Admin Two',
+      },
+    ];
+
+    it('should fetch all admins successfully', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue(mockAdminsResponse);
+
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({} as any);
+
+      const result = await service.fetchAllAdmins();
+
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+      expect(callMicroserviceMock).toHaveBeenCalledWith({}, USER_SERVICE, expect.any(Object), {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      });
+      expect(result).toEqual(mockAdminsResponse);
+    });
+
+    it('should return empty array if no admins found', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue(null);
+
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({} as any);
+
+      const result = await service.fetchAllAdmins();
+
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+      expect(result).toEqual([]);
+    });
+
+    it('should handle microservice call errors', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      const rpcError = {
+        code: HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        message: 'common.errors.serviceUnavailable',
+      };
+      callMicroserviceMock.mockRejectedValue(new TypedRpcException(rpcError));
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({});
+      try {
+        await service.fetchAllAdmins();
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+    });
+  });
+
+  describe('sendNotificationOrderCreated', () => {
+    const mockOrderPayload: OrderCreatedPayload = {
+      orderId: 12345,
+      userId: 1,
+      userName: 'John Doe',
+      paymentMethod: 'Cash',
+      totalAmount: 99.99,
+      paymentStatus: 'PAID',
+      createdAt: new Date('2024-01-01T10:00:00Z'),
+      lang: 'en',
+    };
+
+    const mockAdminsResponse: AdminInfoResponse[] = [
+      {
+        id: 1,
+        email: 'admin1@example.com',
+        name: 'Admin One',
+      },
+      {
+        id: 2,
+        email: 'admin2@example.com',
+        name: 'Admin Two',
+      },
+    ];
+
+    beforeEach(() => {
+      mockAddJobWithRetry.mockResolvedValue(undefined);
+    });
+
+    it('should send chatwork notification and email notifications to all admins', async () => {
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockChatworkQueue,
+        NotificationEvent.ORDER_CREATED,
+        mockOrderPayload,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin1@example.com',
+          name: 'Admin One',
+          data: mockOrderPayload,
+        },
+      );
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin2@example.com',
+          name: 'Admin Two',
+          data: mockOrderPayload,
+        },
+      );
+
+      expect(loggerSpy).not.toHaveBeenCalled();
+    });
+
+    it('should handle chatwork queue errors gracefully', async () => {
+      const chatworkError = new Error('Chatwork queue failed');
+      mockAddJobWithRetry.mockRejectedValueOnce(chatworkError).mockResolvedValue(undefined);
+
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job chatwork errors]',
+        `Details:: ${chatworkError.stack}`,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(mockAddJobWithRetry).toHaveBeenCalledTimes(3); // 1 failed chatwork + 2 successful emails
+    });
+
+    it('should handle email queue errors gracefully', async () => {
+      const emailError = new Error('Email queue failed');
+      mockAddJobWithRetry
+        .mockResolvedValueOnce(undefined) // chatwork success
+        .mockRejectedValue(emailError); // email failures
+
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job email errors]',
+        `Details:: ${emailError.stack}`,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+    });
+
+    it('should handle fetchAllAdmins errors gracefully', async () => {
+      const fetchError = new Error('Failed to fetch admins');
+      const fetchAllAdminsSpy = jest.spyOn(service, 'fetchAllAdmins').mockRejectedValue(fetchError);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockChatworkQueue,
+        NotificationEvent.ORDER_CREATED,
+        mockOrderPayload,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job email errors]',
+        `Details:: ${fetchError.stack}`,
+      );
+    });
+
+    it('should filter out admins without email', async () => {
+      const adminsWithoutEmail: AdminInfoResponse[] = [
+        {
+          id: 1,
+          email: 'admin1@example.com',
+          name: 'Admin One',
+        },
+        {
+          id: 2,
+          email: null as unknown as string,
+          name: 'Admin Two',
+        },
+      ];
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(adminsWithoutEmail);
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(mockAddJobWithRetry).toHaveBeenCalledTimes(2);
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin1@example.com',
+          name: 'Admin One',
+          data: mockOrderPayload,
+        },
+      );
+    });
+  });
+
+  describe('fetchAllAdmins', () => {
+    const mockAdminsResponse: AdminInfoResponse[] = [
+      {
+        id: 1,
+        email: 'admin1@example.com',
+        name: 'Admin One',
+      },
+      {
+        id: 2,
+        email: 'admin2@example.com',
+        name: 'Admin Two',
+      },
+    ];
+
+    it('should fetch all admins successfully', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue(mockAdminsResponse);
+
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({} as any);
+
+      const result = await service.fetchAllAdmins();
+
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+      expect(callMicroserviceMock).toHaveBeenCalledWith({}, USER_SERVICE, expect.any(Object), {
+        timeoutMs: TIMEOUT_MS_DEFAULT,
+        retries: RETRIES_DEFAULT,
+      });
+      expect(result).toEqual(mockAdminsResponse);
+    });
+
+    it('should return empty array if no admins found', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue(null);
+
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({} as any);
+
+      const result = await service.fetchAllAdmins();
+
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+      expect(result).toEqual([]);
+    });
+
+    it('should handle microservice call errors', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      const rpcError = {
+        code: HTTP_ERROR_CODE.SERVICE_UNAVAILABLE,
+        message: 'common.errors.serviceUnavailable',
+      };
+      callMicroserviceMock.mockRejectedValue(new TypedRpcException(rpcError));
+      const userClientSpy = jest.spyOn(mockUserClient, 'send').mockReturnValue({});
+      try {
+        await service.fetchAllAdmins();
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
+      expect(userClientSpy).toHaveBeenCalledWith(UserMsgPattern.GET_ALL_ADMIN, {});
+    });
+  });
+
+  describe('sendNotificationOrderCreated', () => {
+    const mockOrderPayload: OrderCreatedPayload = {
+      orderId: 12345,
+      userId: 1,
+      userName: 'John Doe',
+      paymentMethod: 'Cash',
+      totalAmount: 99.99,
+      paymentStatus: 'PAID',
+      createdAt: new Date('2024-01-01T10:00:00Z'),
+      lang: 'en',
+    };
+
+    const mockAdminsResponse: AdminInfoResponse[] = [
+      {
+        id: 1,
+        email: 'admin1@example.com',
+        name: 'Admin One',
+      },
+      {
+        id: 2,
+        email: 'admin2@example.com',
+        name: 'Admin Two',
+      },
+    ];
+
+    beforeEach(() => {
+      mockAddJobWithRetry.mockResolvedValue(undefined);
+    });
+
+    it('should send chatwork notification and email notifications to all admins', async () => {
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockChatworkQueue,
+        NotificationEvent.ORDER_CREATED,
+        mockOrderPayload,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin1@example.com',
+          name: 'Admin One',
+          data: mockOrderPayload,
+        },
+      );
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin2@example.com',
+          name: 'Admin Two',
+          data: mockOrderPayload,
+        },
+      );
+
+      expect(loggerSpy).not.toHaveBeenCalled();
+    });
+
+    it('should handle chatwork queue errors gracefully', async () => {
+      const chatworkError = new Error('Chatwork queue failed');
+      mockAddJobWithRetry.mockRejectedValueOnce(chatworkError).mockResolvedValue(undefined);
+
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job chatwork errors]',
+        `Details:: ${chatworkError.stack}`,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(mockAddJobWithRetry).toHaveBeenCalledTimes(3); // 1 failed chatwork + 2 successful emails
+    });
+
+    it('should handle email queue errors gracefully', async () => {
+      const emailError = new Error('Email queue failed');
+      mockAddJobWithRetry
+        .mockResolvedValueOnce(undefined) // chatwork success
+        .mockRejectedValue(emailError); // email failures
+
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(mockAdminsResponse);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job email errors]',
+        `Details:: ${emailError.stack}`,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+    });
+
+    it('should handle fetchAllAdmins errors gracefully', async () => {
+      const fetchError = new Error('Failed to fetch admins');
+      const fetchAllAdminsSpy = jest.spyOn(service, 'fetchAllAdmins').mockRejectedValue(fetchError);
+      const loggerSpy = jest.spyOn(mockLogger, 'error');
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockChatworkQueue,
+        NotificationEvent.ORDER_CREATED,
+        mockOrderPayload,
+      );
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(loggerSpy).toHaveBeenCalledWith(
+        '[Add job email errors]',
+        `Details:: ${fetchError.stack}`,
+      );
+    });
+
+    it('should filter out admins without email', async () => {
+      const adminsWithoutEmail: AdminInfoResponse[] = [
+        {
+          id: 1,
+          email: 'admin1@example.com',
+          name: 'Admin One',
+        },
+        {
+          id: 2,
+          email: null as unknown as string,
+          name: 'Admin Two',
+        },
+      ];
+      const fetchAllAdminsSpy = jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue(adminsWithoutEmail);
+
+      await service.sendNotificationOrderCreated(mockOrderPayload);
+
+      expect(fetchAllAdminsSpy).toHaveBeenCalled();
+      expect(mockAddJobWithRetry).toHaveBeenCalledTimes(2);
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.ORDER_CREATED,
+        {
+          email: 'admin1@example.com',
+          name: 'Admin One',
+          data: mockOrderPayload,
+        },
+      );
+    });
+  });
   describe('getShareProduct', () => {
     const createMockProduct = (): UserProductDetailResponse => ({
       id: 1,
@@ -731,6 +1410,95 @@ describe('NotificationService', () => {
       expect(result).toHaveProperty('messengerShare');
       expect(result).toHaveProperty('facebookShare');
       expect(result).toHaveProperty('productUrl');
+    });
+  });
+  describe('sendStatisticOderByMonthly', () => {
+    const lang = 'en';
+    const dto: GetStatisticByMonthRequest = { month: 9, year: 2025 };
+
+    it('should send email jobs when microservice returns data and admins exist', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      const mockStatistic = { totalOrders: 100 } as unknown as StatisticOrderByMonthResponse;
+      callMicroserviceMock.mockResolvedValue(mockStatistic);
+      jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue([{ id: 1, email: 'admin1@test.com', name: 'Admin One' }]);
+      mockAddJobWithRetry.mockResolvedValue(undefined);
+      await service.sendStatisticOrderMonthly(lang, dto);
+      expect(callMicroserviceMock).toHaveBeenCalledWith(
+        mockProductServiceClient.send(ProductPattern.GET_STATISTIC_BY_MONTH, dto),
+        PRODUCT_SERVICE,
+        mockLogger,
+        {
+          timeoutMs: TIMEOUT_MS_DEFAULT,
+          retries: RETRIES_DEFAULT,
+        },
+      );
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.STATISTIC_ORDER_MONTHLY,
+        expect.objectContaining({
+          email: 'admin1@test.com',
+          name: 'Admin One',
+          lang,
+          data: mockStatistic,
+          month: dto.month,
+          year: dto.year,
+        }),
+      );
+    });
+
+    it('should fallback to "Failed to get statistic data" when microservice returns null', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue(null);
+      jest
+        .spyOn(service, 'fetchAllAdmins')
+        .mockResolvedValue([{ id: 1, email: 'admin2@test.com', name: 'Admin Two' }]);
+
+      await service.sendStatisticOrderMonthly(lang, dto);
+
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to get statistic data - after retries');
+      expect(mockAddJobWithRetry).toHaveBeenCalledWith(
+        mockEmailQueue,
+        NotificationEvent.STATISTIC_ORDER_MONTHLY,
+        expect.objectContaining({
+          data: 'Failed to get statistic data',
+        }),
+      );
+    });
+
+    it('should log error and not send jobs when no admins found', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue({ totalOrders: 50 });
+      jest.spyOn(service, 'fetchAllAdmins').mockResolvedValue([]);
+
+      await service.sendStatisticOrderMonthly(lang, dto);
+
+      expect(mockLogger.error).toHaveBeenCalledWith('Failed to get admin data - after retries');
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        `Failed to send statistic order by month ${dto.month}`,
+        `Caused:: Admin is undefined`,
+      );
+      expect(mockAddJobWithRetry).not.toHaveBeenCalled();
+    });
+
+    it('should continue even if some jobs fail', async () => {
+      const { callMicroservice } = await import('@app/common/helpers/microservices');
+      const callMicroserviceMock = callMicroservice as jest.MockedFunction<typeof callMicroservice>;
+      callMicroserviceMock.mockResolvedValue({ totalOrders: 80 });
+
+      jest.spyOn(service, 'fetchAllAdmins').mockResolvedValue([
+        { id: 1, email: 'admin3@test.com', name: 'Admin Three' },
+        { id: 2, email: 'admin4@test.com', name: 'Admin Four' },
+      ]);
+      mockAddJobWithRetry
+        .mockRejectedValueOnce(new Error('Job failed'))
+        .mockResolvedValueOnce(undefined);
+      await expect(service.sendStatisticOrderMonthly(lang, dto)).resolves.not.toThrow();
+      expect(mockAddJobWithRetry).toHaveBeenCalledTimes(2);
     });
   });
 });

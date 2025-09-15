@@ -1,0 +1,3 @@
+export const TAKE_TOP_CUSTOMERS_DEFAULT = 5;
+export const TAKE_TOP_PRODUCTS_DEFAULT = 5;
+export const TAKE_TOP_CATEGORIES_DEFAULT = 5;

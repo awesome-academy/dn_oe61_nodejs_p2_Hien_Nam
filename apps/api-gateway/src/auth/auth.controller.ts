@@ -17,8 +17,9 @@ import { UserResponse } from '@app/common/dto/user/responses/user.response';
 import { ConfigService } from '@nestjs/config';
 import { ApiResponseRegister } from '@app/common/decorators/document/auth-documents/register.dto';
 import { ApiResponseLogout } from '@app/common/decorators/document/auth-documents/logout.dto';
+import { ApiResponseUserLogin } from '@app/common/swagger/documents/user/admin-create-user.example';
 
-@Controller('/auth')
+@Controller('/auths')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -26,6 +27,7 @@ export class AuthController {
     private readonly configService: ConfigService,
   ) {}
   @Public()
+  @ApiResponseUserLogin()
   @Post('/login')
   @UseInterceptors(SetAccessTokenInterceptor)
   login(@Body() dto: LoginRequestDto) {

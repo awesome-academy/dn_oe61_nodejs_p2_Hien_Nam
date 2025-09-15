@@ -1,0 +1,124 @@
+doctype html
+html
+  head
+    meta(charset="utf-8")
+    title #{subject}
+    style.
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f9f9f9;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        max-width: 600px;
+        margin: auto;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      }
+      h2 {
+        color: #333;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+      }
+      table, th, td {
+        border: 1px solid #ddd;
+      }
+      th, td {
+        padding: 10px;
+        text-align: left;
+      }
+      th {
+        background-color: #f1f1f1;
+      }
+      .footer {
+        margin-top: 20px;
+        font-size: 12px;
+        color: #777;
+        text-align: center;
+      }
+
+  body
+    .container
+      h2 #{subject}
+      p #{intro}
+
+      if statistic.loadDataStatistics
+        table
+          tr
+            th #{labels.totalOrders}
+            td #{statistic.totalOrders}
+          tr
+            th #{labels.completedOrders}
+            td #{statistic.completedOrders}
+          tr
+            th #{labels.cancelledOrders}
+            td #{statistic.cancelledOrders}
+          tr
+            th #{labels.refundedOrders}
+            td #{statistic.refundedOrders}
+          tr
+            th #{labels.grossRevenue}
+            td #{statistic.grossRevenue}
+          tr
+            th #{labels.netRevenue}
+            td #{statistic.netRevenue}
+          tr
+            th #{labels.averageOrderValue}
+            td #{statistic.averageOrderValue}
+
+        if statistic.topProducts && statistic.topProducts.length
+          h3 #{labels.topProducts}
+          table
+            tr
+              th Product
+              th Size
+              th Quantity
+            each product in statistic.topProducts
+              tr
+                td #{product.productName}
+                td #{product.nameSize}
+                td #{product.quantity}
+
+        if statistic.topCategories && statistic.topCategories.length
+          h3 #{labels.topCategories}
+          table
+            tr
+              th Category ID
+              th Quantity
+            each category in statistic.topCategories
+              tr
+                td #{category.categoryId}
+                td #{category.quantity}
+
+        if statistic.topCustomers && statistic.topCustomers.length
+          h3 #{labels.topCustomers}
+          table
+            tr
+              th Customer ID
+              th Revenue
+            each customer in statistic.topCustomers
+              tr
+                td #{customer.customerId}
+                td #{customer.revenue}
+
+        if statistic.paymentMethods && statistic.paymentMethods.length
+          h3 #{labels.paymentMethods}
+          table
+            tr
+              th Method
+              th Quantity
+            each method in statistic.paymentMethods
+              tr
+                td #{method.paymentMethodName}
+                td #{method.quantity}
+      else
+        p(style="color:#888; font-style:italic;") No statistics available for this period.
+
+      .footer
+        p #{footer}

@@ -44,6 +44,8 @@ import { PaymentService } from './payment/payment.service';
 import { GraphQLAppModule } from './graphql/graphql.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { UserCleanupService } from './cron/user-cleanup.service';
+import { StatisticService } from './statistic/statistic.service';
+import { StatisticController } from './statistic/statistic.controller';
 
 @Module({
   imports: [
@@ -133,6 +135,7 @@ import { UserCleanupService } from './cron/user-cleanup.service';
     UserProfileController,
     OrderController,
     PaymentController,
+    StatisticController,
   ],
   providers: [
     AuthService,
@@ -164,6 +167,7 @@ import { UserCleanupService } from './cron/user-cleanup.service';
     TwitterStrategy,
     GoogleStrategy,
     UserProductService,
+    StatisticService,
   ],
 })
 export class ApiGatewayModule {}

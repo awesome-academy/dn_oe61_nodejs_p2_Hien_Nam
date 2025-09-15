@@ -1,19 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { I18nService } from 'nestjs-i18n';
-import { plainToInstance } from 'class-transformer';
-import { validateOrReject } from 'class-validator';
-import { Decimal } from '@prisma/client/runtime/library';
-
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { PaginationService } from '@app/common/shared/pagination.shared';
 import { ProductWithIncludes } from '@app/common/types/product.type';
 import { PrismaService } from '@app/prisma';
-import { NOTIFICATION_SERVICE } from '@app/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Decimal } from '@prisma/client/runtime/library';
 import { ProductStatus } from '../generated/prisma';
 import { ProductService } from '../src/product-service.service';
-import { ProductProducer } from '../src/product.producer';
 
 // Mock class-transformer
 jest.mock('class-transformer', () => ({
@@ -38,7 +29,17 @@ jest.mock('class-validator', () => ({
   ValidateNested: () => () => {},
   Min: () => () => {},
   Max: () => () => {},
+  IsDate: () => () => {},
 }));
+import { NOTIFICATION_SERVICE } from '@app/common';
+import { ConfigService } from '@nestjs/config';
+import { plainToInstance } from 'class-transformer';
+import { validateOrReject } from 'class-validator';
+import { ProductProducer } from '../src/product.producer';
+import { I18nService } from 'nestjs-i18n';
+import { CacheService } from '@app/common/cache/cache.service';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
@@ -50,8 +51,7 @@ const mockNotificationClient = {
 };
 
 const mockI18nService = {
-  t: jest.fn().mockReturnValue('mocked translation'),
-  translate: jest.fn().mockReturnValue('mocked translation'),
+  translate: jest.fn(),
 };
 
 const mockProductProducer = {
@@ -78,6 +78,11 @@ describe('ProductService - listProductsForUser', () => {
     warn: jest.fn(),
     debug: jest.fn(),
   };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -101,6 +106,10 @@ describe('ProductService - listProductsForUser', () => {
         {
           provide: NOTIFICATION_SERVICE,
           useValue: mockNotificationClient,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

@@ -15,6 +15,8 @@ import { ChatworkModule } from './chatwork/chatwork.module';
 import { MailQueueModule } from './mail/mail-queue.module';
 import { NotificationServiceController } from './notification-service.controller';
 import { NotificationService } from './notification-service.service';
+import { ScheduleModule } from '@nestjs/schedule';
+import { TaskService } from './task/task.service';
 
 @Module({
   imports: [
@@ -98,6 +100,7 @@ import { NotificationService } from './notification-service.service';
     ]),
     ChatworkModule,
     MailQueueModule,
+    ScheduleModule.forRoot(),
   ],
   providers: [
     {
@@ -106,6 +109,7 @@ import { NotificationService } from './notification-service.service';
     },
     NotificationService,
     CustomLogger,
+    TaskService,
   ],
   controllers: [NotificationServiceController],
 })

@@ -11,6 +11,7 @@ import { PrismaClient } from '../generated/prisma';
 import { ProductProducer } from './producer/product.producer';
 import { UserServiceController } from './user-service.controller';
 import { UserService } from './user-service.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -50,7 +51,7 @@ import { UserService } from './user-service.service';
     }),
   ],
   controllers: [UserServiceController],
-  providers: [UserService, CustomLogger, UserService, ProductProducer],
+  providers: [UserService, CustomLogger, UserService, ProductProducer, PaginationService],
   exports: [],
 })
 export class UserServiceModule {}

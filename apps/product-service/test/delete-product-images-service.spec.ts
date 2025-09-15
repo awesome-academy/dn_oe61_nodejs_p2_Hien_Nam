@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { NOTIFICATION_SERVICE } from '@app/common';
 import { I18nService } from 'nestjs-i18n';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 interface MockProductImage {
   id: number;
@@ -75,6 +76,11 @@ describe('ProductService - deleteProductImages', () => {
   const mockProductProducer = {
     addJobRetryPayment: jest.fn(),
   };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -106,6 +112,10 @@ describe('ProductService - deleteProductImages', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

@@ -17,6 +17,7 @@ import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
 import { NOTIFICATION_SERVICE } from '@app/common';
 import { PaginationService } from '@app/common/shared/pagination.shared';
+import { CacheService } from '@app/common/cache/cache.service';
 
 jest.mock('@app/common/utils/prisma-client-error', () => ({
   handleServiceError: jest.fn(),
@@ -60,6 +61,13 @@ describe('ProductService - rejectOrder', () => {
   const mockNotificationClient = {
     emit: jest.fn(),
   };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn(),
+    getOrSet: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -93,6 +101,10 @@ describe('ProductService - rejectOrder', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -159,6 +171,12 @@ describe('ProductService - rejectOrder', () => {
         .spyOn(prismaService.client.order, 'findUnique')
         .mockResolvedValue(null);
 
+      const cacheGetOrSetSpy = jest
+        .spyOn(mockCacheService, 'getOrSet')
+        .mockImplementation(async (key, callback) => {
+          return await callback();
+        });
+
       await expect(service.rejectOrder(mockRejectOrderRequest)).rejects.toThrow(
         new TypedRpcException({
           code: HTTP_ERROR_CODE.NOT_FOUND,
@@ -171,6 +189,7 @@ describe('ProductService - rejectOrder', () => {
         include: expect.any(Object),
       });
       expect(orderFindUniqueSpy).toHaveBeenCalledTimes(1);
+      expect(cacheGetOrSetSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should return unchanged status when order already cancelled', async () => {
@@ -178,7 +197,7 @@ describe('ProductService - rejectOrder', () => {
         ...mockOrderDetail,
         status: OrderStatus.CANCELLED,
       };
-      mockPrismaService.client.order.findUnique.mockResolvedValue(cancelledOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(cancelledOrder);
       const result = await service.rejectOrder(mockRejectOrderRequest);
       expect(result.statusKey).toBe(StatusKey.UNCHANGED);
       expect(result.data!.status).toBe(REJECT_ORDER_STATUS.UNCHANGED);
@@ -186,8 +205,8 @@ describe('ProductService - rejectOrder', () => {
       expect(result.data!.orderId).toBe(cancelledOrder.id);
     });
 
-    it('should successfully reject cash payment order', async () => {
-      mockPrismaService.client.order.findUnique.mockResolvedValue(mockOrderDetail);
+    it('should successfully reject cash order', async () => {
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
       const transactionSpy = jest
         .spyOn(prismaService.client, '$transaction')
         .mockImplementation(
@@ -227,7 +246,8 @@ describe('ProductService - rejectOrder', () => {
         paymentStatus: PaymentStatus.PAID,
         paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
       };
-      mockPrismaService.client.order.findUnique.mockResolvedValue(bankTransferOrder);
+
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(bankTransferOrder);
       const data: PayOSPayoutPaymentResponseDto = {
         desc: '113',
         data: {
@@ -284,7 +304,7 @@ describe('ProductService - rejectOrder', () => {
         paymentMethod: 'UNSUPPORTED_METHOD' as PaymentMethodEnum,
       };
 
-      mockPrismaService.client.order.findUnique.mockResolvedValue(unsupportedOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(unsupportedOrder);
 
       await expect(service.rejectOrder(mockRejectOrderRequest)).rejects.toThrow(
         new TypedRpcException({
@@ -295,7 +315,7 @@ describe('ProductService - rejectOrder', () => {
     });
 
     it('should handle transaction error for cash payment', async () => {
-      mockPrismaService.client.order.findUnique.mockResolvedValue(mockOrderDetail);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrderDetail);
       const transactionError = new Error('Transaction failed');
       const transactionSpy = jest
         .spyOn(prismaService.client, '$transaction')
@@ -323,7 +343,7 @@ describe('ProductService - rejectOrder', () => {
         paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
       };
 
-      mockPrismaService.client.order.findUnique.mockResolvedValue(bankTransferOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(bankTransferOrder);
       const payoutError = new Error('Payout creation failed');
       const createPayoutOrderSpy = jest
         .spyOn(service, 'createPayoutOrder')
