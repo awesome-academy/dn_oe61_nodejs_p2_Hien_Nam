@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { plainToInstance } from 'class-transformer';
 import { ConfigService } from '@nestjs/config';
-import { ClientProxy } from '@nestjs/microservices';
 import { I18nService } from 'nestjs-i18n';
 import { PrismaService } from '@app/prisma';
 import { ProductService } from '../src/product-service.service';
@@ -11,8 +10,9 @@ import { TypedRpcException } from '@app/common/exceptions/rpc-exceptions';
 import { HTTP_ERROR_CODE } from '@app/common/enums/errors/http-error-code';
 import { CustomLogger } from '@app/common/logger/custom-logger.service';
 import { PaginationService } from '@app/common/shared/pagination.shared';
-import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 import { NOTIFICATION_SERVICE } from '@app/common';
+import { ProductProducer } from '../src/product.producer';
 
 // Mock class-transformer
 jest.mock('class-transformer', () => ({
@@ -34,10 +34,6 @@ describe('ProductService - createCategory', () => {
   };
   let mockLogger: jest.Mocked<CustomLogger>;
   let mockPaginationService: jest.Mocked<PaginationService>;
-  let mockConfigService: jest.Mocked<ConfigService>;
-  let mockI18nService: jest.Mocked<I18nService>;
-  let mockProductProducer: jest.Mocked<ProductProducer>;
-  let mockNotificationClient: jest.Mocked<ClientProxy>;
   let plainToInstanceMock: jest.MockedFunction<typeof plainToInstance>;
 
   const mockDate = new Date('2024-01-01T00:00:00Z');
@@ -81,25 +77,23 @@ describe('ProductService - createCategory', () => {
       paginate: jest.fn(),
       getPaginationMeta: jest.fn(),
     };
-
-    const mockConfig = {
-      get: jest.fn(),
-    };
-
-    const mockI18n = {
-      t: jest.fn(),
+    const mockI18nService = {
       translate: jest.fn(),
     };
-
-    const mockProducer = {
-      sendMessage: jest.fn(),
+    const mockConfigService = {
+      get: jest.fn(),
+    };
+    const mockNotificationClient = {
       emit: jest.fn(),
     };
-
-    const mockNotification = {
-      send: jest.fn(),
-      emit: jest.fn(),
+    const mockProductProducer = {
+      addJobRetryPayment: jest.fn(),
     };
+    const mockCacheService = {
+      get: jest.fn(),
+      set: jest.fn(),
+      delete: jest.fn(),
+    } as unknown as CacheService;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -118,19 +112,23 @@ describe('ProductService - createCategory', () => {
         },
         {
           provide: ConfigService,
-          useValue: mockConfig,
-        },
-        {
-          provide: I18nService,
-          useValue: mockI18n,
-        },
-        {
-          provide: ProductProducer,
-          useValue: mockProducer,
+          useValue: mockConfigService,
         },
         {
           provide: NOTIFICATION_SERVICE,
-          useValue: mockNotification,
+          useValue: mockNotificationClient,
+        },
+        {
+          provide: I18nService,
+          useValue: mockI18nService,
+        },
+        {
+          provide: ProductProducer,
+          useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -139,10 +137,6 @@ describe('ProductService - createCategory', () => {
     mockPrismaService = module.get(PrismaService);
     mockLogger = module.get(CustomLogger);
     mockPaginationService = module.get(PaginationService);
-    mockConfigService = module.get(ConfigService);
-    mockI18nService = module.get(I18nService);
-    mockProductProducer = module.get(ProductProducer);
-    mockNotificationClient = module.get(NOTIFICATION_SERVICE);
 
     // Suppress unused variable warnings
     void mockLogger;

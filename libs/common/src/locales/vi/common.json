@@ -167,6 +167,20 @@
       "rejectOrder":{
         "success":"Từ chối đơn hàng thành công",
         "failed":"Từ chối đơn hàng thất bại, vui lòng thử lại"
+
+      },
+      "getOrder":{
+        "success":"Lấy thông tin đơn hàng thành công",
+        "failed":"Lấy thông tin đơn hàng thất bại"
+      },
+      "confirmOrder":{
+        "success":"Xác nhận đơn hàng thành công",
+        "failed":"Xác nhận đơn hàng thất bại, vui lòng thử lại",
+        "unChanged":"Đơn hàng đã được xác nhận"
+      },
+      "getOrders":{
+        "success":"Lấy thông tin đơn hàng thành công",
+        "failed":"Lấy thông tin đơn hàng thất bại"
       }
     },
     "notification":{
@@ -187,16 +201,13 @@
           "createdAt": "Thời gian tạo",
           "viewOrder": "Xem đơn hàng"
         }
-      },
-      "action":{
-        "createOrder":{
-          "success":"Tạo đơn hàng thành công",
-          "failed":"Tạo đơn hàng thất bại, vui lòng thử lại"
-        }
+
       }
     }
   },
   "payment":{
+
+    "balanceNotEnough":"Số dư thanh toán không đủ",
     "action":{
       "retryPayment":{
         "success":"Tạo thông tin thanh toán thành công",
@@ -391,6 +402,10 @@
             "success": "Xóa tài khoản thành công",
             "failed": "Xóa tài khoản thất bại, vui lòng thử lại sau",
             "unChanged": "Không có tài khoản nào được xóa"
+          },
+          "getUsers": {
+            "success": "Lấy danh sách tài khoản thành công",
+            "failed": "Lấy danh sách tài khoản thất bại, vui lòng thử lại sau"
           }
         }
       },
@@ -404,6 +419,7 @@
         "dbSchema": "Lỗi lược đồ cơ sở dữ liệu",
         "unexpectedDbError": "Lỗi cơ sở dữ liệu không mong đợi",
         "unauthorized": "Bạn không có quyền truy cập",
+        "forbidden": "Bạn không có quyền truy cập",
         "validationError": "Lỗi xác thực dữ liệu",
         "createUser": {
           "error": "Tạo người dùng thất bại",

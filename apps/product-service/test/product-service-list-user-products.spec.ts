@@ -6,8 +6,6 @@ import { validateOrReject } from 'class-validator';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import { GetAllProductUserDto } from '@app/common/dto/product/get-all-product-user.dto';
-import { CustomLogger } from '@app/common/logger/custom-logger.service';
-import { PaginationService } from '@app/common/shared/pagination.shared';
 import { ProductWithIncludes } from '@app/common/types/product.type';
 import { PrismaService } from '@app/prisma';
 import { NOTIFICATION_SERVICE } from '@app/common';
@@ -38,7 +36,12 @@ jest.mock('class-validator', () => ({
   ValidateNested: () => () => {},
   Min: () => () => {},
   Max: () => () => {},
+  IsDate: () => () => {},
 }));
+
+import { CacheService } from '@app/common/cache/cache.service';
+import { CustomLogger } from '@app/common/logger/custom-logger.service';
+import { PaginationService } from '@app/common/shared/pagination.shared';
 
 const mockValidateOrReject = validateOrReject as jest.MockedFunction<typeof validateOrReject>;
 const mockPlainToInstance = plainToInstance as jest.MockedFunction<typeof plainToInstance>;
@@ -78,6 +81,11 @@ describe('ProductService - listProductsForUser', () => {
     warn: jest.fn(),
     debug: jest.fn(),
   };
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    delete: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -101,6 +109,10 @@ describe('ProductService - listProductsForUser', () => {
         {
           provide: NOTIFICATION_SERVICE,
           useValue: mockNotificationClient,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();

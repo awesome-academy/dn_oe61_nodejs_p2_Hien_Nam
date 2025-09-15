@@ -18,6 +18,7 @@ import { Order, Payment, PaymentMethod, PaymentStatus, PaymentType } from '../ge
 import { Decimal } from '../generated/prisma/runtime/library';
 import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 describe('ProductService - handleWebhookCallbackPayment', () => {
   let service: ProductService;
@@ -108,7 +109,13 @@ describe('ProductService - handleWebhookCallbackPayment', () => {
   const mockPrismaService = {
     client: mockPrismaClient,
   };
-
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    getOrSet: jest.fn(),
+    delete: jest.fn(),
+    deleteByPattern: jest.fn(),
+  } as unknown as CacheService;
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -142,6 +149,10 @@ describe('ProductService - handleWebhookCallbackPayment', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -270,7 +281,7 @@ describe('ProductService - handleWebhookCallbackPayment', () => {
 
     it('should throw TypedRpcException when order not found', async () => {
       // Arrange
-      mockPrismaClient.order.findUnique.mockResolvedValue(null);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(null);
       const rpcError = {
         code: HTTP_ERROR_CODE.NOT_FOUND,
         message: 'common.order.notFound',
@@ -281,14 +292,11 @@ describe('ProductService - handleWebhookCallbackPayment', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
-      expect(mockPrismaClient.order.findUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
-      });
     });
 
     it('should successfully process payment and return order and payment details', async () => {
       // Arrange
-      mockPrismaClient.order.findUnique.mockResolvedValue(mockOrder);
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrder);
       mockPrismaClient.$transaction.mockImplementation(
         async <T>(callback: (tx: typeof mockPrismaClient) => Promise<T>): Promise<T> => {
           const mockTx = {
@@ -311,17 +319,13 @@ describe('ProductService - handleWebhookCallbackPayment', () => {
         paymentDetail: mockPayment,
       });
 
-      expect(mockPrismaClient.order.findUnique).toHaveBeenCalledWith({
-        where: { id: 1 },
-      });
-
       expect(mockPrismaClient.$transaction).toHaveBeenCalledWith(expect.any(Function));
     });
 
     it('should handle database transaction errors', async () => {
       // Arrange
+      (mockCacheService.getOrSet as jest.Mock).mockResolvedValue(mockOrder);
       const dbError = new Error('Database connection failed');
-      mockPrismaClient.order.findUnique.mockResolvedValue(mockOrder);
       mockPrismaClient.$transaction.mockRejectedValue(dbError);
       const handleServiceErrorSpy = jest.spyOn(handlePrismaClient, 'handleServiceError');
       // Act & Assert

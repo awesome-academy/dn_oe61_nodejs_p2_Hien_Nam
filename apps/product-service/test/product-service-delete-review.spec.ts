@@ -15,6 +15,7 @@ import { I18nService } from 'nestjs-i18n';
 import 'reflect-metadata';
 import { ProductService } from '../src/product-service.service';
 import { ProductProducer } from '../src/product.producer';
+import { CacheService } from '@app/common/cache/cache.service';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-return
 jest.mock('class-transformer', () => ({
@@ -43,6 +44,11 @@ const mockI18nService = {
 const mockProductProducer = {
   addJobRetryPayment: jest.fn(),
 };
+const mockCacheService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
+} as unknown as CacheService;
 describe('ProductService - deleteReview', () => {
   let service: ProductService;
   let loggerService: CustomLogger;
@@ -80,6 +86,10 @@ describe('ProductService - deleteReview', () => {
         {
           provide: ProductProducer,
           useValue: mockProductProducer,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
@@ -286,11 +296,14 @@ describe('ProductService - deleteReview', () => {
       const dbError = new Error('Database connection failed');
 
       mockPrismaClient.review.findFirst.mockRejectedValue(dbError);
-
-      await expect(service.deleteReview(deleteReviewData)).rejects.toThrow(
-        'Database connection failed',
-      );
-
+      try {
+        await service.deleteReview(deleteReviewData);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        const rpcError = (error as TypedRpcException).getError();
+        expect(rpcError.code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+        expect(rpcError.message).toBe('common.errors.internalServerError');
+      }
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(loggerService.error).toHaveBeenCalledWith(
         'DeleteReview',
@@ -322,6 +335,12 @@ describe('ProductService - deleteReview', () => {
       } catch (error) {
         assertRpcException(error, rpcError.code, rpcError);
       }
+      mockPrismaClient.review.update.mockRejectedValue(new TypedRpcException(rpcError));
+      try {
+        await service.deleteReview(deleteReviewData);
+      } catch (error) {
+        assertRpcException(error, rpcError.code, rpcError);
+      }
       try {
         await service.deleteReview(deleteReviewData);
       } catch (error) {
@@ -337,7 +356,13 @@ describe('ProductService - deleteReview', () => {
 
       mockPrismaClient.review.findFirst.mockRejectedValue(nonError);
 
-      await expect(service.deleteReview(deleteReviewData)).rejects.toBe(nonError);
+      try {
+        await service.deleteReview(deleteReviewData);
+      } catch (error) {
+        expect(error).toBeInstanceOf(TypedRpcException);
+        const rpcError = (error as TypedRpcException).getError();
+        expect(rpcError.code).toBe(HTTP_ERROR_CODE.INTERNAL_SERVER_ERROR);
+      }
 
       // eslint-disable-next-line @typescript-eslint/unbound-method
       expect(loggerService.error).toHaveBeenCalledWith('DeleteReview', 'String error', undefined);

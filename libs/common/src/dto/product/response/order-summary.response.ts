@@ -1,9 +1,13 @@
 import { OrderItemResponse } from './order-items.response';
-export class PaymentInfoResponse {
-  qrCodeUrl: string;
-  expiredAt: string;
+
+export class PaymentInfo {
+  id: number;
+  amount: number;
+  paymentStatus: string;
+  paymentType: string;
+  paidAt: Date;
 }
-export class OrderResponse {
+export class OrderSummaryResponse {
   id: number;
   userId: number;
   deliveryAddress: string;
@@ -13,6 +17,6 @@ export class OrderResponse {
   status: string;
   totalPrice: number;
   items: OrderItemResponse[];
-  paymentInfo?: PaymentInfoResponse;
+  paymentInfo: PaymentInfo[];
   createdAt: Date;
 }

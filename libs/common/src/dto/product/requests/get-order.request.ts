@@ -1,8 +1,9 @@
 import { MIN_NUMBER_ID } from '@app/common/constant/validation.constant';
-import { IsNotEmpty, IsNumber, Min } from 'class-validator';
+import { Role } from '@app/common/enums/roles/users.enum';
+import { IsEnum, IsNotEmpty, IsNumber, Min } from 'class-validator';
 import { i18nValidationMessage } from 'nestjs-i18n';
 
-export class RejectOrderRequest {
+export class GetOrderRequest {
   @IsNotEmpty({
     message: i18nValidationMessage('common.validation.isInt', {
       field: 'userId',
@@ -43,4 +44,15 @@ export class RejectOrderRequest {
     }),
   })
   orderId: number;
+  @IsNotEmpty({
+    message: i18nValidationMessage('common.validation.isNotEmpty', {
+      field: 'role',
+    }),
+  })
+  @IsEnum(Role, {
+    message: i18nValidationMessage('common.validation.isEnum', {
+      field: 'role',
+    }),
+  })
+  role: Role;
 }
